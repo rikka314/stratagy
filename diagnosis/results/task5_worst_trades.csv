@@ -1,0 +1,11 @@
+entry_date,exit_date,holding_days,pnl_pct,entry_price,exit_price,entry_position,market_state,exit_type,exit_reasons
+2015-07-20,2015-07-22,2,-0.0712449881772385,24.3175,22.585,1.0,震荡市,stop_loss,factor_score_drop;stop_loss
+2023-08-31,2023-09-07,7,-0.0556214933103149,185.36,175.05,1.0,牛市,stop_loss,factor_score_drop;stop_loss
+2019-08-21,2019-08-23,2,-0.0530054065514682,47.165,44.665,1.0,牛市,stop_loss,factor_score_drop;stop_loss
+2011-04-26,2011-04-28,2,-0.0508829807878904,2.5765,2.4454,1.0,牛市,signal,strength_filter_fail
+2014-07-29,2014-07-31,2,-0.0450932684509326,15.4125,14.7175,1.0,牛市,signal,factor_score_drop;macd_dead
+2021-09-08,2021-09-10,2,-0.0407269832846908,150.76,144.62,1.0,牛市,stop_loss,factor_score_drop;macd_dead;stop_loss
+2013-10-25,2013-10-29,4,-0.0357755690096157,9.2661,8.9346,0.5,震荡市,signal,entry_score_fail;score_percentile_low
+2020-10-01,2020-10-02,1,-0.0337843892821938,111.59,107.82,0.5,牛市,signal,entry_score_fail
+2014-02-18,2014-02-19,1,-0.0300159836829151,10.1979,9.8918,1.0,牛市,signal,strength_filter_fail
+2016-09-16,2016-09-23,7,-0.0266843757546487,20.705,20.1525,1.0,牛市,signal,factor_score_drop
