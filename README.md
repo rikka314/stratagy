@@ -1,21 +1,159 @@
-# AAPL 策略 Web 应用
+# 📊 量化交易策略分析应用
 
-该应用通过 AkShare 下载 AAPL 日频数据，切分训练/测试集，绘制蜡烛图与 RSI/MACD，并在测试集上对比 MACD+RSI 策略与买入并持有。
+一个基于 Streamlit 的量化交易策略分析平台，支持多股票对比、技术指标分析、策略回测、贝叶斯参数优化等功能。
 
-## 安装
+## ✨ 功能特点
+
+- 📈 **股票数据管理**：从 AkShare 下载美股数据，支持多股票同时分析
+- 📊 **技术指标**：RSI、MACD、EMA、ATR、ADX、布林带、OBV 等常用指标
+- 🎯 **量化策略**：基于多因子评分的交易策略（10个因子）
+- 🔄 **策略回测**：模拟历史交易，评估策略表现
+- 🎲 **智能优化**：贝叶斯优化 / 随机搜索参数自动寻优
+- 📉 **可视化**：蜡烛图、技术指标图、权益曲线、相关性分析
+- 🔀 **多股对比**：同时分析多只股票，查看相关性
+
+## 🚀 快速启动（推荐）
+
+### ⚡ 一键启动
+
+#### macOS / Linux
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+# 双击运行
+启动应用.command
+
+# 或命令行运行
+chmod +x 启动应用.command
+./启动应用.command
 ```
 
-## 运行
+#### Windows
+```cmd
+REM 双击运行
+启动应用.bat
+```
+
+启动脚本会自动：
+- ✅ 检查 Python 环境
+- ✅ 安装缺失的依赖包
+- ✅ 启动应用
+- ✅ 显示访问地址
+
+---
+
+## 🔧 手动安装（可选）
+
+### 1. 环境检查
+
+运行环境检查脚本：
+```bash
+python3 check_environment.py
+```
+
+### 2. 安装依赖
+
+```bash
+# 方法1：使用 requirements.txt
+pip install -r requirements.txt
+
+# 方法2：使用国内镜像（推荐，更快）
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 方法3：逐个安装
+pip install streamlit akshare numpy pandas plotly optuna
+```
+
+### 3. 运行应用
+
 ```bash
 streamlit run app.py
 ```
 
-## 说明
-- 数据集保存于 `data/aapl_daily.csv`。
-- 初次下载需要联网访问 AkShare。
-- 可在侧边栏刷新数据。
-- 支持上传 CSV，列名包含 `open`、`close`、`high`、`low`、`volumn`/`volume`。
+应用将在浏览器中自动打开（默认地址：http://localhost:8501）
+
+---
+
+## 📋 系统要求
+
+- **Python**：3.8 或更高（推荐 3.10+）
+- **操作系统**：Windows 10+、macOS 10.14+、Linux (Ubuntu 18.04+)
+- **内存**：2GB+（推荐 4GB+）
+- **网络**：需要联网下载股票数据
+
+---
+
+## 📖 使用说明
+
+### 单股票策略分析
+
+1. 在侧边栏选择一只股票
+2. 调整策略参数（RSI、MACD、EMA 等）
+3. 查看蜡烛图、技术指标、因子评分
+4. 运行回测，查看策略表现
+5. 可选：使用"自动搜索参数"功能优化参数
+
+### 多股票对比分析
+
+1. 在侧边栏选择多只股票
+2. 查看归一化价格对比图
+3. 分析股票间的相关性
+4. 导出 HTML 报告
+
+### 数据管理
+
+- **添加股票**：在侧边栏输入股票代码（如 TSLA、NVDA）
+- **刷新数据**：点击"刷新所选股票数据"按钮更新数据
+- **上传 CSV**：支持上传自定义数据文件
+
+## 📁 项目结构
+
+```
+stratagy/
+├── app.py                  # 主应用程序（含详细注释）
+├── CODE_EXPLANATION.md     # 代码详细说明文档
+├── README.md              # 本文件
+├── requirements.txt       # Python 依赖
+├── data/                  # 股票数据存储目录
+│   ├── aapl_daily.csv
+│   ├── tsla_daily.csv
+│   └── ...
+└── .venv/                 # Python 虚拟环境
+```
+
+## 📚 学习资源
+
+- **代码注释**：`app.py` 文件包含超过 1000 行详细的中文注释
+- **说明文档**：`CODE_EXPLANATION.md` 提供了完整的代码讲解
+  - 技术指标原理
+  - 策略逻辑说明
+  - 回测机制
+  - 风险管理
+
+## 🔧 技术栈
+
+- **Streamlit**：Web 应用框架
+- **AkShare**：金融数据接口
+- **Pandas**：数据处理
+- **NumPy**：数值计算
+- **Plotly**：交互式图表
+
+## 📊 支持的技术指标
+
+- **RSI**（相对强弱指标）：超买超卖判断
+- **MACD**（指数平滑异同移动平均线）：趋势跟踪
+- **EMA**（指数移动平均线）：趋势方向
+- **ATR**（平均真实波幅）：波动率测量
+- **ADX**（平均趋向指标）：趋势强度
+
+## ⚠️ 免责声明
+
+本应用仅供学习和研究使用，不构成任何投资建议。量化交易存在风险，过去的表现不代表未来的结果。请谨慎决策，理性投资。
+
+## 📝 更新日志
+
+- **2026-02-04**：添加详细代码注释和说明文档，精简项目文件结构，优化 README 文档
+
+---
+
+**祝使用愉快！** 🚀
+
+如有问题或建议，欢迎提 Issue 或 Pull Request。
