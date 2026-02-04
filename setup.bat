@@ -14,7 +14,21 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Creating virtual environment...
+REM Check if venv exists and is valid
+if exist .venv\Scripts\python.exe (
+    echo Checking existing virtual environment...
+    .venv\Scripts\python.exe --version >nul 2>&1
+    if errorlevel 1 (
+        echo WARNING: Virtual environment is broken
+        echo Removing old virtual environment...
+        rmdir /s /q .venv
+    ) else (
+        echo Found valid virtual environment, removing to ensure clean setup...
+        rmdir /s /q .venv
+    )
+)
+
+echo Creating fresh virtual environment...
 python -m venv .venv
 
 echo.
