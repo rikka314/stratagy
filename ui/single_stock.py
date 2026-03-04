@@ -191,13 +191,20 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
     )
 
     # ── 蜡烛图 ──
-    candle = _build_candlestick_chart(train_df, symbol)
-    st.subheader("训练集：蜡烛图")
+    chart_scope = st.selectbox(
+        "K线图：",
+        ["数据集", "训练集"],
+        index=0,
+        key="candle_scope",
+    )
+    chart_df = df if chart_scope == "数据集" else train_df
+    candle = _build_candlestick_chart(chart_df, symbol)
+    st.subheader(f"{chart_scope}：蜡烛图")
     st.plotly_chart(candle, width="stretch")
 
     # ── RSI + MACD ──
-    ind_fig = _build_rsi_macd_chart(train_df, rsi_upper, rsi_lower)
-    st.subheader("训练集：RSI + MACD")
+    ind_fig = _build_rsi_macd_chart(chart_df, rsi_upper, rsi_lower)
+    st.subheader(f"{chart_scope}：RSI + MACD")
     st.plotly_chart(ind_fig, width="stretch")
 
     # ── 因子评分 ──

@@ -424,7 +424,7 @@ def render_sidebar() -> dict:
         entry_vote_threshold = 2.5
 
     # ── 组装并返回参数字典 ──
-    return {
+    result = {
         # UI 状态
         "compare_stocks": compare_stocks,
         "symbol": symbol,
@@ -479,3 +479,39 @@ def render_sidebar() -> dict:
         "use_voting_entry": use_voting_entry,
         "entry_vote_threshold": entry_vote_threshold,
     }
+
+    # ===== 反馈与建议 =====
+    with st.sidebar:
+        st.markdown("---")
+        with st.expander("💬 反馈与建议", expanded=False):
+            feedback_type = st.selectbox(
+                "类型",
+                ["🐛 Bug 报告", "💡 功能建议", "📝 其他反馈"],
+                key="feedback_type",
+            )
+            feedback_text = st.text_area(
+                "描述",
+                placeholder="请描述你遇到的问题或建议...",
+                height=120,
+                key="feedback_text",
+            )
+            if st.button("📤 提交反馈", key="submit_feedback", use_container_width=True):
+                if feedback_text.strip():
+                    # 构造 GitHub Issue URL（预填标题和正文）
+                    import urllib.parse
+                    type_label = feedback_type.split(" ", 1)[1]
+                    title = urllib.parse.quote(f"[{type_label}] 用户反馈")
+                    body = urllib.parse.quote(
+                        f"**类型**：{feedback_type}\n\n"
+                        f"**描述**：\n{feedback_text}\n\n"
+                        f"---\n*通过应用内反馈提交*"
+                    )
+                    issue_url = f"https://github.com/rikka314/stratagy/issues/new?title={title}&body={body}"
+                    st.success("✅ 感谢反馈！点击下方链接提交到 GitHub：")
+                    st.markdown(f"[📋 前往提交 Issue]({issue_url})")
+                else:
+                    st.warning("请先填写反馈内容")
+
+            st.caption("反馈将通过 [GitHub Issues](https://github.com/rikka314/stratagy/issues) 追踪")
+
+    return result
