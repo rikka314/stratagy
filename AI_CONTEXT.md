@@ -28,10 +28,20 @@ ui/                 # UI 界面模块（3个.py + __init__.py）
 └── __init__.py     #   统一导出
 requirements.txt
 AI_CONTEXT.md       # 本文件
+plan/               # 学期计划
+├── 金融学期总计划.md  #   8 周总排期
+└── week1.md        #   第 1 周详细计划
+document/           # 技术文档
+├── SCOPE_FREEZE.md          #   范围冻结文档（W1 Day1）
+├── MODULE_INTERFACES.md     #   模块接口梳理 + 依赖图（W1 Day2）
+├── TASK_BREAKDOWN.md        #   技术任务拆解表 + 评估指标 + UI 清单（W1）
+├── CODE_EXPLANATION.md      #   代码讲解文档（待后续按模块化重写）
+├── 项目结构.md               #   当前项目结构说明（云端部署版）
+├── archive/                 #   历史文档归档区（history/ + feature-notes/）
+└── presentation/            #   演示/汇报文稿
 data/               # 股票CSV数据缓存
 deploy/             # 部署脚本（deploy.sh, sync.bat等）
-scripts/            # 本地工具脚本（setup.bat, start.bat, check_environment.py等）
-document/           # 技术文档 + 更新日志 + 部署指南
+scripts/            # 辅助脚本（以部署/运维相关脚本为主）
 ```
 
 ## 代码地图
@@ -99,11 +109,11 @@ document/           # 技术文档 + 更新日志 + 部署指南
 | 函数 | 功能 |
 |------|------|
 | `evaluate_presets_for_optimization(...)` | 预评估3个预设策略，选最佳起点 |
-| `random_search_params(...)` | 随机搜索(含防过拟合：子验证集+正则化+gap惩罚) |
-| `bayesian_optimize_params(...)` | Optuna贝叶斯优化(含热启动+防过拟合) |
+| `random_search_params(...)` | 随机搜索(23参数全搜索+热启动+防过拟合) |
+| `bayesian_optimize_params(...)` | Optuna贝叶斯优化(热启动+防过拟合) |
 | `genetic_algorithm_optimize_params(...)` | 遗传算法(热启动+多核并行+精英保留) |
 
-三种方法均内置：训练集内部70/30拆分、目标函数=0.4×训练分+0.6×验证分-0.3×|gap|-L2正则化、progress_callback进度回调
+三种方法接口统一：均接收df_raw+内部调add_indicators、搜索23个参数、训练集内部70/30拆分、目标函数=0.4×训练分+0.6×验证分-0.3×|gap|-L2正则化、seed_params热启动、progress_callback进度回调、结果含_method标识
 
 ### core/utils.py — 工具函数
 | 函数 | 功能 |
@@ -158,35 +168,62 @@ document/           # 技术文档 + 更新日志 + 部署指南
   ```
 - 日志：`ssh stratagy "journalctl -u stratagy -n 50 --no-pager"`
 
-## 跨平台开发环境
+## 运行方式（云端优先）
 
-本项目支持在 **Windows** 和 **macOS** 两台机器上开发，通过 Git 同步代码。
+项目已从“本地安装后运行”切换为“云端服务直接访问”：
 
-### 已验证的能力
+- 默认使用方式：浏览器访问 `http://115.191.68.122:8501`
+- 代码更新方式：本地改代码后 `scp` 上传 + `systemctl restart` 重启服务
+- 维护方式：通过 `journalctl` 查看服务日志并回溯异常
 
-| 能力 | Windows | macOS |
-|------|---------|-------|
-| SSH 免密连接服务器 (`stratagy`) | ✅ | ✅ |
-| Git 推送 GitHub (HTTPS) | ✅ | ✅ |
-| 本地 Streamlit 运行 | ✅ | ✅ (`.venv/bin/streamlit run app.py`) |
-| scp 部署到服务器 | ✅ (`sync.bat`) | ✅ (手动 scp 或 `deploy/deploy.sh`) |
+## 文档维护状态（2026-03-18）
 
-### SSH 配置
+- `document/` 已完成一轮去冗余：旧本地安装/双击启动类文档已删除
+- 历史阶段性文档已迁移到 `document/archive/`，演示稿迁移到 `document/presentation/`
+- AI 协作入口统一为 `AI_CONTEXT.md`，不再单独维护 `document/AI_GUIDE.md`
 
-两台机器均已配置 `~/.ssh/config`，别名 `stratagy` 指向 `root@115.191.68.122:22`。
+## 多端协作
 
-- **Windows**: 密钥位于 `C:\Users\<用户>\.ssh\`
-- **macOS**: 密钥位于 `/Users/rikka/.ssh/id_ed25519`（ed25519）
+- Windows / macOS 都可作为开发端，通过 Git 同步代码
+- 两端都已配置 SSH 别名 `stratagy`，用于统一执行部署命令
+- 不再把“本地启动 Streamlit”作为主要交付路径，仅用于开发调试
 
-### 注意事项
-- Windows 部署脚本为 `.bat`（`deploy/sync.bat`），macOS 下请用 `scp`/`ssh` 命令或 shell 脚本
-- 两台机器代码通过 **Git (GitHub)** 保持同步，切换机器前先 `git pull`
-- Python 虚拟环境 `.venv/` 不跨平台，每台机器需各自创建
+## 多 AI 协作机制
+
+本项目使用多个 AI 工具协作，**Claude Pro 资源有限，优先用于高价值任务**。
+
+| 工具 | 定位 | 适合的任务类型 |
+|------|------|--------------|
+| **Claude Pro（你）** | 主力 + 架构师 | 多文件联动修改、复杂调试、架构决策、代码审查、需要理解完整项目上下文的任务 |
+| **云端 DeepSeek-v3.1** | 中文助手 | 中文文档撰写、方案讨论、技术调研问答、单文件代码生成 |
+| **GPT-5** | 补充验证 | 第二意见、模糊需求澄清、英文资料分析总结 |
+| **Gemini-3.1** | 长文档阅读 | 超长文档一次性分析、大量代码整体理解 |
+| **OpenClaw（本地 DeepSeek）** | 待启用 | 用户尚未熟悉，暂不分配任务 |
+
+### 协作原则
+
+1. **Claude 专注高价值任务**：只有需要跨文件理解上下文、或涉及架构判断时才用 Claude
+2. **能外包就外包**：单文件修改、文档写作、信息检索优先交给其他 AI
+3. **验证重要决策**：Claude 给出方案后，可用 GPT-5 做独立验证，降低单点误差
+4. **周计划分工**：每周任务通过 `/week-plan` skill 拆解，并标注每条子任务推荐的 AI 工具
+
+## 学期计划（8 周）
+
+本学期正在执行 8 周增强计划，详见 `plan/金融学期总计划.md`。
+
+核心交付：A 股接入 → 评估模块 → ML 信号过滤 → 新策略模式 → UI 优化 → 交付
+
+计划中将新增 3 个 core 模块：
+- `core/evaluation.py`（W3）：统一评估指标
+- `core/ml_filter.py`（W4）：ML 信号过滤（Logistic + LightGBM）
+- `core/strategy_modes.py`（W6）：轻量策略模式
+
+技术任务拆解详见 `document/TASK_BREAKDOWN.md`。
 
 ## 修改须知
 1. **模块化架构**：代码分布在 app.py + core/ + ui/ 中，修改前先定位目标模块
 2. 核心逻辑改 core/ 下对应文件，UI改 ui/ 下对应文件，入口/路由改 app.py
-3. 模块间依赖方向：config ← data ← indicators ← signals ← backtest ← optimizer
+3. 模块间数据流方向：data → indicators → signals → backtest（import级别：backtest和indicators互不依赖，均为叶子节点；optimizer内部完整调用管道）
 4. `render_sidebar()` 返回 dict，所有参数通过 dict 传递给页面函数
 5. 服务器内存4GiB，注意优化时资源
 6. 侧边栏只放通用控件，模式专属功能放右侧主区域
