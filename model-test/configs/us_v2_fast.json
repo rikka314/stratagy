@@ -1,0 +1,38 @@
+{
+  "name": "us_v2_fast",
+  "market": "US",
+  "adjust": "qfq",
+  "preset_name": "__balanced_default__",
+  "train_ratio": 0.7,
+  "parallelism": 0,
+  "output_subdir": "us_v2_fast",
+  "sample_data_dir": "data",
+  "catalog_path": "core/catalogs/us_stock_catalog.csv",
+  "smoke_mode": false,
+  "run_stage_b": true,
+  "run_robustness": false,
+  "main_window_days": 756,
+  "minimum_window_days": 252,
+  "allow_short_main_window": false,
+  "rolling_window_days": 504,
+  "rolling_step_days": 126,
+  "rolling_window_count": 3,
+  "robustness_weight": 0.4,
+  "robustness_top_n": 8,
+  "main_pool_size": 24,
+  "min_history_days": 750,
+  "profile_lookback_days": 252,
+  "min_avg_dollar_volume": 10000000,
+  "max_catalog_candidates": 500,
+  "search_trials": 120,
+  "ga_population_size": 12,
+  "ga_generations": 9,
+  "request_params_overrides": {
+    "hold_until_exit": true,
+    "hold_min_position": 0.2
+  },
+  "stage_b_request_overrides": {
+    "ml_horizon_days": 20,
+    "ml_min_excess_samples": 40
+  }
+}

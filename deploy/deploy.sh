@@ -30,12 +30,16 @@ echo -e "${YELLOW}[2/6] 创建项目目录...${NC}"
 APP_DIR="/opt/stratagy"
 mkdir -p ${APP_DIR}
 mkdir -p ${APP_DIR}/data
+mkdir -p ${APP_DIR}/model-test
 
 # 如果脚本在项目目录中运行，复制文件
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "${SCRIPT_DIR}")"
+APP_REAL_DIR="$(readlink -f "${APP_DIR}")"
+PARENT_REAL_DIR="$(readlink -f "${PARENT_DIR}")"
+SCRIPT_REAL_DIR="$(readlink -f "${SCRIPT_DIR}")"
 
-if [ -f "${PARENT_DIR}/app.py" ]; then
+if [ -f "${PARENT_DIR}/app.py" ] && [ "${PARENT_REAL_DIR}" != "${APP_REAL_DIR}" ]; then
     echo "从 ${PARENT_DIR} 复制项目文件..."
     cp -f "${PARENT_DIR}/app.py" ${APP_DIR}/
     cp -f "${PARENT_DIR}/requirements.txt" ${APP_DIR}/
@@ -44,7 +48,8 @@ if [ -f "${PARENT_DIR}/app.py" ]; then
     cp -rf "${PARENT_DIR}/core/"*.py ${APP_DIR}/core/ 2>/dev/null || true
     cp -rf "${PARENT_DIR}/ui/"*.py ${APP_DIR}/ui/ 2>/dev/null || true
     cp -rf "${PARENT_DIR}/data/"* ${APP_DIR}/data/ 2>/dev/null || true
-elif [ -f "${SCRIPT_DIR}/app.py" ]; then
+    cp -rf "${PARENT_DIR}/model-test/outputs" ${APP_DIR}/model-test/ 2>/dev/null || true
+elif [ -f "${SCRIPT_DIR}/app.py" ] && [ "${SCRIPT_REAL_DIR}" != "${APP_REAL_DIR}" ]; then
     echo "从 ${SCRIPT_DIR} 复制项目文件..."
     cp -f "${SCRIPT_DIR}/app.py" ${APP_DIR}/
     cp -f "${SCRIPT_DIR}/requirements.txt" ${APP_DIR}/
@@ -52,6 +57,7 @@ elif [ -f "${SCRIPT_DIR}/app.py" ]; then
     cp -rf "${SCRIPT_DIR}/core/"*.py ${APP_DIR}/core/ 2>/dev/null || true
     cp -rf "${SCRIPT_DIR}/ui/"*.py ${APP_DIR}/ui/ 2>/dev/null || true
     cp -rf "${SCRIPT_DIR}/data/"* ${APP_DIR}/data/ 2>/dev/null || true
+    cp -rf "${SCRIPT_DIR}/model-test/outputs" ${APP_DIR}/model-test/ 2>/dev/null || true
 else
     # 检查 /opt/stratagy 下是否已有文件
     if [ ! -f "${APP_DIR}/app.py" ]; then
@@ -90,16 +96,17 @@ cat > ${APP_DIR}/.streamlit/config.toml << 'EOF'
 address = "0.0.0.0"
 port = 8501
 headless = true
+baseUrlPath = "strategy"
 maxUploadSize = 50
 
 [browser]
 gatherUsageStats = false
 
 [theme]
-primaryColor = "#3498db"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f0f2f6"
-textColor = "#31333F"
+primaryColor = "#1a56a0"
+backgroundColor = "#f5f7fb"
+secondaryBackgroundColor = "#edf1f8"
+textColor = "#1e2a38"
 EOF
 
 echo -e "${GREEN}✓ Streamlit 配置完成${NC}"
@@ -154,7 +161,8 @@ echo ""
 # 获取公网 IP
 PUBLIC_IP=$(curl -s --connect-timeout 5 http://ifconfig.me 2>/dev/null || echo "115.191.68.122")
 
-echo -e "  📊 访问地址: ${GREEN}http://${PUBLIC_IP}:8501${NC}"
+echo -e "  📊 访问地址: ${GREEN}http://${PUBLIC_IP}:8501/strategy${NC}"
+echo -e "  Nginx subpath template: ${YELLOW}${APP_DIR}/deploy/nginx_strategy.conf${NC}"
 echo ""
 echo -e "  常用命令:"
 echo -e "    查看状态:  ${YELLOW}systemctl status stratagy${NC}"
@@ -166,4 +174,5 @@ echo -e "${RED}  ⚠️ 重要提醒：${NC}"
 echo -e "  请确保在火山引擎控制台的 ${YELLOW}安全组${NC} 中放通 ${YELLOW}8501${NC} 端口！"
 echo -e "  路径: 云服务器 → 安全组 → 入方向规则 → 添加规则"
 echo -e "  协议: TCP  端口: 8501  源地址: 0.0.0.0/0"
+echo -e "  如需接入 www.gfm156.com/strategy，请把 deploy/nginx_strategy.conf 合并到站点 Nginx 配置后再 reload nginx"
 echo ""

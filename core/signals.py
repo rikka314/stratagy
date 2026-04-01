@@ -7,7 +7,95 @@
 import numpy as np
 import pandas as pd
 
+from core.fa_filter import transform_fa
 from core.indicators import rolling_zscore, rolling_percentile, rolling_rank
+
+
+def _compute_manual_factor_score(
+    df: pd.DataFrame,
+    weight_mom_short: float,
+    weight_mom_long: float,
+    weight_macd: float,
+    weight_rsi: float,
+    weight_vol: float,
+    weight_bb: float,
+    weight_obv: float,
+    weight_volume: float,
+    weight_price: float,
+    weight_drawdown: float,
+) -> pd.Series:
+    return (
+        weight_mom_short * df["mom_short_z"]
+        + weight_mom_long * df["mom_long_z"]
+        + weight_macd * df["macd_z"]
+        + weight_rsi * df["rsi_z"]
+        - weight_vol * df["vol_z"]
+        + weight_bb * (df["bb_position_rank"] - 0.5) * 2
+        + weight_obv * (df["obv_trend_rank"] - 0.5) * 2
+        + weight_volume * (df["volume_ratio_rank"] - 0.5) * 2
+        + weight_price * (df["price_position_rank"] - 0.5) * 2
+        - weight_drawdown * (df["drawdown_rank"] - 0.5) * 2
+    )
+
+
+def _resolve_min_required_signals(configured_threshold: int, enabled_conditions: int) -> int:
+    threshold = max(0, int(configured_threshold))
+    return min(threshold, max(0, int(enabled_conditions)))
+
+
+def _score_position_from_percentile(
+    factor_percentile: pd.Series,
+    *,
+    score_mid_pct: float,
+    score_high_pct: float,
+) -> np.ndarray:
+    mid = float(score_mid_pct)
+    high = float(score_high_pct)
+    thresholds = [
+        high,
+        max(mid, high - 0.10),
+        mid,
+        max(0.0, mid - 0.10),
+        max(0.0, mid - 0.20),
+    ]
+    return np.select(
+        [
+            factor_percentile >= thresholds[0],
+            factor_percentile >= thresholds[1],
+            factor_percentile >= thresholds[2],
+            factor_percentile >= thresholds[3],
+            factor_percentile >= thresholds[4],
+        ],
+        [1.0, 0.8, 0.6, 0.4, 0.2],
+        default=0.0,
+    ).astype(float)
+
+
+def _apply_hold_until_exit_state(
+    *,
+    entry_ok: pd.Series,
+    exit_ok: pd.Series,
+    score_position: np.ndarray,
+    hold_floor: np.ndarray,
+) -> np.ndarray:
+    entry_array = entry_ok.fillna(False).to_numpy(dtype=bool)
+    exit_array = exit_ok.fillna(False).to_numpy(dtype=bool)
+    score_array = np.asarray(score_position, dtype=float)
+    hold_floor_array = np.asarray(hold_floor, dtype=float)
+
+    target_position = np.zeros(len(score_array), dtype=float)
+    current_position = 0.0
+
+    for idx in range(len(score_array)):
+        if current_position <= 0.0:
+            current_position = score_array[idx] if entry_array[idx] else 0.0
+        elif exit_array[idx]:
+            current_position = 0.0
+        else:
+            current_position = max(score_array[idx], hold_floor_array[idx])
+        target_position[idx] = current_position
+
+    return target_position
 
 
 def compute_signals(
@@ -45,6 +133,12 @@ def compute_signals(
     exit_min_signals: int = 2,
     # 入场信号计数阈值（0=使用旧逻辑，>0=计数制）
     entry_min_signals: int = 3,
+    # V2 持仓模式：入场看 entry，平仓看 exit
+    hold_until_exit: bool = False,
+    hold_min_position: float = 0.2,
+    # FSM 模式（使用训练好的 FA 模型替代手工因子加权）
+    fsm_mode: bool = False,
+    fa_model=None,
 ) -> pd.DataFrame:
     """
     计算交易信号和目标仓位（核心策略函数）
@@ -79,53 +173,66 @@ def compute_signals(
     df["drawdown_rank"] = rolling_rank(df["drawdown"], score_lookback)
     
     # ========== 步骤4：计算综合因子评分 ==========
-    df["factor_score"] = (
-        weight_mom_short * df["mom_short_z"]
-        + weight_mom_long * df["mom_long_z"]
-        + weight_macd * df["macd_z"]
-        + weight_rsi * df["rsi_z"]
-        - weight_vol * df["vol_z"]
-        + weight_bb * (df["bb_position_rank"] - 0.5) * 2
-        + weight_obv * (df["obv_trend_rank"] - 0.5) * 2
-        + weight_volume * (df["volume_ratio_rank"] - 0.5) * 2
-        + weight_price * (df["price_position_rank"] - 0.5) * 2
-        - weight_drawdown * (df["drawdown_rank"] - 0.5) * 2
-    )
+    if fsm_mode:
+        if fa_model is None:
+            raise ValueError("fsm_mode=True 时必须提供 fa_model")
+        df["factor_score"] = transform_fa(fa_model, df)
+    else:
+        df["factor_score"] = _compute_manual_factor_score(
+            df,
+            weight_mom_short=weight_mom_short,
+            weight_mom_long=weight_mom_long,
+            weight_macd=weight_macd,
+            weight_rsi=weight_rsi,
+            weight_vol=weight_vol,
+            weight_bb=weight_bb,
+            weight_obv=weight_obv,
+            weight_volume=weight_volume,
+            weight_price=weight_price,
+            weight_drawdown=weight_drawdown,
+        )
     df["factor_score"] = df["factor_score"].fillna(0.0)
     
     # ========== 步骤5：因子评分分位数 ==========
     df["factor_percentile"] = rolling_percentile(df["factor_score"], score_lookback).fillna(0.0)
     
-    # ========== 步骤6：7档仓位管理 ==========
-    score_position = np.select(
-        [
-            df["factor_percentile"] >= 0.80,
-            df["factor_percentile"] >= 0.65,
-            df["factor_percentile"] >= 0.55,
-            df["factor_percentile"] >= 0.45,
-            df["factor_percentile"] >= 0.35,
-        ],
-        [1.0, 0.8, 0.6, 0.4, 0.2],
-        default=0.0
+    # ========== 步骤6：仓位分层 ==========
+    score_position = _score_position_from_percentile(
+        df["factor_percentile"],
+        score_mid_pct=score_mid_pct,
+        score_high_pct=score_high_pct,
     )
     
     # 波动率调整
     volatility_percentile = rolling_percentile(df["volatility"], score_lookback).fillna(0.5)
     vol_adjustment = np.where(volatility_percentile > 0.8, 0.7, 1.0)
-    score_position = score_position * vol_adjustment
+    score_position = np.asarray(score_position, dtype=float) * np.asarray(vol_adjustment, dtype=float)
     
     # ========== 步骤7：入场过滤 ==========
     macd_above = df["macd"] > df["signal"]
-    
+    df["macd_above"] = macd_above
+
+    entry_count = pd.Series(0, index=df.index, dtype=int)
+    enabled_entry_conditions = 1
+    entry_count += (df["factor_score"] >= entry_threshold).astype(int)
+    if use_trend_filter:
+        entry_count += df["trend_ok"].astype(int)
+        enabled_entry_conditions += 1
+    if use_strength_filter:
+        entry_count += df["strength_ok"].astype(int)
+        enabled_entry_conditions += 1
+    if use_rsi_filter:
+        entry_count += df["rsi_ok"].astype(int)
+        enabled_entry_conditions += 1
+    if use_macd_filter:
+        entry_count += macd_above.astype(int)
+        enabled_entry_conditions += 1
+    df["entry_count"] = entry_count
+
     if entry_min_signals > 0:
         # 计数制入场
-        entry_count = pd.Series(0, index=df.index, dtype=int)
-        entry_count += (df["factor_score"] >= entry_threshold).astype(int)
-        entry_count += df["trend_ok"].astype(int)
-        entry_count += df["strength_ok"].astype(int)
-        entry_count += df["rsi_ok"].astype(int)
-        entry_count += macd_above.astype(int)
-        filter_ok = entry_count >= entry_min_signals
+        entry_required = _resolve_min_required_signals(entry_min_signals, enabled_entry_conditions)
+        filter_ok = entry_count >= entry_required
     
     elif use_voting_entry:
         # 评分制入场
@@ -160,23 +267,42 @@ def compute_signals(
         else:
             filter_ok = pd.Series([True] * len(df), index=df.index)
     
-    df["target_position"] = np.where(filter_ok, score_position, 0.0)
-    
     # ========== 步骤8：出场条件（计数制）==========
     exit_count = pd.Series(0, index=df.index, dtype=int)
+    enabled_exit_conditions = 1
     exit_count += (df["factor_score"] <= exit_threshold).astype(int)
     if use_trend_filter:
         exit_count += (df["ema_fast"] < df["ema_slow"]).astype(int)
+        enabled_exit_conditions += 1
     if use_rsi_filter:
         exit_count += ((df["rsi"] > rsi_upper) | (df["rsi"] < rsi_lower)).astype(int)
+        enabled_exit_conditions += 1
     if use_macd_filter:
         exit_count += (df["macd"] < df["signal"]).astype(int)
-    
-    exit_block = exit_count >= exit_min_signals
-    df.loc[exit_block, "target_position"] = 0.0
+        enabled_exit_conditions += 1
+    df["exit_count"] = exit_count
+
+    exit_required = _resolve_min_required_signals(exit_min_signals, enabled_exit_conditions)
+    exit_ok = exit_count >= exit_required
+
+    if hold_until_exit:
+        hold_floor = max(0.0, float(hold_min_position)) * np.asarray(vol_adjustment, dtype=float)
+        df["target_position"] = _apply_hold_until_exit_state(
+            entry_ok=filter_ok,
+            exit_ok=exit_ok,
+            score_position=score_position,
+            hold_floor=hold_floor,
+        )
+    else:
+        df["target_position"] = np.where(filter_ok, score_position, 0.0)
+        df.loc[exit_ok, "target_position"] = 0.0
     
     # ========== 步骤9：生成买卖信号 ==========
-    df["buy_signal"] = (df["target_position"] > 0) & (df["target_position"].shift(1) <= 0)
-    df["sell_signal"] = (df["target_position"] <= 0) & (df["target_position"].shift(1) > 0)
+    prev_position = df["target_position"].shift(1)
+    if len(prev_position) > 0:
+        prev_position.iloc[0] = df["target_position"].iloc[0]
+    prev_position = prev_position.fillna(0.0)
+    df["buy_signal"] = (df["target_position"] > 0) & (prev_position <= 0)
+    df["sell_signal"] = (df["target_position"] <= 0) & (prev_position > 0)
     
     return df

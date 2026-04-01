@@ -1,36 +1,89 @@
 @echo off
-chcp 65001 >nul
-:: ================================================
-:: 一键同步本地代码到服务器并重启
-:: 用法: 双击运行，或命令行: sync.bat
-:: ================================================
+setlocal EnableExtensions
 
-set SERVER=stratagy
-set REMOTE_DIR=/opt/stratagy
+set "SERVER=stratagy"
+set "REMOTE_DIR=/opt/stratagy"
+set "SCRIPT_DIR=%~dp0"
 
-echo [同步] 正在上传代码到服务器...
+if /I "%~1"=="--dry-run" (
+    set "DRY_RUN=1"
+) else (
+    set "DRY_RUN=0"
+)
 
-:: 获取项目根目录
-for %%I in ("%~dp0\..") do set PROJECT_DIR=%%~fI
+for %%I in ("%SCRIPT_DIR%\..") do set "PROJECT_DIR=%%~fI"
 
-:: 上传核心文件
-scp "%PROJECT_DIR%\app.py" %SERVER%:%REMOTE_DIR%/
-scp "%PROJECT_DIR%\requirements.txt" %SERVER%:%REMOTE_DIR%/
+call :require_tool ssh || exit /b 1
+call :require_tool scp || exit /b 1
 
-:: 上传模块化代码
-echo [同步] 上传 core/ 模块...
-ssh %SERVER% "mkdir -p %REMOTE_DIR%/core %REMOTE_DIR%/ui"
-scp "%PROJECT_DIR%\core\*.py" %SERVER%:%REMOTE_DIR%/core/
-echo [同步] 上传 ui/ 模块...
-scp "%PROJECT_DIR%\ui\*.py" %SERVER%:%REMOTE_DIR%/ui/
+call :require_file "%PROJECT_DIR%\app.py" || exit /b 1
+call :require_file "%PROJECT_DIR%\requirements.txt" || exit /b 1
+call :require_file "%PROJECT_DIR%\.streamlit\config.toml" || exit /b 1
+call :require_file "%PROJECT_DIR%\deploy\nginx_strategy.conf" || exit /b 1
 
-:: 上传数据文件（如有更新）
-scp "%PROJECT_DIR%\data\*.csv" %SERVER%:%REMOTE_DIR%/data/
+echo [sync] project: %PROJECT_DIR%
+echo [sync] server:  %SERVER%
+echo [sync] remote:  %REMOTE_DIR%
+if "%DRY_RUN%"=="1" echo [sync] dry-run enabled
+echo.
 
-:: 重启服务
-echo [重启] 正在重启 Streamlit 服务...
-ssh %SERVER% "systemctl restart stratagy && sleep 2 && systemctl is-active stratagy"
+call :run ssh %SERVER% "mkdir -p %REMOTE_DIR% %REMOTE_DIR%/core %REMOTE_DIR%/core/catalogs %REMOTE_DIR%/ui %REMOTE_DIR%/.streamlit %REMOTE_DIR%/deploy %REMOTE_DIR%/data %REMOTE_DIR%/model-test %REMOTE_DIR%/model-test/outputs" || exit /b 1
+
+call :run scp "%PROJECT_DIR%\app.py" "%PROJECT_DIR%\requirements.txt" %SERVER%:%REMOTE_DIR%/ || exit /b 1
+call :run scp "%PROJECT_DIR%\core\*.py" %SERVER%:%REMOTE_DIR%/core/ || exit /b 1
+call :run scp "%PROJECT_DIR%\ui\*.py" %SERVER%:%REMOTE_DIR%/ui/ || exit /b 1
+call :run scp "%PROJECT_DIR%\.streamlit\config.toml" %SERVER%:%REMOTE_DIR%/.streamlit/ || exit /b 1
+call :run scp "%PROJECT_DIR%\deploy\deploy.sh" "%PROJECT_DIR%\deploy\fix_config.sh" "%PROJECT_DIR%\deploy\nginx_strategy.conf" %SERVER%:%REMOTE_DIR%/deploy/ || exit /b 1
+
+if exist "%PROJECT_DIR%\core\catalogs\*.csv" (
+    call :run scp "%PROJECT_DIR%\core\catalogs\*.csv" %SERVER%:%REMOTE_DIR%/core/catalogs/ || exit /b 1
+)
+
+if exist "%PROJECT_DIR%\data\*.csv" (
+    call :run scp "%PROJECT_DIR%\data\*.csv" %SERVER%:%REMOTE_DIR%/data/ || exit /b 1
+)
+
+if exist "%PROJECT_DIR%\model-test\outputs" (
+    call :sync_model_outputs || exit /b 1
+)
+
+call :run ssh %SERVER% "systemctl restart stratagy && sleep 2 && systemctl is-active stratagy" || exit /b 1
 
 echo.
-echo ✅ 同步完成！访问: http://115.191.68.122:8501
-pause
+echo [done] sync complete
+echo [done] app url: https://www.gfm156.com/strategy
+echo [done] nginx template: %REMOTE_DIR%/deploy/nginx_strategy.conf
+exit /b 0
+
+:sync_model_outputs
+for /D %%D in ("%PROJECT_DIR%\model-test\outputs\*") do (
+    if exist "%%~fD\report.json" (
+        call :run scp -r "%%~fD" %SERVER%:%REMOTE_DIR%/model-test/outputs/ || exit /b 1
+    )
+)
+exit /b 0
+
+:require_tool
+where %~1 >nul 2>nul
+if errorlevel 1 (
+    echo [error] missing tool: %~1
+    exit /b 1
+)
+exit /b 0
+
+:require_file
+if not exist "%~1" (
+    echo [error] missing file: %~1
+    exit /b 1
+)
+exit /b 0
+
+:run
+echo [run] %*
+if "%DRY_RUN%"=="1" exit /b 0
+%*
+if errorlevel 1 (
+    echo [error] command failed
+    exit /b 1
+)
+exit /b 0

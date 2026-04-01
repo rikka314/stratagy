@@ -1,0 +1,12 @@
+---
+description: Always load the project context file before working in this repository.
+alwaysApply: true
+---
+
+# AI Context Rule
+
+Always include and follow `@AI_CONTEXT.md` before answering questions, planning work, reviewing code, or editing files in this repository.
+
+Treat `AI_CONTEXT.md` as the canonical project context for architecture, deployment, documentation status, and collaboration conventions.
+
+If `AI_CONTEXT.md` conflicts with another repository document, prefer `AI_CONTEXT.md` unless the user provides newer instructions in the current conversation.

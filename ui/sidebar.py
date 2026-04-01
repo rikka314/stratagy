@@ -5,18 +5,114 @@
 """
 
 import os
+import re
 from datetime import date as _date, timedelta as _timedelta
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+try:
+    from st_keyup import st_keyup
+except ImportError:  # pragma: no cover - fallback for environments without the component
+    st_keyup = None
 
-from core.config import DATA_DIR, DEFAULT_SYMBOL, STRATEGY_PRESETS
-from core.data import fetch_data, load_csv
+from core.config import DATA_DIR, DEFAULT_A_STOCKS, DEFAULT_SYMBOL, STRATEGY_PRESETS
+from core.data import (
+    fetch_a_stock,
+    fetch_data,
+    get_stock_label_map,
+    load_csv,
+    search_stock_candidates,
+)
 from core.utils import load_or_fetch_stock, get_available_stocks
 
 
-def render_sidebar() -> dict:
+def _render_live_search_input(market: str) -> str:
+    """渲染支持 keyup 的搜索输入框；缺少组件时回退到原生输入框。"""
+    label = "搜索股票名称或代码"
+    placeholder = "例如: TSLA / Apple / 贵州茅台 / 600519"
+    key = f"new_symbol_input_{market}"
+
+    if st_keyup is not None:
+        value = st_keyup(
+            label,
+            key=key,
+            debounce=250,
+            placeholder=placeholder,
+        )
+    else:
+        value = st.text_input(
+            label,
+            placeholder=placeholder,
+            key=key,
+        )
+
+    return str(value or "").strip()
+
+
+@st.fragment
+def _render_stock_search_fragment(market: str, adjust: str, available_stocks: tuple[str, ...]) -> None:
+    """渲染搜索与添加股票区域，输入时仅局部刷新。"""
+    resolved_symbol = ""
+    selected_stock_label = ""
+    search_query = _render_live_search_input(market)
+
+    matched_candidates = pd.DataFrame(columns=["symbol", "name", "label"])
+    candidate_label_map: dict[str, str] = {}
+
+    if search_query:
+        try:
+            matched_candidates = search_stock_candidates(search_query, market=market, limit=8)
+            candidate_label_map = {
+                row.symbol: row.label for row in matched_candidates.itertuples(index=False)
+            }
+        except Exception as exc:
+            st.warning(f"{'A 股' if market == 'A' else '美股'}搜索索引加载失败：{exc}")
+
+        if not matched_candidates.empty:
+            resolved_symbol = st.radio(
+                "匹配结果",
+                options=matched_candidates["symbol"].tolist(),
+                format_func=lambda symbol: candidate_label_map.get(symbol, symbol),
+                index=0,
+                label_visibility="collapsed",
+            )
+            selected_stock_label = candidate_label_map.get(resolved_symbol, resolved_symbol)
+        elif market == "A" and re.fullmatch(r"\d{6}", search_query):
+            resolved_symbol = search_query
+            selected_stock_label = search_query
+            st.caption("未找到名称索引匹配，将直接按该代码尝试下载。")
+        elif market == "US":
+            resolved_symbol = search_query.upper()
+            selected_stock_label = resolved_symbol
+            st.caption("未找到名称索引匹配，将直接按该代码尝试下载。")
+        else:
+            st.info("未找到匹配的股票，请尝试更完整的名称或直接输入代码。")
+
+    add_stock_btn = st.button("添加到股票列表", width="stretch", key=f"add_stock_{market}")
+
+    if add_stock_btn:
+        if market == "US" and not resolved_symbol:
+            st.warning("请输入美股代码后再添加。")
+        elif market == "A" and not resolved_symbol:
+            st.warning("请先输入 A 股名称或代码，并从候选结果中选择。")
+        elif resolved_symbol not in available_stocks:
+            with st.spinner(f"正在下载 {selected_stock_label or resolved_symbol} 数据..."):
+                new_df = load_or_fetch_stock(resolved_symbol, adjust, market=market)
+                if new_df is not None:
+                    st.success(f"✓ {selected_stock_label or resolved_symbol} 添加成功")
+                    st.session_state[f"new_symbol_input_{market}"] = ""
+                    st.rerun()
+        else:
+            st.info(f"✓ {selected_stock_label or resolved_symbol} 已在数据库中")
+
+
+def render_sidebar(
+    *,
+    initial_market: str | None = None,
+    initial_symbols: list[str] | None = None,
+    route_seed_token: str | None = None,
+) -> dict:
     """
     渲染侧边栏全部控件，返回包含所有参数的字典。
 
@@ -29,7 +125,31 @@ def render_sidebar() -> dict:
         - strategy_preset（当前选择的预设名称）
     """
     with st.sidebar:
+        if route_seed_token is not None and st.session_state.get("_sidebar_route_seed_token") != route_seed_token:
+            if initial_market is not None:
+                st.session_state["sidebar_market"] = initial_market
+            if initial_symbols is not None:
+                market_key = str(initial_market or st.session_state.get("sidebar_market", "US")).strip().upper()
+                selector_key = f"compare_stocks_selector_{market_key}"
+                st.session_state[selector_key] = list(dict.fromkeys(initial_symbols))
+            st.session_state["_sidebar_route_seed_token"] = route_seed_token
+
+        # W5 起参数搜索结果不再默认回写侧边栏，清理旧版会话残留键。
+        st.session_state.pop("best_params", None)
+        st.session_state.pop("apply_best_params", None)
+
         st.header("📊 控制面板")
+
+        market = st.radio(
+            "市场选择",
+            options=["US", "A"],
+            index=0,
+            format_func=lambda x: "美股" if x == "US" else "A 股",
+            horizontal=True,
+            help="切换后将使用对应市场的默认股票池和数据下载路径。",
+            key="sidebar_market",
+        )
+        st.session_state["market"] = market
 
         # ===== 日期选择 =====
         st.subheader("📅 时间范围")
@@ -41,6 +161,7 @@ def render_sidebar() -> dict:
             min_value=_date(2015, 1, 1),
             max_value=_date.today(),
             help="选择回测数据的起止日期",
+            key="sidebar_selected_range",
         )
 
         # ===== 股票选择 =====
@@ -52,34 +173,18 @@ def render_sidebar() -> dict:
             options=["qfq", "hfq", "none"],
             index=0,
             help="影响数据下载的复权方式。",
+            key="sidebar_adjust",
         )
         st.session_state["adjust"] = adjust
 
-        available_stocks = get_available_stocks()
+        available_stocks = get_available_stocks(market=market)
+        if initial_symbols is not None:
+            available_stocks = list(dict.fromkeys([*initial_symbols, *available_stocks]))
+        stock_label_map = get_stock_label_map(available_stocks, market=market)
 
         # 添加新股票 / 上传 CSV
         with st.expander("➕ 添加股票 / 上传数据", expanded=False):
-            new_symbol = (
-                st.text_input(
-                    "输入股票代码",
-                    placeholder="例如: TSLA, NVDA, MSFT",
-                    help="输入股票代码后点击添加",
-                )
-                .upper()
-                .strip()
-            )
-
-            add_stock_btn = st.button("添加到股票列表", width="stretch")
-
-            if add_stock_btn and new_symbol:
-                if new_symbol not in available_stocks:
-                    with st.spinner(f"正在下载 {new_symbol} 数据..."):
-                        new_df = load_or_fetch_stock(new_symbol, adjust)
-                        if new_df is not None:
-                            available_stocks = get_available_stocks()
-                            st.success(f"✓ {new_symbol} 添加成功")
-                else:
-                    st.info(f"✓ {new_symbol} 已在数据库中")
+            _render_stock_search_fragment(market, adjust, tuple(available_stocks))
 
             st.markdown("---")
 
@@ -98,11 +203,13 @@ def render_sidebar() -> dict:
                 "选择股票",
                 options=available_stocks,
                 default=[available_stocks[0]] if available_stocks else [],
+                format_func=lambda symbol: stock_label_map.get(symbol, symbol),
                 help="选择一只股票进行策略分析，或多只股票进行对比分析",
-                key="compare_stocks_selector",
+                key=f"compare_stocks_selector_{market}",
             )
             if len(compare_stocks) == 1:
-                st.info(f"✓ 将分析 {compare_stocks[0]} 的交易策略")
+                selected_stock_label = stock_label_map.get(compare_stocks[0], compare_stocks[0])
+                st.info(f"✓ 将分析 {selected_stock_label} 的交易策略")
             elif len(compare_stocks) > 1:
                 st.info(f"✓ 已选择 {len(compare_stocks)} 只股票进行对比")
         else:
@@ -117,7 +224,14 @@ def render_sidebar() -> dict:
 
                     for stock_symbol in compare_stocks:
                         try:
-                            df_temp = fetch_data(stock_symbol, adjust)
+                            if market == "A":
+                                df_temp = fetch_a_stock(stock_symbol, adjust)
+                            else:
+                                df_temp = fetch_data(stock_symbol, adjust)
+
+                            if df_temp is None or df_temp.empty:
+                                raise ValueError("未获取到有效数据")
+
                             os.makedirs(DATA_DIR, exist_ok=True)
                             cache_path = os.path.join(
                                 DATA_DIR, f"{stock_symbol.lower()}_daily.csv"
@@ -145,12 +259,8 @@ def render_sidebar() -> dict:
                     st.rerun()
 
         st.session_state["compare_stocks"] = compare_stocks
-        symbol = compare_stocks[0] if compare_stocks else DEFAULT_SYMBOL
-
-        # 检测股票切换，清除旧的搜索结果
-        if st.session_state.get("_last_symbol") != symbol:
-            st.session_state["_last_symbol"] = symbol
-            st.session_state.pop("best_params", None)
+        default_symbol = DEFAULT_SYMBOL if market == "US" else DEFAULT_A_STOCKS[0]
+        symbol = compare_stocks[0] if compare_stocks else default_symbol
 
         st.markdown("---")
 
@@ -426,6 +536,7 @@ def render_sidebar() -> dict:
     # ── 组装并返回参数字典 ──
     result = {
         # UI 状态
+        "market": market,
         "compare_stocks": compare_stocks,
         "symbol": symbol,
         "adjust": adjust,

@@ -1,0 +1,15 @@
+[server]
+address = "0.0.0.0"
+port = 8501
+headless = true
+baseUrlPath = "strategy"
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#1a56a0"
+backgroundColor = "#f5f7fb"
+secondaryBackgroundColor = "#edf1f8"
+textColor = "#1e2a38"

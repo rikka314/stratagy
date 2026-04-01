@@ -1,79 +1,98 @@
 @echo off
-chcp 65001 >nul
-setlocal enabledelayedexpansion
+setlocal EnableExtensions
 
-echo ============================================
-echo   量化策略应用 - Windows 一键上传部署脚本
-echo ============================================
-echo.
+set "SERVER_USER=root"
+set "SERVER_HOST=115.191.68.122"
+set "SERVER=%SERVER_USER%@%SERVER_HOST%"
+set "REMOTE_DIR=/opt/stratagy"
+set "SCRIPT_DIR=%~dp0"
 
-:: ===== 配置区域 =====
-set SERVER_IP=115.191.68.122
-set SERVER_USER=root
-set REMOTE_DIR=/opt/stratagy
-set DEPLOY_SCRIPT=/opt/stratagy/deploy/deploy.sh
-
-:: 获取项目根目录（脚本所在目录的上一级）
-set SCRIPT_DIR=%~dp0
-for %%I in ("%SCRIPT_DIR%\..") do set PROJECT_DIR=%%~fI
-
-echo [信息] 项目目录: %PROJECT_DIR%
-echo [信息] 服务器: %SERVER_USER%@%SERVER_IP%
-echo [信息] 远程目录: %REMOTE_DIR%
-echo.
-
-:: ===== 检查 SSH =====
-where ssh >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [错误] 未找到 ssh 命令。请安装 OpenSSH 客户端。
-    echo   Windows 10+: 设置 - 应用 - 可选功能 - 添加 OpenSSH 客户端
-    pause
-    exit /b 1
+if /I "%~1"=="--dry-run" (
+    set "DRY_RUN=1"
+) else (
+    set "DRY_RUN=0"
 )
 
-:: ===== 提示密码 =====
+for %%I in ("%SCRIPT_DIR%\..") do set "PROJECT_DIR=%%~fI"
+
+call :require_tool ssh || exit /b 1
+call :require_tool scp || exit /b 1
+
+call :require_file "%PROJECT_DIR%\app.py" || exit /b 1
+call :require_file "%PROJECT_DIR%\requirements.txt" || exit /b 1
+call :require_file "%PROJECT_DIR%\.streamlit\config.toml" || exit /b 1
+call :require_file "%PROJECT_DIR%\deploy\deploy.sh" || exit /b 1
+call :require_file "%PROJECT_DIR%\deploy\fix_config.sh" || exit /b 1
+call :require_file "%PROJECT_DIR%\deploy\nginx_strategy.conf" || exit /b 1
+
 echo ============================================
-echo   即将开始上传文件到服务器
-echo   过程中可能需要多次输入服务器密码
-echo   建议配置 SSH 密钥免密登录
+echo   Stratagy full upload and deploy
 echo ============================================
+echo [info] project: %PROJECT_DIR%
+echo [info] server:  %SERVER%
+echo [info] remote:  %REMOTE_DIR%
+if "%DRY_RUN%"=="1" echo [info] dry-run enabled
 echo.
-pause
 
-:: ===== Step 1: 在服务器上创建目录 =====
-echo.
-echo [1/5] 创建远程目录...
-ssh %SERVER_USER%@%SERVER_IP% "mkdir -p %REMOTE_DIR%/data %REMOTE_DIR%/deploy %REMOTE_DIR%/core %REMOTE_DIR%/ui"
+call :run ssh %SERVER% "mkdir -p %REMOTE_DIR% %REMOTE_DIR%/core %REMOTE_DIR%/core/catalogs %REMOTE_DIR%/ui %REMOTE_DIR%/.streamlit %REMOTE_DIR%/deploy %REMOTE_DIR%/data %REMOTE_DIR%/model-test %REMOTE_DIR%/model-test/outputs" || exit /b 1
 
-:: ===== Step 2: 上传核心文件 =====
-echo.
-echo [2/5] 上传核心文件...
-scp "%PROJECT_DIR%\app.py" %SERVER_USER%@%SERVER_IP%:%REMOTE_DIR%/
-scp "%PROJECT_DIR%\requirements.txt" %SERVER_USER%@%SERVER_IP%:%REMOTE_DIR%/
+call :run scp "%PROJECT_DIR%\app.py" "%PROJECT_DIR%\requirements.txt" %SERVER%:%REMOTE_DIR%/ || exit /b 1
+call :run scp "%PROJECT_DIR%\core\*.py" %SERVER%:%REMOTE_DIR%/core/ || exit /b 1
+call :run scp "%PROJECT_DIR%\ui\*.py" %SERVER%:%REMOTE_DIR%/ui/ || exit /b 1
+call :run scp "%PROJECT_DIR%\.streamlit\config.toml" %SERVER%:%REMOTE_DIR%/.streamlit/ || exit /b 1
+call :run scp "%PROJECT_DIR%\deploy\deploy.sh" "%PROJECT_DIR%\deploy\fix_config.sh" "%PROJECT_DIR%\deploy\nginx_strategy.conf" %SERVER%:%REMOTE_DIR%/deploy/ || exit /b 1
 
-:: ===== Step 3: 上传模块化代码 =====
-echo.
-echo [3/5] 上传 core/ 和 ui/ 模块...
-scp "%PROJECT_DIR%\core\*.py" %SERVER_USER%@%SERVER_IP%:%REMOTE_DIR%/core/
-scp "%PROJECT_DIR%\ui\*.py" %SERVER_USER%@%SERVER_IP%:%REMOTE_DIR%/ui/
+if exist "%PROJECT_DIR%\core\catalogs\*.csv" (
+    call :run scp "%PROJECT_DIR%\core\catalogs\*.csv" %SERVER%:%REMOTE_DIR%/core/catalogs/ || exit /b 1
+)
 
-:: ===== Step 4: 上传数据文件 =====
-echo.
-echo [4/5] 上传数据文件...
-scp "%PROJECT_DIR%\data\*.csv" %SERVER_USER%@%SERVER_IP%:%REMOTE_DIR%/data/
+if exist "%PROJECT_DIR%\data\*.csv" (
+    call :run scp "%PROJECT_DIR%\data\*.csv" %SERVER%:%REMOTE_DIR%/data/ || exit /b 1
+)
 
-:: ===== Step 5: 上传部署脚本并执行 =====
-echo.
-echo [5/5] 上传并执行部署脚本...
-scp "%PROJECT_DIR%\deploy\deploy.sh" %SERVER_USER%@%SERVER_IP%:%REMOTE_DIR%/deploy/
-ssh %SERVER_USER%@%SERVER_IP% "chmod +x %REMOTE_DIR%/deploy/deploy.sh && bash %REMOTE_DIR%/deploy/deploy.sh"
+if exist "%PROJECT_DIR%\model-test\outputs" (
+    call :sync_model_outputs || exit /b 1
+)
+
+call :run ssh %SERVER% "chmod +x %REMOTE_DIR%/deploy/deploy.sh %REMOTE_DIR%/deploy/fix_config.sh && bash %REMOTE_DIR%/deploy/deploy.sh" || exit /b 1
 
 echo.
 echo ============================================
-echo   部署完成！
-echo   访问地址: http://%SERVER_IP%:8501
+echo   Deploy complete
+echo   App url: https://www.gfm156.com/strategy
+echo   Nginx template: %REMOTE_DIR%/deploy/nginx_strategy.conf
 echo ============================================
-echo.
-echo   ⚠️  记得在火山引擎安全组中开放 8501 端口！
-echo.
-pause
+exit /b 0
+
+:sync_model_outputs
+for /D %%D in ("%PROJECT_DIR%\model-test\outputs\*") do (
+    if exist "%%~fD\report.json" (
+        call :run scp -r "%%~fD" %SERVER%:%REMOTE_DIR%/model-test/outputs/ || exit /b 1
+    )
+)
+exit /b 0
+
+:require_tool
+where %~1 >nul 2>nul
+if errorlevel 1 (
+    echo [error] missing tool: %~1
+    exit /b 1
+)
+exit /b 0
+
+:require_file
+if not exist "%~1" (
+    echo [error] missing file: %~1
+    exit /b 1
+)
+exit /b 0
+
+:run
+echo [run] %*
+if "%DRY_RUN%"=="1" exit /b 0
+%*
+if errorlevel 1 (
+    echo [error] command failed
+    exit /b 1
+)
+exit /b 0

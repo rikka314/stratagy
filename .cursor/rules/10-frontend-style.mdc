@@ -1,0 +1,54 @@
+---
+description: Follow the shared W6-W8 frontend style system for strategy UI work.
+globs:
+  - "app.py"
+  - "ui/**/*.py"
+  - "core/visualization.py"
+  - "document/FRONTEND_STYLE_STANDARD.md"
+alwaysApply: false
+---
+
+# Strategy Frontend Rule
+
+Before editing matched files:
+
+- read `@AI_CONTEXT.md`
+- read `@document/FRONTEND_STYLE_STANDARD.md`
+
+Treat `document/FRONTEND_STYLE_STANDARD.md` as the active frontend source of truth for W6-W8.
+
+If it conflicts with `document/UI_DESIGN_GUIDE.md`, prefer the new standard.
+
+## Required Behavior
+
+- Use semantic tokens instead of scattered hardcoded colors, spacing, radii, or shadows.
+- Match the approved visual direction: warm-white / rice-white clean canvas, light site header, brand-left plus pill-style route controls, left narrative + right showcase split layout, one main action card plus one main showcase board.
+- Keep links, nav items, and text actions free of underline-driven states.
+- Route large shared HTML through the shared `render_html()` path, preferring `st.html()` to avoid literal tag output.
+- Keep showcase modules stably arranged; do not rely on overlapping absolute-position cards.
+- Keep row-list text blocks and action buttons vertically aligned.
+- Keep charts theme-synced with page containers, text, legend, grid, and market up/down colors.
+- Keep new UI text ready for bilingual wiring.
+- Keep new UI surfaces ready for light/dark theme switching.
+- Preserve existing strategy, workflow, and data interfaces unless the task explicitly requires changing them.
+- Provide loading, empty, error, and missing-field fallback states inside each meaningful page block.
+
+## Structural Guidance
+
+- Home pages should use a product-site hero plus clear route actions and a stable right-side showcase board.
+- Entry pages should keep a clear left action area and a right market-context showcase area.
+- Analysis pages should prefer top navigation, sections, tabs, or segmented controls over long vertical stacks.
+- Summary cards, detail tables, and charts should work together; none should carry the entire information burden alone.
+
+## Avoid
+
+- default Streamlit visuals as the finished UI
+- blue-gray paper-card dashboard language on home or entry routes
+- full-page grid backgrounds
+- boxed heavy top nav or underline-based active states
+- overlapping showcase cards
+- literal HTML tags printed to the page
+- row-list text and buttons falling out of vertical alignment
+- a second visual language on one page
+- heavy motion or decorative animation that competes with data
+- page-local one-off styling that bypasses the shared system

@@ -16,8 +16,14 @@ from core.data import (
     standardize_columns,
     ensure_date_column,
     fetch_data,
+    fetch_a_stock,
+    get_stock_label_map,
+    load_a_stock_catalog,
+    load_us_stock_catalog,
     load_csv,
     load_uploaded_bytes,
+    search_stock_candidates,
+    search_a_stock_candidates,
 )
 from core.indicators import (
     compute_rsi,
@@ -30,6 +36,15 @@ from core.indicators import (
     compute_obv,
     rolling_rank,
     add_indicators,
+)
+from core.fa_filter import FAModel, fit_fa, transform_fa
+from core.ml_filter import (
+    MLModel,
+    build_feature_table,
+    fit_ml_filter,
+    predict_filter,
+    apply_filter,
+    evaluate_ml_quality,
 )
 from core.signals import compute_signals
 from core.backtest import (
@@ -61,4 +76,18 @@ from core.visualization import (
 from core.portfolio import (
     run_portfolio_simulation,
     bayesian_optimize_portfolio,
+)
+
+from core.baselines import (
+    naive_baseline,
+    mean_baseline,
+    drift_baseline,
+    run_all_baselines,
+)
+
+from core.evaluation import (
+    compute_performance_metrics,
+    compute_trade_stats,
+    evaluate_strategy,
+    build_comparison_table,
 )

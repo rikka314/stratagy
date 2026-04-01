@@ -1,20 +1,18 @@
-﻿"""
-量化交易策略分析应用 — 入口文件
+"""
+量化交易策略分析应用 — 路由壳层
 ================================
-这是一个基于 Streamlit 的 Web 应用，用于分析和回测股票交易策略。
-主要功能：
-1. 从 AkShare 下载美股数据
-2. 计算技术指标（RSI、MACD、EMA、ATR、ADX等）
-3. 基于因子评分的量化交易策略
-4. 回测策略表现并与买入持有策略对比
-5. 多股票对比分析和相关性分析
-
-模块结构：
-- core/   : 数据、指标、信号、回测、优化、可视化、组合等核心逻辑
-- ui/     : 侧边栏、多股票页、单股票页界面组件
+W6 起改为基于 Streamlit Navigation 的多路由入口：
+- /strategy
+- /strategy/stock-analysis
+- /strategy/stocks-analysis
+- /strategy/model-evaluation
 """
 
+from __future__ import annotations
+
 import os
+import re
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -22,117 +20,281 @@ import streamlit as st
 from core.config import DATA_DIR
 from core.data import load_uploaded_bytes
 from core.utils import load_or_fetch_stock
-from ui.sidebar import render_sidebar
+from ui.home import render_home_page
+from ui.model_evaluation import MODEL_EVALUATION_ROUTE, render_model_evaluation_page
 from ui.multi_stock import render_multi_stock_page
+from ui.multi_stock_entry import render_multi_stock_entry_page
+from ui.sidebar import render_sidebar
 from ui.single_stock import render_single_stock_page
+from ui.single_stock_entry import render_single_stock_entry_page
+from ui.theme import inject_global_styles, render_route_nav
 
 
-# ── 页面配置 ──
-st.set_page_config(page_title="策略实验室", layout="wide")
-st.title("📊 策略实验室")
-st.caption("训练集上绘制蜡烛图与 RSI/MACD，测试集验证策略并对比买入并持有。")
+SINGLE_ROUTE_STATE_KEY = "route_single_state"
+MULTI_ROUTE_STATE_KEY = "route_multi_state"
 
+
+st.set_page_config(
+    page_title="Strategy Lab",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+inject_global_styles()
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# ── 应用高级搜索结果（需要在 sidebar 渲染之前执行） ──
-if st.session_state.get("apply_best_params"):
-    best = st.session_state.get("best_params")
-    if best:
-        st.session_state["adx_threshold"] = int(best["adx_threshold"])
-        st.session_state["entry_threshold"] = float(best["entry_threshold"])
-        st.session_state["exit_threshold"] = float(best["exit_threshold"])
-        st.session_state["stop_loss_mult"] = float(best["stop_loss_mult"])
-        st.session_state["take_profit_mult"] = float(best["take_profit_mult"])
-        if "weight_bb" in best:
-            st.session_state["weight_bb"] = float(best["weight_bb"])
-            st.session_state["weight_obv"] = float(best["weight_obv"])
-            st.session_state["weight_volume"] = float(best["weight_volume"])
-            st.session_state["weight_price"] = float(best["weight_price"])
-            st.session_state["weight_drawdown"] = float(best["weight_drawdown"])
-        if "ema_fast" in best:
-            st.session_state["ema_fast_slider"] = int(best["ema_fast"])
-            st.session_state["ema_slow_slider"] = int(best["ema_slow"])
-            st.session_state["macd_fast_slider"] = int(best["macd_fast"])
-            st.session_state["macd_slow_slider"] = int(best["macd_slow"])
-            st.session_state["macd_signal_slider"] = int(best["macd_signal"])
-            st.session_state["rsi_period_slider"] = int(best["rsi_period"])
-            st.session_state["rsi_lower_slider"] = int(best["rsi_lower"])
-            st.session_state["rsi_upper_slider"] = int(best["rsi_upper"])
-            st.session_state["adx_period_slider"] = int(best["adx_period"])
-            st.session_state["atr_period_slider"] = int(best["atr_period"])
-            st.session_state["bb_period_slider"] = int(best["bb_period"])
-            st.session_state["bb_std_slider"] = float(best["bb_std"])
-            st.session_state["indicator_period_slider"] = int(best["indicator_period"])
-        st.session_state["strategy_preset_selector"] = "自定义参数"
-    st.session_state["apply_best_params"] = False
 
-# ── 侧边栏 ──
-params = render_sidebar()
+def _default_single_route_state() -> dict[str, Any]:
+    return {
+        "view": "entry",
+        "market": "US",
+        "symbol": None,
+        "uploaded_name": None,
+        "uploaded_bytes": None,
+        "source": None,
+    }
 
-compare_stocks = params["compare_stocks"]
-symbol = params["symbol"]
-adjust = params["adjust"]
-selected_range = params["selected_range"]
-uploaded_file = params["uploaded_file"]
 
-# ── 数据加载 ──
-if not compare_stocks:
-    st.warning("请在侧边栏选择至少一只股票进行分析。")
-    st.stop()
+def _default_multi_route_state() -> dict[str, Any]:
+    return {
+        "view": "entry",
+        "market": "US",
+        "symbols": [],
+        "uploads": [],
+    }
 
-if uploaded_file is not None:
-    df_raw = load_uploaded_bytes(uploaded_file.getvalue())
-    st.info("已使用上传的数据集。")
-else: 
-    df_raw = load_or_fetch_stock(symbol, adjust)
+
+def _get_single_route_state() -> dict[str, Any]:
+    state = st.session_state.setdefault(SINGLE_ROUTE_STATE_KEY, _default_single_route_state())
+    for key, value in _default_single_route_state().items():
+        state.setdefault(key, value)
+    return state
+
+
+def _get_multi_route_state() -> dict[str, Any]:
+    state = st.session_state.setdefault(MULTI_ROUTE_STATE_KEY, _default_multi_route_state())
+    for key, value in _default_multi_route_state().items():
+        state.setdefault(key, value)
+    return state
+
+
+def _derive_symbol_from_filename(filename: str | None) -> str:
+    stem = os.path.splitext(os.path.basename(str(filename or "")))[0]
+    normalized = re.sub(r"[^A-Za-z0-9]+", "_", stem).strip("_").upper()
+    return normalized or "UPLOADED"
+
+
+def _validate_strategy_params(params: dict) -> str | None:
+    if params["ema_fast"] >= params["ema_slow"]:
+        return "趋势 EMA 快线需要小于慢线。"
+    if params["macd_fast"] >= params["macd_slow"]:
+        return "MACD 快线周期需要小于慢线周期。"
+    if params["rsi_lower"] >= params["rsi_upper"]:
+        return "RSI 下限需要小于上限。"
+    if params["momentum_short"] >= params["momentum_long"]:
+        return "短期动量窗口需要小于中期动量窗口。"
+    if params["score_mid_pct"] >= params["score_high_pct"]:
+        return "中档分位数需要小于高档分位数。"
+    return None
+
+
+def _apply_date_filter(df_raw: pd.DataFrame, selected_range) -> tuple[pd.DataFrame, bool, Any, Any]:
+    is_datetime = pd.api.types.is_datetime64_any_dtype(df_raw["date"])
+    start_ts = end_ts = None
+
+    if is_datetime and isinstance(selected_range, tuple) and len(selected_range) == 2:
+        start_ts = pd.Timestamp(selected_range[0])
+        end_ts = pd.Timestamp(selected_range[1])
+        df_raw = df_raw[(df_raw["date"] >= start_ts) & (df_raw["date"] <= end_ts)]
+    elif is_datetime and isinstance(selected_range, tuple) and len(selected_range) == 1:
+        start_ts = pd.Timestamp(selected_range[0])
+        df_raw = df_raw[df_raw["date"] >= start_ts]
+
+    return df_raw, is_datetime, start_ts, end_ts
+
+
+def _ensure_valid_dataframe(df_raw: pd.DataFrame, *, empty_message: str) -> bool:
     if df_raw is None:
-        st.error(f"无法获取 {symbol} 的数据，请检查网络连接。")
-        st.stop()
+        return False
+    if df_raw.empty:
+        st.warning(empty_message)
+        return False
 
-if df_raw.empty:
-    st.warning("没有加载到数据。")
-    st.stop()
+    required_cols = {"open", "high", "low", "close"}
+    missing_cols = required_cols - set(df_raw.columns)
+    if missing_cols:
+        st.error(f"缺少必需列：{', '.join(sorted(missing_cols))}")
+        return False
+    return True
 
-required_cols = {"open", "high", "low", "close"}
-missing_cols = required_cols - set(df_raw.columns)
-if missing_cols:
-    st.error(f"缺少必需列：{', '.join(sorted(missing_cols))}")
-    st.stop()
 
-# ── 参数校验 ──
-if params["ema_fast"] >= params["ema_slow"]:
-    st.sidebar.error("趋势 EMA 快线需要小于慢线。")
-    st.stop()
-if params["macd_fast"] >= params["macd_slow"]:
-    st.sidebar.error("MACD 快线周期需要小于慢线周期。")
-    st.stop()
-if params["rsi_lower"] >= params["rsi_upper"]:
-    st.sidebar.error("RSI 下限需要小于上限。")
-    st.stop()
-if params["momentum_short"] >= params["momentum_long"]:
-    st.sidebar.error("短期动量窗口需要小于中期动量窗口。")
-    st.stop()
-if params["score_mid_pct"] >= params["score_high_pct"]:
-    st.sidebar.error("中档分位数需要小于高档分位数。")
-    st.stop()
+def _single_seed_token(state: dict[str, Any]) -> str:
+    if state.get("uploaded_bytes") is not None:
+        return f"single-upload::{state.get('uploaded_name')}"
+    return f"single-symbol::{state.get('market')}::{state.get('symbol')}"
 
-# ── 日期筛选 ──
-is_datetime = pd.api.types.is_datetime64_any_dtype(df_raw["date"])
-start_ts = end_ts = None
-if is_datetime and isinstance(selected_range, tuple) and len(selected_range) == 2:
-    start_ts = pd.Timestamp(selected_range[0])
-    end_ts = pd.Timestamp(selected_range[1])
-    df_raw = df_raw[(df_raw["date"] >= start_ts) & (df_raw["date"] <= end_ts)]
-elif is_datetime and isinstance(selected_range, tuple) and len(selected_range) == 1:
-    start_ts = pd.Timestamp(selected_range[0])
-    df_raw = df_raw[df_raw["date"] >= start_ts]
 
-if df_raw.empty:
-    st.warning("所选时间区间内没有数据。")
-    st.stop()
+def _multi_seed_token(state: dict[str, Any]) -> str:
+    uploaded_names = ",".join(item.get("symbol", "") for item in state.get("uploads", []))
+    selected_symbols = ",".join(state.get("symbols", []))
+    return f"multi::{state.get('market')}::{selected_symbols}::{uploaded_names}"
 
-# ── 路由到对应页面 ──
-if len(compare_stocks) > 1:
-    render_multi_stock_page(params, is_datetime, start_ts, end_ts)
-else:
+
+def _render_single_stock_route() -> None:
+    state = _get_single_route_state()
+    if state["view"] != "analysis":
+        render_route_nav("single")
+        action = render_single_stock_entry_page(initial_market=state.get("market", "US"))
+        if action is not None:
+            if action["kind"] == "upload":
+                st.session_state[SINGLE_ROUTE_STATE_KEY] = {
+                    "view": "analysis",
+                    "market": action["market"],
+                    "symbol": _derive_symbol_from_filename(action["name"]),
+                    "uploaded_name": action["name"],
+                    "uploaded_bytes": action["bytes"],
+                    "source": action.get("source"),
+                }
+            else:
+                st.session_state[SINGLE_ROUTE_STATE_KEY] = {
+                    "view": "analysis",
+                    "market": action["market"],
+                    "symbol": action["symbol"],
+                    "uploaded_name": None,
+                    "uploaded_bytes": None,
+                    "source": action.get("source"),
+                }
+            st.rerun()
+        return
+
+    render_route_nav("single")
+
+    initial_symbols = [] if state.get("uploaded_bytes") is not None else ([state["symbol"]] if state.get("symbol") else None)
+    params = render_sidebar(
+        initial_market=state.get("market", "US"),
+        initial_symbols=initial_symbols,
+        route_seed_token=_single_seed_token(state),
+    )
+
+    validation_error = _validate_strategy_params(params)
+    if validation_error is not None:
+        st.sidebar.error(validation_error)
+        return
+
+    uploaded_file = params.get("uploaded_file")
+    symbol = state.get("symbol") or params.get("symbol")
+
+    if uploaded_file is not None:
+        state["uploaded_name"] = uploaded_file.name
+        state["uploaded_bytes"] = uploaded_file.getvalue()
+        state["symbol"] = _derive_symbol_from_filename(uploaded_file.name)
+        state["source"] = "upload"
+        symbol = state["symbol"]
+
+    if state.get("uploaded_bytes") is not None:
+        df_raw = load_uploaded_bytes(state["uploaded_bytes"])
+        st.info(f"当前使用上传数据：{state.get('uploaded_name')}")
+    else:
+        compare_stocks = params.get("compare_stocks") or ([symbol] if symbol else [])
+        if not compare_stocks:
+            st.warning("当前没有可分析的股票，请返回入口页重新选择。")
+            return
+        if len(compare_stocks) > 1:
+            st.info("当前处于单股路由，仅使用第一只股票进入主分析页。")
+        symbol = compare_stocks[0]
+        state["symbol"] = symbol
+        state["market"] = params.get("market", state.get("market", "US"))
+        df_raw = load_or_fetch_stock(symbol, params["adjust"], market=params.get("market", "US"))
+        if df_raw is None:
+            st.error(f"无法获取 {symbol} 的数据，请检查网络连接。")
+            return
+
+    if not _ensure_valid_dataframe(df_raw, empty_message="没有加载到数据。"):
+        return
+
+    df_raw, _is_datetime, _start_ts, _end_ts = _apply_date_filter(df_raw, params["selected_range"])
+    if df_raw.empty:
+        st.warning("所选时间区间内没有数据。")
+        return
+
+    params["compare_stocks"] = [symbol] if symbol else []
+    params["symbol"] = symbol
     render_single_stock_page(params, df_raw, symbol)
+
+
+def _build_uploaded_multi_sources(uploads: list[dict[str, Any]]) -> dict[str, pd.DataFrame]:
+    prefetched: dict[str, pd.DataFrame] = {}
+    for item in uploads:
+        try:
+            df = load_uploaded_bytes(item["bytes"])
+        except Exception as exc:
+            st.warning(f"上传文件 {item['name']} 读取失败：{exc}")
+            continue
+        if df is None or df.empty:
+            continue
+        prefetched[item["symbol"]] = df
+    return prefetched
+
+
+def _render_multi_stock_route() -> None:
+    state = _get_multi_route_state()
+    if state["view"] != "analysis":
+        render_route_nav("multi")
+        action = render_multi_stock_entry_page(initial_market=state.get("market", "US"))
+        if action is not None:
+            st.session_state[MULTI_ROUTE_STATE_KEY] = {
+                "view": "analysis",
+                "market": action["market"],
+                "symbols": action["symbols"],
+                "uploads": action["uploads"],
+            }
+            st.rerun()
+        return
+
+    render_route_nav("multi")
+
+    params = render_sidebar(
+        initial_market=state.get("market", "US"),
+        initial_symbols=(state.get("symbols", []) if not state.get("uploads") else state.get("symbols", [])),
+        route_seed_token=_multi_seed_token(state),
+    )
+
+    validation_error = _validate_strategy_params(params)
+    if validation_error is not None:
+        st.sidebar.error(validation_error)
+        return
+
+    prefetched_sources = _build_uploaded_multi_sources(state.get("uploads", []))
+    compare_stocks = params.get("compare_stocks") or state.get("symbols", [])
+    state["market"] = params.get("market", state.get("market", "US"))
+    state["symbols"] = list(compare_stocks)
+    total_count = len(compare_stocks) + len(prefetched_sources)
+    if total_count < 2:
+        st.warning("当前有效标的不足 2 个，请返回入口页重新组建股票池。")
+        return
+
+    params["compare_stocks"] = compare_stocks
+    if compare_stocks:
+        params["symbol"] = compare_stocks[0]
+
+    dummy_df = pd.DataFrame({"date": pd.to_datetime([])})
+    filtered_dummy, is_datetime, start_ts, end_ts = _apply_date_filter(dummy_df, params["selected_range"])
+    _ = filtered_dummy
+    render_multi_stock_page(
+        params,
+        is_datetime,
+        start_ts,
+        end_ts,
+        prefetched_stock_data=prefetched_sources,
+    )
+
+
+pages = [
+    st.Page(render_home_page, title="首页", icon="🏠", default=True),
+    st.Page(_render_single_stock_route, title="单股入口", icon="📈", url_path="stock-analysis"),
+    st.Page(_render_multi_stock_route, title="多股入口", icon="📚", url_path="stocks-analysis"),
+    st.Page(render_model_evaluation_page, title="模型评估", icon="🧪", url_path=MODEL_EVALUATION_ROUTE),
+]
+
+navigation = st.navigation(pages, position="hidden")
+navigation.run()

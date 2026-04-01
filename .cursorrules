@@ -1,0 +1,5 @@
+Always read `AI_CONTEXT.md` at the start of every new chat in this repository before planning, answering, reviewing, or editing code.
+
+Treat `AI_CONTEXT.md` as the default source of truth for project architecture, deployment workflow, documentation status, and collaboration conventions.
+
+If `AI_CONTEXT.md` conflicts with another repository document, prefer `AI_CONTEXT.md` unless the user provides newer instructions in the current conversation.

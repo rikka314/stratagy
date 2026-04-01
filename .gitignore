@@ -41,6 +41,16 @@ Thumbs.db
 # *.csv
 # *.xlsx
 # *.xls
+model-test/cache/
+model-test/outputs/
 
 # Claude Code worktrees (auto-generated, should not be tracked)
 .claude/worktrees/
+.claude/settings.local.json
+
+# Local test and tool temp directories
+.codex_pytest_tmp/
+pytest_tmp_*/
+tests/.tmp_pytest/
+tests/.tmp_pytest_single/
+tests/pytest-cache-files-*/

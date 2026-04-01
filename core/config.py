@@ -17,6 +17,13 @@ DEFAULT_ADJUST = "qfq"  # 默认复权方式：前复权（qfq=前复权，hfq=�
 # 默认股票列表（硬编码，无需预下载 CSV 文件）
 # 用户可以通过界面添加更多股票
 DEFAULT_STOCKS = ["AAPL", "TSLA", "NVDA", "GOOGL", "META", "ORCL", "ADM", "NTR", "CTVA"]
+DEFAULT_A_STOCKS = [
+    "600519",  # 贵州茅台
+    "300750",  # 宁德时代
+    "601318",  # 中国平安
+    "002594",  # 比亚迪
+    "600036",  # 招商银行
+]
 
 # ===== 预设策略参数（供高级策略预评估使用）=====
 # 注意：这些参数与 UI 中的 STRATEGY_PRESETS 保持一致

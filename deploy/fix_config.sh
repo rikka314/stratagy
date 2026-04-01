@@ -6,6 +6,7 @@ cat > /opt/stratagy/.streamlit/config.toml << 'EOF'
 headless = true
 port = 8501
 address = "0.0.0.0"
+baseUrlPath = "strategy"
 maxUploadSize = 50
 
 [browser]

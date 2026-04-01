@@ -6,12 +6,12 @@
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
 from core.indicators import add_indicators
 from core.signals import compute_signals
 from core.backtest import simulate_strategy, sharpe_ratio, max_drawdown
+from core.visualization import create_equity_drawdown_chart
 
 
 def run_portfolio_simulation(stock_data_dict: dict, **kwargs) -> dict | None:
@@ -145,79 +145,52 @@ def run_portfolio_simulation(stock_data_dict: dict, **kwargs) -> dict | None:
     bh_sharpe = sharpe_ratio(portfolio_bh_ret)
     bh_max_dd = max_drawdown(bh_equity)
 
-    # 绘制组合净值图
     colors_list = [
-        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+        '#8c674a', '#b28762', '#6d5a49', '#c49a73', '#5a4c3f',
+        '#8e725d', '#b89d85', '#9a8268', '#735f4b', '#c1a17d',
+    ]
+    figure_specs = [
+        {
+            'name': '组合策略',
+            'series': portfolio_equity,
+            'color': '#ba7349',
+            'dash': 'solid',
+            'width': 3.0,
+            'fill_alpha': 0.18,
+            'drawdown_fill': True,
+        },
+        {
+            'name': '买入持有基准',
+            'series': bh_equity,
+            'color': '#1f1914',
+            'dash': 'dash',
+            'width': 2.4,
+            'fill_alpha': 0.10,
+            'drawdown_fill': True,
+        },
     ]
 
-    fig = go.Figure()
-
-    # 组合策略净值（粗线）
-    fig.add_trace(go.Scatter(
-        x=portfolio_equity.index,
-        y=portfolio_equity.values,
-        name='组合策略',
-        mode='lines',
-        line=dict(color='#2ca02c', width=3),
-        hovertemplate='<b>组合策略</b><br>日期: %{x|%Y-%m-%d}<br>净值: %{y:.4f}<extra></extra>',
-    ))
-
-    # 等权买入持有（粗虚线）
-    fig.add_trace(go.Scatter(
-        x=bh_equity.index,
-        y=bh_equity.values,
-        name='买入持有基准',
-        mode='lines',
-        line=dict(color='#d62728', width=3, dash='dash'),
-        hovertemplate='<b>买入持有</b><br>日期: %{x|%Y-%m-%d}<br>净值: %{y:.4f}<extra></extra>',
-    ))
-
-    # 各个股独立策略净值（细线，半透明）
     for i, sym in enumerate(individual_results.keys()):
         sym_ret = individual_results[sym]['strategy_return']
-        # 对齐到组合时间范围
         sym_ret_aligned = sym_ret.reindex(portfolio_equity.index).fillna(0)
         sym_equity = (1 + sym_ret_aligned).cumprod()
-        color = colors_list[i % len(colors_list)]
-        fig.add_trace(go.Scatter(
-            x=sym_equity.index,
-            y=sym_equity.values,
-            name=f'{sym} 策略',
-            mode='lines',
-            line=dict(color=color, width=1.5, dash='dot'),
-            opacity=0.5,
-            hovertemplate=f'<b>{sym}</b><br>日期: %{{x|%Y-%m-%d}}<br>净值: %{{y:.4f}}<extra></extra>',
-        ))
+        figure_specs.append(
+            {
+                'name': f'{sym} 策略',
+                'hover_name': sym,
+                'series': sym_equity,
+                'color': colors_list[i % len(colors_list)],
+                'dash': 'dot',
+                'width': 1.45,
+                'fill_alpha': 0.08,
+                'drawdown_fill': False,
+            }
+        )
 
-    fig.update_layout(
-        title=dict(
-            text='投资组合模拟 — 策略净值 vs 买入持有',
-            font=dict(size=18, color='#2c3e50', family='Arial Black'),
-            x=0.5, xanchor='center', y=0.95, yanchor='top',
-        ),
-        xaxis=dict(
-            title='日期',
-            title_font=dict(size=14, color='#34495e'),
-            showgrid=True, gridcolor='#f0f0f0',
-        ),
-        yaxis=dict(
-            title='净值（起点 = 1.0）',
-            title_font=dict(size=14, color='#34495e'),
-            showgrid=True, gridcolor='#ecf0f1',
-            hoverformat='.4f',
-        ),
-        plot_bgcolor='#ffffff',
-        paper_bgcolor='#fafafa',
-        height=550,
-        margin=dict(l=60, r=60, t=80, b=100),
-        legend=dict(
-            orientation='h',
-            yanchor='bottom', y=-0.3,
-            xanchor='center', x=0.5,
-            font=dict(size=11),
-        ),
-        hovermode='x unified',
+    fig = create_equity_drawdown_chart(
+        figure_specs,
+        height=620,
+        subplot_titles=('组合净值', '组合回撤'),
     )
 
     return {

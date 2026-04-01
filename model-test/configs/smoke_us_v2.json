@@ -1,0 +1,49 @@
+{
+  "name": "smoke_us_v2",
+  "market": "US",
+  "adjust": "qfq",
+  "preset_name": "__balanced_default__",
+  "train_ratio": 0.7,
+  "parallelism": 0,
+  "output_subdir": "smoke_us_v2",
+  "sample_data_dir": "data",
+  "catalog_path": "core/catalogs/us_stock_catalog.csv",
+  "smoke_mode": true,
+  "run_stage_b": true,
+  "run_robustness": false,
+  "main_window_days": 756,
+  "minimum_window_days": 252,
+  "allow_short_main_window": true,
+  "rolling_window_days": 504,
+  "rolling_step_days": 126,
+  "rolling_window_count": 3,
+  "robustness_weight": 0.4,
+  "robustness_top_n": 8,
+  "main_pool_size": 60,
+  "min_history_days": 252,
+  "profile_lookback_days": 252,
+  "min_avg_dollar_volume": 1000000,
+  "max_catalog_candidates": 60,
+  "search_trials": 12,
+  "ga_population_size": 12,
+  "ga_generations": 8,
+  "smoke_symbols": [
+    "AAPL",
+    "TSLA",
+    "NVDA",
+    "GOOGL",
+    "META",
+    "ORCL",
+    "ADM",
+    "NTR",
+    "CTVA"
+  ],
+  "request_params_overrides": {
+    "hold_until_exit": true,
+    "hold_min_position": 0.2
+  },
+  "stage_b_request_overrides": {
+    "ml_horizon_days": 20,
+    "ml_min_excess_samples": 40
+  }
+}
