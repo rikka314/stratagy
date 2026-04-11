@@ -1,0 +1,792 @@
+<section id="section-6-model-checking">
+  <h2>6. Model Checking</h2>
+  <p>
+    This section addresses <strong>Requirement&nbsp;6</strong> of the AIE1902 course project:
+    <em>&ldquo;Check the models using the methods mentioned in our lecture notes.&rdquo;</em>
+    We present ten complementary model-checking methodologies implemented across the codebase,
+    ranging from fundamental out-of-sample testing and walk-forward validation to overfitting
+    detection, parameter validity enforcement, ML diagnostics, adaptive regime validation,
+    trade-level analysis, stationarity handling, and standard financial performance metrics.
+    Every method is traced to its concrete implementation with file paths, function names,
+    and line numbers in the repository source code.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.1  Out-of-Sample (OOS) Testing                                       -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-oos">6.1 Out-of-Sample (OOS) Testing</h3>
+  <p>
+    Out-of-sample testing is the most fundamental guard against overfitting.
+    <strong>Every</strong> model evaluation in the pipeline uses a strict train/test split so that
+    all reported metrics are computed exclusively on data the model has never seen during fitting.
+  </p>
+
+  <h4>6.1.1 Train/Test Split Mechanism</h4>
+  <p>
+    The split is controlled by the <code>train_ratio</code> parameter (default&nbsp;=&nbsp;0.70,
+    i.e.&nbsp;70&nbsp;% training, 30&nbsp;% testing). In the offline research framework
+    (<code>model-test/model_test/execution.py</code>), the split index is computed as:
+  </p>
+  <pre><code>split_idx = int(len(df_window) * lead_task.window.train_ratio)</code></pre>
+  <p>
+    This <code>split_idx</code> is passed to every pipeline function&mdash;signal generation,
+    backtest simulation, and evaluation&mdash;so that the training data boundary is respected
+    throughout the entire pipeline. The same split logic is also applied in
+    <code>model-test/model_test/adaptive_router.py</code> for the adaptive regime pipeline:
+  </p>
+  <pre><code>split_idx = int(len(df_window) * window.train_ratio)</code></pre>
+
+  <h4>6.1.2 Baseline Treatment</h4>
+  <p>
+    Critically, baseline models (Mean model, Drift model) use the <strong>same</strong>
+    train/test split to avoid look-ahead bias. Baseline forecasts are generated using only
+    data in <code>df[:split_idx]</code>, and all comparative metrics are reported on
+    <code>df[split_idx:]</code> (the test set) only.
+  </p>
+
+  <h4>6.1.3 Metrics Computed on Test Set</h4>
+  <p>
+    All reported metrics are computed via the function
+    <code>compute_performance_metrics()</code> in <code>core/evaluation.py</code> (line&nbsp;14).
+    This function takes the strategy equity curve and a benchmark equity curve, and returns the
+    following dictionary of metrics:
+  </p>
+  <table>
+    <thead>
+      <tr><th>Key</th><th>Metric</th><th>Formula</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>cumret</code></td>
+        <td>Cumulative Return</td>
+        <td><code>equity[-1] / equity[0] &minus; 1</code></td>
+      </tr>
+      <tr>
+        <td><code>annret</code></td>
+        <td>Annualized Return</td>
+        <td><code>(equity[-1] / equity[0])<sup>252/n</sup> &minus; 1</code></td>
+      </tr>
+      <tr>
+        <td><code>maxdd</code></td>
+        <td>Maximum Drawdown</td>
+        <td><code>min(equity / cummax(equity) &minus; 1)</code></td>
+      </tr>
+      <tr>
+        <td><code>sharpe</code></td>
+        <td>Sharpe Ratio (annualized)</td>
+        <td><code>(mean(r) &minus; r<sub>f</sub>/252) / std(r) &times; &radic;252</code></td>
+      </tr>
+      <tr>
+        <td><code>bench_cumret</code></td>
+        <td>Benchmark Cumulative Return</td>
+        <td>Same formula applied to benchmark equity</td>
+      </tr>
+      <tr>
+        <td><code>excess_return</code></td>
+        <td>Excess Return</td>
+        <td><code>cumret &minus; bench_cumret</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 6.2  Walk-Forward Validation                                           -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-walk-forward">6.2 Walk-Forward Validation</h3>
+  <p>
+    While a single train/test split validates performance on one specific out-of-sample period,
+    walk-forward validation extends this by sliding a rolling window across the <em>entire</em> dataset,
+    producing multiple independent out-of-sample segments. This tests whether the strategy performs
+    <strong>consistently across different time periods</strong>&mdash;not just one particular test set.
+  </p>
+
+  <h4>6.2.1 Implementation</h4>
+  <p>
+    <strong>Location:</strong> <code>core/backtest.py</code>, function
+    <code>walk_forward_backtest()</code> (line&nbsp;241).
+  </p>
+  <p><strong>Function signature:</strong></p>
+  <pre><code>def walk_forward_backtest(
+    df: pd.DataFrame,
+    train_window: int,
+    test_window: int,
+    stop_loss_mult: float,
+    take_profit_mult: float,
+) -&gt; tuple[pd.DataFrame, pd.DataFrame]</code></pre>
+
+  <h4>6.2.2 Algorithm</h4>
+  <p>The walk-forward procedure operates as follows:</p>
+  <ol>
+    <li>
+      <strong>Initialization:</strong> Set <code>start_idx = 0</code>.
+    </li>
+    <li>
+      <strong>Window Partitioning:</strong> For each iteration:
+      <ul>
+        <li>Training window: <code>df[start_idx : start_idx + train_window]</code></li>
+        <li>Test window: <code>df[start_idx + train_window : start_idx + train_window + test_window]</code></li>
+      </ul>
+    </li>
+    <li>
+      <strong>Backtest on Test Segment:</strong> Run <code>simulate_strategy()</code> on the
+      test slice with <code>initial_position=0</code> and the specified stop-loss/take-profit
+      multipliers.
+    </li>
+    <li>
+      <strong>Per-Window Metrics:</strong> For each window, record:
+      <ul>
+        <li><code>test_return</code>: total return over the test segment</li>
+        <li><code>test_sharpe</code>: Sharpe ratio of daily strategy returns in the test segment</li>
+        <li><code>test_max_drawdown</code>: worst peak-to-trough decline during the test segment</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Equity Curve Chaining:</strong> Each segment&rsquo;s equity curve is scaled so it
+      continues from the previous segment&rsquo;s final equity value:
+      <pre><code>segment["strategy_equity"] *= prev_end
+segment["buy_hold_equity"] *= prev_bh_end</code></pre>
+      This produces a single, continuous equity curve across all walk-forward windows.
+    </li>
+    <li>
+      <strong>Advance:</strong> <code>start_idx += test_window</code> and repeat until the dataset
+      is exhausted.
+    </li>
+  </ol>
+
+  <h4>6.2.3 Interpretation</h4>
+  <p>
+    Walk-forward validation reveals <em>temporal consistency</em>. A model that performs well in a
+    single OOS split but poorly under walk-forward testing likely benefits from a favorable test
+    period rather than genuine predictive power. By examining the distribution of per-window
+    returns and Sharpe ratios, we can detect regime-dependent fragility and assess whether the
+    strategy degrades gracefully across market conditions.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.3  Rolling Robustness Testing (model-test framework)                 -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-rolling-robustness">6.3 Rolling Robustness Testing (Offline Research Framework)</h3>
+  <p>
+    The offline research framework in <code>model-test/</code> implements a systematic, multi-window
+    robustness validation that goes beyond the single-pass walk-forward approach. This is the
+    framework used for large-scale hyperparameter searches and model comparisons.
+  </p>
+
+  <h4>6.3.1 Configuration</h4>
+  <p>
+    <strong>Location:</strong> <code>model-test/model_test/models.py</code> (lines&nbsp;48&ndash;50)
+    and <code>model-test/model_test/config.py</code> (lines&nbsp;105&ndash;107).
+  </p>
+  <table>
+    <thead>
+      <tr><th>Parameter</th><th>Default</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>rolling_window_days</code></td>
+        <td>504</td>
+        <td>Each rolling window spans ~2 trading years</td>
+      </tr>
+      <tr>
+        <td><code>rolling_step_days</code></td>
+        <td>126</td>
+        <td>Windows are offset by ~6 trading months</td>
+      </tr>
+      <tr>
+        <td><code>rolling_window_count</code></td>
+        <td>3</td>
+        <td>Three overlapping windows are evaluated</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>6.3.2 Window Construction</h4>
+  <p>
+    Windows are constructed in reverse chronological order from the end of the available data
+    (<code>model-test/model_test/config.py</code>, lines&nbsp;406&ndash;419):
+  </p>
+  <pre><code>for ordinal in range(config.rolling_window_count):
+    offset = config.rolling_window_count - ordinal - 1
+    end_idx = df_len - offset * config.rolling_step_days
+    start_idx = end_idx - config.rolling_window_days</code></pre>
+  <p>
+    With default settings (504-day windows, 126-day step, 3 windows), the three windows overlap
+    substantially, covering approximately the most recent 756 trading days (~3&nbsp;years) with
+    significant overlap between adjacent windows.
+  </p>
+
+  <h4>6.3.3 Two-Stage Validation Process</h4>
+  <ol>
+    <li>
+      <strong>Stage&nbsp;A &mdash; Candidate Discovery:</strong> A broad search across the
+      parameter space using the primary evaluation window. Top-N candidates are selected based on
+      a composite score.
+    </li>
+    <li>
+      <strong>Stage&nbsp;B &mdash; Robustness Retest:</strong> The top candidates from Stage&nbsp;A
+      are re-evaluated across <strong>all</strong> rolling windows. The results are aggregated into
+      <code>robustness_summary.csv</code> (<code>model-test/model_test/runner.py</code>,
+      line&nbsp;444&ndash;452), which is generated by the <code>build_robustness_summary()</code>
+      function.
+    </li>
+  </ol>
+
+  <h4>6.3.4 Robustness Summary Metrics</h4>
+  <p>
+    The <code>robustness_summary.csv</code> file aggregates across all rolling windows for each
+    candidate model:
+  </p>
+  <ul>
+    <li><strong>Mean Return:</strong> Average cumulative return across all windows</li>
+    <li><strong>Mean Sharpe:</strong> Average Sharpe ratio across all windows</li>
+    <li><strong>Return Std Dev:</strong> Standard deviation of returns across windows (lower is more robust)</li>
+    <li><strong>Max Drawdown:</strong> Worst maximum drawdown observed across any window</li>
+  </ul>
+  <p>
+    A model is considered <strong>robust</strong> only if it delivers consistent positive performance
+    across all rolling windows. High variance across windows signals parameter fragility or
+    regime dependence.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.4  Overfitting Detection                                             -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-overfitting">6.4 Overfitting Detection via Train-Validation Gap Penalty</h3>
+  <p>
+    Overfitting is the most pervasive risk in quantitative strategy development. The optimizer
+    explicitly addresses this through a multi-pronged scoring function that penalizes train/validation
+    divergence.
+  </p>
+
+  <h4>6.4.1 Composite Score with Gap Penalty</h4>
+  <p>
+    <strong>Location:</strong> <code>core/optimizer.py</code> (lines&nbsp;424&ndash;426).
+  </p>
+  <p>The optimizer&rsquo;s objective function computes a composite score as:</p>
+  <pre><code>raw_score = 0.25 &times; train_score
+           + 0.75 &times; validation_score
+           &minus; 0.20 &times; |train_score &minus; validation_score|</code></pre>
+  <p>This formula has three key properties:</p>
+  <ol>
+    <li>
+      <strong>Validation-weighted (75%):</strong> The score is dominated by out-of-sample
+      performance, ensuring the optimizer does not chase in-sample fit.
+    </li>
+    <li>
+      <strong>Gap penalty (20%):</strong> Models where <code>|train_score &minus; validation_score|</code>
+      is large are penalized. This directly detects overfitting&mdash;a model that scores 0.9 on
+      training but only 0.3 on validation (gap = 0.6) receives a penalty of 0.12, which can easily
+      push it below a more consistent model.
+    </li>
+    <li>
+      <strong>Training contribution (25%):</strong> A modest weight on training score prevents the
+      optimizer from selecting models that are unstable even on training data.
+    </li>
+  </ol>
+
+  <h4>6.4.2 Regularization Penalty</h4>
+  <p>
+    <strong>Location:</strong> <code>core/optimizer.py</code>, function
+    <code>_regularization_penalty()</code> (line&nbsp;229).
+  </p>
+  <p>
+    An additional regularization term prevents parameters from straying far from sensible defaults,
+    which is an implicit overfitting guard:
+  </p>
+  <pre><code>def _regularization_penalty(candidate_params, *, lam=0.02, param_space=None):
+    penalty = 0.0
+    for name, (default, lo, hi, param_type) in active_param_space.items():
+        if param_type == "bool":
+            penalty += float(normalized[name] != _coerce_bool(default))
+            continue
+        span = hi - lo
+        if span &gt; 0:
+            penalty += ((normalized[name] - default) / span) ** 2
+    return lam * penalty</code></pre>
+  <p>Mathematically, for continuous parameters:</p>
+  <pre><code>R(&theta;) = &lambda; &times; &sum;<sub>i</sub> ((p<sub>i</sub> &minus; d<sub>i</sub>) / (h<sub>i</sub> &minus; l<sub>i</sub>))<sup>2</sup></code></pre>
+  <p>
+    where <em>p<sub>i</sub></em> is the candidate value, <em>d<sub>i</sub></em> the default,
+    <em>h<sub>i</sub></em> and <em>l<sub>i</sub></em> the upper and lower bounds, and
+    &lambda;&nbsp;=&nbsp;0.02. This is analogous to L2 regularization (ridge regression) applied
+    to the strategy&rsquo;s parameter space. Parameters that deviate significantly from their
+    defaults incur a quadratic cost, biasing the optimizer toward simpler, more conventional
+    parameterizations that are less likely to be overfit.
+  </p>
+
+  <h4>6.4.3 Final Objective</h4>
+  <p>The optimizer&rsquo;s final objective across all three optimization methods (Bayesian, Random Search, Genetic Algorithm) is:</p>
+  <pre><code>final_score = raw_score &minus; _regularization_penalty(&theta;)</code></pre>
+  <p>
+    This is applied consistently at lines 735, 824, and 967 of <code>core/optimizer.py</code>,
+    ensuring that regardless of the search algorithm, the same anti-overfitting safeguards are active.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.5  Parameter Validity Constraints                                    -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-validity">6.5 Parameter Validity Constraints</h3>
+  <p>
+    <strong>Location:</strong> <code>core/optimizer.py</code>, function
+    <code>_is_valid_candidate()</code> (line&nbsp;208).
+  </p>
+  <p>
+    Before any candidate parameter vector is evaluated, it must pass a set of structural validity
+    constraints that prevent degenerate or economically meaningless configurations:
+  </p>
+  <pre><code>def _is_valid_candidate(candidate_params, *, param_space=None) -&gt; bool:
+    normalized = _normalize_candidate_params(candidate_params, param_space=param_space)
+    if normalized["ema_fast"] &gt;= normalized["ema_slow"]:
+        return False
+    if normalized["macd_fast"] &gt;= normalized["macd_slow"]:
+        return False
+    if normalized["entry_threshold"] &lt;= normalized["exit_threshold"]:
+        return False
+    if "momentum_short" in normalized and \
+       normalized["momentum_short"] &gt;= normalized["momentum_long"]:
+        return False
+    if "score_mid_pct" in normalized and \
+       normalized["score_mid_pct"] &gt;= normalized["score_high_pct"]:
+        return False
+    if "exit_min_signals" in normalized and \
+       normalized["exit_min_signals"] &gt; normalized["entry_min_signals"]:
+        return False
+    return True</code></pre>
+
+  <h4>6.5.1 Constraint Rationale</h4>
+  <table>
+    <thead>
+      <tr><th>Constraint</th><th>Economic Rationale</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>ema_fast &lt; ema_slow</code></td>
+        <td>A &ldquo;fast&rdquo; moving average must respond more quickly than a &ldquo;slow&rdquo; one; violating this inverts the crossover signal logic</td>
+      </tr>
+      <tr>
+        <td><code>macd_fast &lt; macd_slow</code></td>
+        <td>Same logic for MACD&rsquo;s constituent moving averages; reversal would negate the convergence/divergence interpretation</td>
+      </tr>
+      <tr>
+        <td><code>entry_threshold &gt; exit_threshold</code></td>
+        <td>The signal strength required to <em>enter</em> a position must exceed the threshold to <em>exit</em>; otherwise the strategy would oscillate between entry and exit on every bar</td>
+      </tr>
+      <tr>
+        <td><code>momentum_short &lt; momentum_long</code></td>
+        <td>Short-term momentum lookback must be shorter than long-term; reversal conflates the two time horizons</td>
+      </tr>
+      <tr>
+        <td><code>score_mid_pct &lt; score_high_pct</code></td>
+        <td>The composite score threshold for &ldquo;mid&rdquo; conviction must be lower than &ldquo;high&rdquo; conviction; inverting would make the scoring tiers incoherent</td>
+      </tr>
+      <tr>
+        <td><code>exit_min_signals &le; entry_min_signals</code></td>
+        <td>Exiting a position should require no more confirming signals than entering; otherwise, exit conditions become harder to trigger than entry conditions, creating asymmetric risk</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    These constraints reduce the search space from an unconstrained Cartesian product of parameter
+    ranges to a convex feasible region, eliminating pathological parameterizations <em>before</em>
+    the expensive backtest simulation is invoked. Invalid candidates are rejected immediately
+    (line&nbsp;393: <code>if not _is_valid_candidate(normalized, param_space=param_space): ...</code>).
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.6  ML Filter Model Diagnostics                                       -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-ml-diagnostics">6.6 ML Filter Model Diagnostics</h3>
+  <p>
+    <strong>Location:</strong> <code>core/ml_filter.py</code>.
+  </p>
+  <p>
+    When the ML filter (LightGBM-based trade signal classifier) is trained, comprehensive
+    diagnostics are computed to validate model quality.
+  </p>
+
+  <h4>6.6.1 Classification Metrics</h4>
+  <p>
+    The module imports from <code>sklearn.metrics</code> (line&nbsp;17):
+  </p>
+  <ul>
+    <li><strong>Precision:</strong> <code>precision_score(y_true, y_pred)</code> &mdash; fraction of predicted positive trades that are actually profitable</li>
+    <li><strong>Recall:</strong> <code>recall_score(y_true, y_pred)</code> &mdash; fraction of actually profitable trades that the model identifies</li>
+    <li><strong>F1 Score:</strong> <code>f1_score(y_true, y_pred)</code> &mdash; harmonic mean of precision and recall</li>
+    <li><strong>Average Precision:</strong> <code>average_precision_score(y_true, y_score)</code> &mdash; area under the precision-recall curve, a threshold-invariant metric</li>
+  </ul>
+  <p>
+    These metrics are computed on <strong>both</strong> the training set and the validation set,
+    enabling direct comparison to detect overfitting within the ML model itself.
+  </p>
+
+  <h4>6.6.2 Degenerate Case Detection</h4>
+  <p>
+    <strong>Location:</strong> <code>core/ml_filter.py</code>, class
+    <code>_ConstantProbabilityModel</code> (line&nbsp;126).
+  </p>
+  <p>
+    If the training data contains only a single class (e.g., all trades are losses, or all are
+    wins), the LightGBM classifier cannot learn a meaningful decision boundary. Rather than
+    failing or producing undefined behavior, the system detects this degenerate case
+    (line&nbsp;546) and falls back to a stable placeholder:
+  </p>
+  <pre><code>class _ConstantProbabilityModel:
+    """Stable fallback model when training labels collapse to a single class."""
+    def __init__(self, positive_probability: float) -&gt; None:
+        prob = float(np.clip(positive_probability, 0.0, 1.0))
+        self.positive_probability_ = prob
+        self.classes_ = np.array([0, 1], dtype=int)
+
+    def predict_proba(self, x) -&gt; np.ndarray:
+        n_samples = len(x)
+        proba_pos = np.full(n_samples, self.positive_probability_, dtype=float)
+        return np.column_stack([1.0 - proba_pos, proba_pos])</code></pre>
+  <p>
+    This model returns the empirical positive class probability for every sample, effectively
+    passing through the base rate without amplifying noise. The <code>predict_proba()</code>
+    interface matches scikit-learn&rsquo;s API, so downstream code requires no special handling.
+  </p>
+
+  <h4>6.6.3 Feature Importance</h4>
+  <p>
+    When LightGBM is the underlying classifier, the trained model&rsquo;s
+    <code>feature_importances_</code> attribute reveals which technical indicators most
+    influence the trade-filtering decision. This serves as a sanity check: if importance is
+    concentrated on a single noisy feature, the model may be fitting to noise rather than
+    genuine market signal.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.7  Adaptive Regime Validation                                        -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-adaptive-regime">6.7 Adaptive Regime Validation</h3>
+  <p>
+    <strong>Location:</strong> <code>core/adaptive_regime.py</code>.
+  </p>
+  <p>
+    The adaptive regime model partitions market conditions into discrete states and routes
+    each state to its best-performing strategy variant. Several safeguards validate this
+    model&rsquo;s quality.
+  </p>
+
+  <h4>6.7.1 State Distribution Check</h4>
+  <p>
+    <strong>Constant:</strong> <code>ADAPTIVE_MIN_STATE_DAYS = 20</code> (line&nbsp;42).
+  </p>
+  <p>
+    The function <code>select_routing_policy()</code> (line&nbsp;505) enforces a minimum sample
+    requirement per state:
+  </p>
+  <pre><code>eligible = metrics_df[
+    pd.to_numeric(metrics_df["state_day_count"], errors="coerce")
+    &gt;= int(min_state_days)
+].copy()</code></pre>
+  <p>
+    States with fewer than 20 observed trading days are excluded from the routing policy selection.
+    This prevents the regime model from making routing decisions based on statistically insufficient
+    evidence. A state observed for only a handful of days may exhibit extreme (but unreliable)
+    performance metrics.
+  </p>
+
+  <h4>6.7.2 Classifier Quality</h4>
+  <p>
+    The state classifier uses <code>LogisticRegression</code> trained with
+    <code>StandardScaler</code> preprocessing. Feature scaling ensures that all regime features
+    contribute proportionally, and logistic regression provides calibrated posterior probabilities
+    for each state, enabling confidence-based routing.
+  </p>
+
+  <h4>6.7.3 Graceful Degradation</h4>
+  <p>
+    If the adaptive regime artifacts are missing, corrupted, or fail validation, the system
+    automatically degrades to the legacy <code>dual_state_router</code>. This is signaled
+    through the pipeline result:
+  </p>
+  <pre><code>PipelineRunResult.status = "degraded"</code></pre>
+  <p>
+    This design ensures that the application never crashes due to a faulty regime model; instead,
+    it transparently falls back to a simpler but proven routing mechanism, and the user is
+    informed of the degradation through the status field.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.8  Trade-Level Analysis                                              -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-trade-analysis">6.8 Trade-Level Analysis</h3>
+  <p>
+    Aggregate metrics like Sharpe ratio can mask problematic trading behavior (e.g., a few lucky
+    trades dominating an otherwise poor strategy). Trade-level analysis decomposes strategy
+    performance into individual trade statistics.
+  </p>
+
+  <h4>6.8.1 Trade Extraction</h4>
+  <p>
+    <strong>Location:</strong> <code>core/backtest.py</code>, function
+    <code>extract_trades()</code> (line&nbsp;127).
+  </p>
+  <pre><code>def extract_trades(
+    df: pd.DataFrame,
+    position_col: str = "position",
+    eps: float = 1e-8,
+    initial_position: int = 0,
+) -&gt; pd.DataFrame</code></pre>
+  <p>The function:</p>
+  <ol>
+    <li>Identifies contiguous non-zero position segments (<code>position &gt; &epsilon;</code>)</li>
+    <li>Computes per-trade compound return by accumulating daily <code>strategy_return</code> across the trade&rsquo;s holding period:
+      <pre><code>trade_equity = (1 + strategy_return[start : exit+1]).cumprod()
+trade_return = trade_equity[-1] - 1.0</code></pre>
+    </li>
+    <li>Includes the exit day in the calculation: on the day position drops to zero, the strategy return is still determined by the <em>previous day&rsquo;s</em> position, so the exit-day return must be included</li>
+    <li>Outputs a DataFrame with columns: <code>entry_date</code>, <code>exit_date</code>, <code>hold_days</code>, <code>trade_return</code>, <code>is_win</code></li>
+  </ol>
+
+  <h4>6.8.2 Trade Statistics</h4>
+  <p>
+    <strong>Location:</strong> <code>core/evaluation.py</code>, function
+    <code>compute_trade_stats()</code> (line&nbsp;68).
+  </p>
+  <table>
+    <thead>
+      <tr><th>Statistic</th><th>Formula</th><th>Interpretation</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Win Rate</strong></td>
+        <td><code>wins / n_trades</code></td>
+        <td>Fraction of profitable trades</td>
+      </tr>
+      <tr>
+        <td><strong>Profit/Loss Ratio</strong></td>
+        <td><code>mean(gains) / mean(|losses|)</code></td>
+        <td>Average winning trade size relative to average losing trade; values &gt;&nbsp;1 indicate larger wins than losses</td>
+      </tr>
+      <tr>
+        <td><strong>Average Hold Days</strong></td>
+        <td><code>mean(hold_days)</code></td>
+        <td>How long positions are held on average; combined with win rate, reveals if the strategy is a &ldquo;fast scalper&rdquo; or &ldquo;slow trend follower&rdquo;</td>
+      </tr>
+      <tr>
+        <td><strong>Turnover Ratio</strong></td>
+        <td><code>n_trades / n_trading_days</code></td>
+        <td>Frequency of position changes; high turnover increases transaction cost sensitivity</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    A strategy with a high Sharpe ratio but extremely low win rate and high P/L ratio is
+    &ldquo;right-tail dependent&rdquo;&mdash;it relies on rare large wins. Conversely, a high
+    win rate with low P/L ratio is &ldquo;death by a thousand cuts&rdquo; vulnerable to occasional
+    large losses. Trade-level analysis exposes these pathologies.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.9  Stationarity Considerations                                       -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-stationarity">6.9 Stationarity Considerations</h3>
+  <p>
+    Financial time series are notoriously non-stationary: their statistical properties
+    (mean, variance, autocorrelation) change over time. Rather than attempting to make the
+    raw series stationary through differencing (which discards level information), our pipeline
+    uses <strong>adaptive normalization</strong> techniques that implicitly handle non-stationarity.
+  </p>
+
+  <h4>6.9.1 Rolling Z-Score Normalization</h4>
+  <p>
+    <strong>Location:</strong> <code>core/indicators.py</code>, function
+    <code>rolling_zscore()</code> (line&nbsp;29).
+  </p>
+  <pre><code>def rolling_zscore(series: pd.Series, window: int) -&gt; pd.Series:
+    mean = series.rolling(window=window, min_periods=window).mean()
+    std  = series.rolling(window=window, min_periods=window).std()
+    z = (series - mean) / std
+    return z.replace([np.inf, -np.inf], np.nan)</code></pre>
+  <p>
+    The Z-score at time <em>t</em> is defined as:
+  </p>
+  <pre><code>z<sub>t</sub> = (x<sub>t</sub> &minus; &mu;<sub>t,w</sub>) / &sigma;<sub>t,w</sub></code></pre>
+  <p>
+    where &mu;<sub>t,w</sub> and &sigma;<sub>t,w</sub> are the rolling mean and standard deviation
+    computed over the most recent <em>w</em> observations. This transforms a non-stationary
+    series into an approximately stationary one by comparing each value only to its <em>recent
+    local distribution</em>, not to the global distribution.
+  </p>
+
+  <h4>6.9.2 Rolling Rank (Percentile) Normalization</h4>
+  <p>
+    <strong>Location:</strong> <code>core/indicators.py</code>, function
+    <code>rolling_percentile()</code> (immediately following <code>rolling_zscore()</code>).
+  </p>
+  <p>
+    Rolling percentile rank provides an additional normalization that is robust against
+    distribution shifts. Unlike Z-score (which assumes approximate normality within the window),
+    percentile rank is purely ordinal and invariant to the shape of the local distribution:
+  </p>
+  <pre><code>rank<sub>t</sub> = Percentile(x<sub>t</sub>, {x<sub>t&minus;w+1</sub>, &hellip;, x<sub>t</sub>}) &isin; [0, 1]</code></pre>
+
+  <h4>6.9.3 Controlling Locality via <code>score_lookback</code></h4>
+  <p>
+    The <code>score_lookback</code> parameter controls the window size for these normalizations.
+    A shorter lookback (e.g., 20&nbsp;days) adapts quickly to regime changes but may introduce
+    noise; a longer lookback (e.g., 120&nbsp;days) is smoother but slower to react. This
+    parameter is part of the search space exposed to the optimizer, allowing the system to find
+    the lookback that best balances responsiveness and stability for each asset.
+  </p>
+
+  <h4>6.9.4 Volatility-Based Position Discount (Heteroskedasticity)</h4>
+  <p>
+    Financial return volatility clusters: periods of high volatility tend to persist (ARCH/GARCH
+    effects). The backtest engine addresses this heteroskedasticity through a volatility-based
+    position discount: during high-volatility regimes, position sizes are reduced. This is
+    economically equivalent to targeting a constant-volatility exposure, a standard technique in
+    professional quantitative finance for handling time-varying risk.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.10  Performance Metrics from Course Lectures                         -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-performance-metrics">6.10 Performance Metrics (Course Lecture Alignment)</h3>
+  <p>
+    All evaluation metrics align with the standard financial performance measures taught in
+    the AIE1902 course lectures. The implementations are centralized in
+    <code>core/evaluation.py</code>, function <code>compute_performance_metrics()</code>
+    (line&nbsp;14), with helper functions for the underlying calculations.
+  </p>
+
+  <h4>6.10.1 Sharpe Ratio</h4>
+  <p>
+    The Sharpe Ratio is the primary risk-adjusted return measure. It quantifies excess return
+    per unit of risk (standard deviation):
+  </p>
+  <pre><code>SR = (E[r] &minus; r<sub>f</sub> / 252) / &sigma;(r) &times; &radic;252</code></pre>
+  <p>
+    where <em>r</em> denotes daily strategy returns, <em>r<sub>f</sub></em> is the annualized
+    risk-free rate (default&nbsp;0), and the &radic;252 factor annualizes the daily ratio. A
+    Sharpe ratio above 1.0 is generally considered acceptable; above 2.0 is strong.
+  </p>
+
+  <h4>6.10.2 Maximum Drawdown</h4>
+  <p>
+    The maximum drawdown measures the worst peak-to-trough decline in the equity curve:
+  </p>
+  <pre><code>MDD = min<sub>t</sub> (equity<sub>t</sub> / max<sub>s&le;t</sub>(equity<sub>s</sub>) &minus; 1)</code></pre>
+  <p>
+    This metric captures tail risk&mdash;the worst historical loss a strategy holder would have
+    experienced. It is reported as a negative number (e.g., &minus;0.25 means a 25% peak-to-trough
+    decline). Maximum drawdown is particularly important because it reflects the psychological
+    and financial pressure an investor faces during the worst period of the strategy.
+  </p>
+
+  <h4>6.10.3 Cumulative Return</h4>
+  <pre><code>CumRet = equity<sub>T</sub> / equity<sub>0</sub> &minus; 1</code></pre>
+  <p>
+    The total percentage gain (or loss) over the entire evaluation period. This is the most
+    intuitive measure of strategy performance but does not account for risk or the time period
+    over which the return was generated.
+  </p>
+
+  <h4>6.10.4 Annualized Return</h4>
+  <pre><code>AnnRet = (equity<sub>T</sub> / equity<sub>0</sub>)<sup>252/n</sup> &minus; 1</code></pre>
+  <p>
+    Scales the cumulative return to a common annual basis using the 252&ndash;trading-day
+    convention. This enables fair comparison between evaluation periods of different lengths.
+    The exponent <code>252/n</code> assumes compound growth, which is appropriate for equity
+    curve analysis.
+  </p>
+
+  <h4>6.10.5 Excess Return</h4>
+  <pre><code>ExRet = CumRet<sub>strategy</sub> &minus; CumRet<sub>benchmark</sub></code></pre>
+  <p>
+    The difference between the strategy&rsquo;s cumulative return and the buy-and-hold
+    benchmark&rsquo;s cumulative return. Positive excess return indicates the strategy adds value
+    beyond simply holding the underlying asset. This is the most direct measure of whether the
+    active strategy justifies its complexity.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 6.11  Summary & Cross-Reference                                        -->
+  <!-- ====================================================================== -->
+  <h3 id="mc-summary">6.11 Summary: Model Checking Coverage Matrix</h3>
+  <p>
+    The table below summarizes all ten model-checking methods, their primary purpose, and
+    the source code modules that implement them.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Method</th>
+        <th>Purpose</th>
+        <th>Module(s)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Out-of-Sample Testing</td>
+        <td>Prevent in-sample overfitting; all metrics on unseen data</td>
+        <td><code>core/evaluation.py</code>, <code>model-test/execution.py</code></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Walk-Forward Validation</td>
+        <td>Validate temporal consistency across multiple periods</td>
+        <td><code>core/backtest.py</code></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Rolling Robustness Testing</td>
+        <td>Systematic multi-window retest of top candidates</td>
+        <td><code>model-test/runner.py</code>, <code>model-test/config.py</code></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>Overfitting Detection</td>
+        <td>Penalize train/validation performance gap</td>
+        <td><code>core/optimizer.py</code></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>Parameter Validity Constraints</td>
+        <td>Eliminate degenerate parameterizations before evaluation</td>
+        <td><code>core/optimizer.py</code></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td>ML Filter Diagnostics</td>
+        <td>Precision/Recall/F1 on train &amp; validation; degenerate fallback</td>
+        <td><code>core/ml_filter.py</code></td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td>Adaptive Regime Validation</td>
+        <td>Minimum state size; classifier quality; graceful degradation</td>
+        <td><code>core/adaptive_regime.py</code></td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td>Trade-Level Analysis</td>
+        <td>Per-trade statistics: win rate, P/L ratio, turnover</td>
+        <td><code>core/backtest.py</code>, <code>core/evaluation.py</code></td>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td>Stationarity Handling</td>
+        <td>Rolling normalization; volatility-adaptive position sizing</td>
+        <td><code>core/indicators.py</code></td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td>Performance Metrics</td>
+        <td>Sharpe, MDD, cumulative/annualized/excess return</td>
+        <td><code>core/evaluation.py</code></td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    Together, these ten methods form a comprehensive model-checking framework that addresses
+    overfitting (methods 1&ndash;5), model quality diagnostics (methods 6&ndash;7), behavioral
+    analysis (method 8), data assumptions (method 9), and standardized performance measurement
+    (method 10)&mdash;fully satisfying Course Requirement&nbsp;6 of AIE1902.
+  </p>
+</section>
