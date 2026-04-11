@@ -17,6 +17,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 import streamlit as st
+from ui.i18n import tr
 
 from core.backtest import simulate_strategy
 from core.adaptive_regime import (
@@ -439,9 +440,9 @@ def _build_stage_result_from_signal_df(
     train_slice = _refresh_trade_signal_columns(full_signal_df.iloc[:split_idx].copy())
     test_slice = _refresh_trade_signal_columns(full_signal_df.iloc[split_idx:].copy())
     if train_slice.empty:
-        raise ValueError("训练集为空，无法生成策略阶段结果")
+        raise ValueError(tr("error.emptyTrainingSet"))
     if test_slice.empty:
-        raise ValueError("测试集为空，无法生成策略阶段结果")
+        raise ValueError(tr("error.empty_test_set"))
 
     train_sim_df, _train_trades = simulate_strategy(
         train_slice,
@@ -927,12 +928,12 @@ def run_baseline_path(
     split_idx: int,
 ) -> tuple[StageResult, bool]:
     label_map = {
-        "naive": ("Naive（买入持有）", "Naive", 1),
-        "mean": ("Mean（均值基线）", "Mean", 0),
-        "drift": ("Drift（漂移基线）", "Drift", 0),
+        "naive": (tr("strategy.naiveBuyAndHold"), "Naive", 1),
+        "mean": (tr("baseline.mean"), "Mean", 0),
+        "drift": (tr("metric.driftBaseline"), "Drift", 0),
     }
     if request.baseline_kind not in label_map:
-        raise ValueError("Baseline 路径缺少合法的 baseline_kind")
+        raise ValueError(tr("baseline.path.invalidKind"))
 
     display_label, short_label, initial_position = label_map[request.baseline_kind]
     params_snapshot = {
@@ -975,7 +976,7 @@ def run_sm_base_stage(
         sim_kwargs = _sim_kwargs_from_snapshot(params_snapshot)
         return _build_stage_result_from_signal_df(
             stage_key="sm_base",
-            display_label="SM基础",
+            display_label=tr("model.sm_basic"),
             short_label="SM",
             params_snapshot=params_snapshot,
             full_signal_df=full_signal_df,
@@ -1019,7 +1020,7 @@ def run_fsm_base_stage(
         sim_kwargs = _sim_kwargs_from_snapshot(params_snapshot)
         return _build_stage_result_from_signal_df(
             stage_key="fsm_base",
-            display_label="FSM基础",
+            display_label=tr("model.fsmBase"),
             short_label="FSM",
             params_snapshot=effective_snapshot,
             full_signal_df=fsm_signal_df,
@@ -1055,7 +1056,7 @@ def run_regime_stage(
     adjust: str = "qfq",
 ) -> tuple[StageResult, bool]:
     if request.regime_kind is None:
-        raise ValueError("Regime 路径缺少合法的 regime_kind")
+        raise ValueError(tr("regime.missing_kind"))
 
     stage_params_snapshot = _build_regime_stage_params_snapshot(params_snapshot)
 
@@ -1268,7 +1269,7 @@ def _run_parameter_search(
         raise ValueError(f"未知 search_method: {search_method}")
 
     if not result:
-        raise ValueError("参数搜索未返回有效结果")
+        raise ValueError(tr("paramSearch.noValidResults"))
     return result
 
 
@@ -1281,7 +1282,7 @@ def run_search_stage(
     split_idx: int,
 ) -> tuple[StageResult, bool]:
     if not request.use_search:
-        raise ValueError("当前请求未启用参数搜索")
+        raise ValueError(tr("strategy.param_search_disabled"))
 
     stage_request_slice = {
         "family": "search",
@@ -1349,7 +1350,7 @@ def run_ml_stage(
     split_idx: int,
 ) -> tuple[StageResult, bool]:
     if not request.use_ml:
-        raise ValueError("当前请求未启用 ML 过滤")
+        raise ValueError(tr("ml.filter_disabled"))
 
     stage_request_slice = {
         "family": "search",
@@ -1374,7 +1375,7 @@ def run_ml_stage(
             label_boundary_limit=split_idx,
         )
         if train_features.empty or train_features["ml_label"].notna().sum() == 0:
-            raise ValueError("ML 训练样本为空，无法训练过滤器")
+            raise ValueError(tr("error.mlTrainingDataEmpty"))
 
         ml_model = fit_ml_filter(
             train_features,
@@ -1472,7 +1473,7 @@ def assemble_strategy_artifact(
 def _validate_request(request: StrategyRequest) -> None:
     if request.family == "baseline":
         if request.baseline_kind not in {"naive", "mean", "drift"}:
-            raise ValueError("Baseline 路径必须选择 Naive / Mean / Drift")
+            raise ValueError(tr("rule.baselineFamilyRequired"))
         if (
             request.use_search
             or request.use_ml
@@ -1481,30 +1482,30 @@ def _validate_request(request: StrategyRequest) -> None:
             or request.search_method
             or request.ml_model_type
         ):
-            raise ValueError("Baseline 路径不允许启用 Search / FSM / ML 增强")
+            raise ValueError(tr("restriction.baselineNoEnhancements"))
         return
 
     if request.family == "regime":
         if request.regime_kind not in {"dual_state_router", "no_market", "no_router", ADAPTIVE_REGIME_KIND}:
-            raise ValueError("Regime 路径必须选择合法的 regime_kind")
+            raise ValueError(tr("validation.regimePath"))
         if request.baseline_kind or request.search_base or request.use_search or request.use_ml:
-            raise ValueError("Regime 路径不允许启用 Baseline / Search / ML 选项")
+            raise ValueError(tr("regime.path.restriction.noBaselineSearchML"))
         if request.search_method or request.ml_model_type:
-            raise ValueError("Regime 路径不允许携带搜索或 ML 模型配置")
+            raise ValueError(tr("regime.path.restriction.noSearchML"))
         return
 
     if request.family != "search":
-        raise ValueError("family 只支持 baseline、search 或 regime")
+        raise ValueError(tr("validation.familyParam"))
     if request.search_base not in {"sm", "fsm"}:
-        raise ValueError("Search 路径必须选择 SM 或 FSM")
+        raise ValueError(tr("search.path_required"))
     if request.use_search and request.search_method not in {"bayesian", "genetic", "random"}:
-        raise ValueError("启用参数搜索时必须选择合法的搜索方法")
+        raise ValueError(tr("validation.param_search_method_required"))
     if request.use_ml and request.ml_model_type not in {"logistic", "lgbm"}:
-        raise ValueError("启用 ML 时必须选择合法的 ML 模型")
+        raise ValueError(tr("validation.mlModelRequired"))
     if int(request.ml_horizon_days) <= 0:
-        raise ValueError("ml_horizon_days 必须为正整数")
+        raise ValueError(tr("validation.mlHorizonDays"))
     if int(request.ml_min_excess_samples) <= 0:
-        raise ValueError("ml_min_excess_samples 必须为正整数")
+        raise ValueError(tr("validation.ml_min_excess_samples"))
 
 
 def run_strategy_pipeline(
@@ -1538,7 +1539,7 @@ def run_strategy_pipeline(
             )
             lineage.append(baseline_stage)
             if baseline_cached:
-                cache_messages.append("Baseline 阶段命中缓存。")
+                cache_messages.append(tr("baseline.cache_hit"))
         elif request.family == "regime":
             regime_stage, regime_cached = run_regime_stage(
                 context_key=context_key,
@@ -1549,7 +1550,7 @@ def run_strategy_pipeline(
             )
             lineage.append(regime_stage)
             if regime_cached:
-                cache_messages.append("Regime 阶段命中缓存。")
+                cache_messages.append(tr("regime.cache_hit"))
             success_warnings.extend([str(item) for item in regime_stage.metadata.get("warning_messages", [])])
             final_status = "degraded" if regime_stage.metadata.get("run_status") == "degraded" else "success"
             artifact = assemble_strategy_artifact(
@@ -1595,7 +1596,7 @@ def run_strategy_pipeline(
                     )
                     lineage.append(latest_stage)
                     if search_cached:
-                        cache_messages.append("参数搜索阶段命中缓存。")
+                        cache_messages.append(tr("paramSearch.cacheHit"))
                 except Exception as exc:
                     warnings.append(f"参数搜索失败，已回退到基础策略：{exc}")
                     artifact = assemble_strategy_artifact(
@@ -1621,7 +1622,7 @@ def run_strategy_pipeline(
                     )
                     lineage.append(latest_stage)
                     if ml_cached:
-                        cache_messages.append("ML 阶段命中缓存。")
+                        cache_messages.append(tr("ml.cache.hit"))
                 except Exception as exc:
                     warnings = [f"ML 失败，已保留最近一步成功结果：{exc}"]
                     artifact = assemble_strategy_artifact(

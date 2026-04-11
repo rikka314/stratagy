@@ -11,6 +11,7 @@ from datetime import date as _date, timedelta as _timedelta
 import numpy as np
 import pandas as pd
 import streamlit as st
+from ui.i18n import tr
 try:
     from st_keyup import st_keyup
 except ImportError:  # pragma: no cover - fallback for environments without the component
@@ -28,9 +29,9 @@ from core.utils import load_or_fetch_stock, get_available_stocks
 
 
 def _render_live_search_input(market: str) -> str:
-    """渲染支持 keyup 的搜索输入框；缺少组件时回退到原生输入框。"""
-    label = "搜索股票名称或代码"
-    placeholder = "例如: TSLA / Apple / 贵州茅台 / 600519"
+    """ui.searchInputFallback"""
+    label = tr("placeholder.search_stock")
+    placeholder = tr("example.tickerOrName")
     key = f"new_symbol_input_{market}"
 
     if st_keyup is not None:
@@ -52,7 +53,7 @@ def _render_live_search_input(market: str) -> str:
 
 @st.fragment
 def _render_stock_search_fragment(market: str, adjust: str, available_stocks: tuple[str, ...]) -> None:
-    """渲染搜索与添加股票区域，输入时仅局部刷新。"""
+    """component.stockSearch.description"""
     resolved_symbol = ""
     selected_stock_label = ""
     search_query = _render_live_search_input(market)
@@ -67,11 +68,11 @@ def _render_stock_search_fragment(market: str, adjust: str, available_stocks: tu
                 row.symbol: row.label for row in matched_candidates.itertuples(index=False)
             }
         except Exception as exc:
-            st.warning(f"{'A 股' if market == 'A' else '美股'}搜索索引加载失败：{exc}")
+            st.warning(f"{tr("market.cn_stock") if market == 'A' else tr("market.us_stocks")}搜索索引加载失败：{exc}")
 
         if not matched_candidates.empty:
             resolved_symbol = st.radio(
-                "匹配结果",
+                tr("search.matches"),
                 options=matched_candidates["symbol"].tolist(),
                 format_func=lambda symbol: candidate_label_map.get(symbol, symbol),
                 index=0,
@@ -81,21 +82,21 @@ def _render_stock_search_fragment(market: str, adjust: str, available_stocks: tu
         elif market == "A" and re.fullmatch(r"\d{6}", search_query):
             resolved_symbol = search_query
             selected_stock_label = search_query
-            st.caption("未找到名称索引匹配，将直接按该代码尝试下载。")
+            st.caption(tr("data.download.fallbackByCode"))
         elif market == "US":
             resolved_symbol = search_query.upper()
             selected_stock_label = resolved_symbol
-            st.caption("未找到名称索引匹配，将直接按该代码尝试下载。")
+            st.caption(tr("data.download.fallbackByCode"))
         else:
-            st.info("未找到匹配的股票，请尝试更完整的名称或直接输入代码。")
+            st.info(tr("error.no_matching_stock"))
 
-    add_stock_btn = st.button("添加到股票列表", width="stretch", key=f"add_stock_{market}")
+    add_stock_btn = st.button(tr("stockList.addAction"), width="stretch", key=f"add_stock_{market}")
 
     if add_stock_btn:
         if market == "US" and not resolved_symbol:
-            st.warning("请输入美股代码后再添加。")
+            st.warning(tr("validation.enterUsStockCode"))
         elif market == "A" and not resolved_symbol:
-            st.warning("请先输入 A 股名称或代码，并从候选结果中选择。")
+            st.warning(tr("search.a_share_prompt"))
         elif resolved_symbol not in available_stocks:
             with st.spinner(f"正在下载 {selected_stock_label or resolved_symbol} 数据..."):
                 new_df = load_or_fetch_stock(resolved_symbol, adjust, market=market)
@@ -138,41 +139,41 @@ def render_sidebar(
         st.session_state.pop("best_params", None)
         st.session_state.pop("apply_best_params", None)
 
-        st.header("📊 控制面板")
+        st.header(tr("section.title.controlPanel"))
 
         market = st.radio(
-            "市场选择",
+            tr("market.selection"),
             options=["US", "A"],
             index=0,
-            format_func=lambda x: "美股" if x == "US" else "A 股",
+            format_func=lambda x: tr("market.us_stocks") if x == "US" else tr("market.cn_stock"),
             horizontal=True,
-            help="切换后将使用对应市场的默认股票池和数据下载路径。",
+            help=tr("market.switch_defaults_notice"),
             key="sidebar_market",
         )
         st.session_state["market"] = market
 
         # ===== 日期选择 =====
-        st.subheader("📅 时间范围")
+        st.subheader(tr("time.range"))
         _default_end = _date.today()
         _default_start = _default_end - _timedelta(days=3 * 365)
         selected_range = st.date_input(
-            "选择时间区间",
+            tr("common.selectTimeRange"),
             value=(_default_start, _default_end),
             min_value=_date(2015, 1, 1),
             max_value=_date.today(),
-            help="选择回测数据的起止日期",
+            help=tr("backtest.dateRangePicker"),
             key="sidebar_selected_range",
         )
 
         # ===== 股票选择 =====
         st.markdown("---")
-        st.subheader("🔍 股票选择")
+        st.subheader(tr("section.stockSelection"))
 
         adjust = st.selectbox(
-            "复权方式",
+            tr("data.adjustment"),
             options=["qfq", "hfq", "none"],
             index=0,
-            help="影响数据下载的复权方式。",
+            help=tr("data.download.adjustmentMethod"),
             key="sidebar_adjust",
         )
         st.session_state["adjust"] = adjust
@@ -183,28 +184,28 @@ def render_sidebar(
         stock_label_map = get_stock_label_map(available_stocks, market=market)
 
         # 添加新股票 / 上传 CSV
-        with st.expander("➕ 添加股票 / 上传数据", expanded=False):
+        with st.expander(tr("action.addStockOrUpload"), expanded=False):
             _render_stock_search_fragment(market, adjust, tuple(available_stocks))
 
             st.markdown("---")
 
             uploaded_file = st.file_uploader(
-                "上传 CSV（列名：open, close, volumn/volume, high, low）",
+                tr("upload.csvFormat"),
                 type=["csv"],
-                help="上传自定义CSV数据文件",
+                help=tr("data.upload_custom_csv"),
             )
             if uploaded_file:
-                st.info("✓ 将使用上传的CSV数据")
+                st.info(tr("status.using_uploaded_csv"))
 
         # 选择股票
         compare_stocks: list[str] = []
         if available_stocks:
             compare_stocks = st.multiselect(
-                "选择股票",
+                tr("action.selectStocks"),
                 options=available_stocks,
                 default=[available_stocks[0]] if available_stocks else [],
                 format_func=lambda symbol: stock_label_map.get(symbol, symbol),
-                help="选择一只股票进行策略分析，或多只股票进行对比分析",
+                help=tr("stock.selectionPrompt"),
                 key=f"compare_stocks_selector_{market}",
             )
             if len(compare_stocks) == 1:
@@ -213,12 +214,12 @@ def render_sidebar(
             elif len(compare_stocks) > 1:
                 st.info(f"✓ 已选择 {len(compare_stocks)} 只股票进行对比")
         else:
-            st.warning("暂无股票数据，请先添加股票")
+            st.warning(tr("data.stock.empty"))
 
         # 刷新所有已选股票数据
         if compare_stocks:
-            if st.button("🔄 刷新所选股票数据", width="stretch"):
-                with st.spinner("正在刷新数据..."):
+            if st.button(tr("action.refreshStockData"), width="stretch"):
+                with st.spinner(tr("data.refreshing")):
                     success_count = 0
                     fail_count = 0
 
@@ -230,7 +231,7 @@ def render_sidebar(
                                 df_temp = fetch_data(stock_symbol, adjust)
 
                             if df_temp is None or df_temp.empty:
-                                raise ValueError("未获取到有效数据")
+                                raise ValueError(tr("error.noValidData"))
 
                             os.makedirs(DATA_DIR, exist_ok=True)
                             cache_path = os.path.join(
@@ -265,13 +266,13 @@ def render_sidebar(
         st.markdown("---")
 
         # ===== 策略选择 =====
-        st.subheader("📋 策略选择")
+        st.subheader(tr("strategy.selection"))
 
         strategy_preset = st.selectbox(
-            "选择预设策略",
+            tr("strategy.select_preset"),
             options=list(STRATEGY_PRESETS.keys()),
             index=1,
-            help="预设策略模板会自动填充入场/出场规则和高级设置中的所有参数。选择「自定义参数」可手动调节。",
+            help=tr("strategy.template_description"),
             key="strategy_preset_selector",
         )
 
@@ -279,7 +280,7 @@ def render_sidebar(
         st.caption(f"💡 {preset_info['description']}")
 
         # 预设参数同步到 session_state
-        if strategy_preset != "自定义参数":
+        if strategy_preset != tr("parameter.custom"):
             preset = STRATEGY_PRESETS[strategy_preset]
             _preset_key_map = {
                 "ema_fast": "ema_fast_slider",
@@ -314,24 +315,24 @@ def render_sidebar(
                 if direct_key in preset:
                     st.session_state[direct_key] = preset[direct_key]
         else:
-            preset = STRATEGY_PRESETS["均衡策略（默认）"]
+            preset = STRATEGY_PRESETS[tr("strategy.balanced.default")]
 
         st.markdown("---")
 
         _preset_entry_min = (
             preset.get("entry_min_signals", 3)
-            if strategy_preset != "自定义参数"
+            if strategy_preset != tr("parameter.custom")
             else 3
         )
         _preset_exit_min = (
             preset.get("exit_min_signals", 2)
-            if strategy_preset != "自定义参数"
+            if strategy_preset != tr("parameter.custom")
             else 2
         )
 
         # ===== 入场规则 =====
-        st.subheader("📈 入场规则")
-        st.caption("入场需满足以下信号中的至少 N 个：")
+        st.subheader(tr("strategy.entryRules"))
+        st.caption(tr("strategy.entry_condition"))
         st.markdown(
             """
 1. 📊 因子评分达标
@@ -342,18 +343,18 @@ def render_sidebar(
         """
         )
         entry_min_signals = st.slider(
-            "入场最少信号数",
+            tr("param.minEntrySignals"),
             1,
             5,
             _preset_entry_min,
-            help="需要同时满足的入场条件数量。数值越大入场越严格，1=最宽松（任一满足即入场），5=最严格（全部满足才入场）",
+            help=tr("condition.entry_threshold"),
         )
 
         st.markdown("---")
 
         # ===== 出场规则 =====
-        st.subheader("📉 出场规则")
-        st.caption("出场需满足以下信号中的至少 N 个：")
+        st.subheader(tr("rules.exit"))
+        st.caption(tr("exit.condition.signalCount"))
         st.markdown(
             """
 1. 📊 因子评分过低
@@ -363,165 +364,165 @@ def render_sidebar(
         """
         )
         exit_min_signals = st.slider(
-            "出场最少信号数",
+            tr("strategy.min_exit_signals"),
             1,
             4,
             _preset_exit_min,
-            help="需要同时满足的出场条件数量。数值越大出场越宽松（不容易被踢出），1=原始逻辑（任一触发就出场），4=全部满足才出场",
+            help=tr("rules.exit.conditions.description"),
         )
 
         st.markdown("---")
 
         # ===== 高级设置 =====
         with st.expander(
-            "⚙️ 高级设置（自定义参数 / 查看当前值）", expanded=False
+            tr("button.advancedSettings"), expanded=False
         ):
-            if strategy_preset != "自定义参数":
+            if strategy_preset != tr("parameter.custom"):
                 st.caption(
                     f"当前使用「{strategy_preset}」预设，以下参数已自动填充。切换为「自定义参数」可手动修改。"
                 )
             else:
                 st.caption(
-                    "手动调整所有策略参数，或使用高级策略自动搜索最优值。"
+                    tr("strategy.param_description")
                 )
 
-            st.markdown("**EMA 趋势参数**")
+            st.markdown(tr("params.ema_trend_parameters"))
             ema_fast = st.slider(
-                "EMA 快线周期", 5, 50, 20, help="趋势过滤的短周期 EMA。", key="ema_fast_slider"
+                tr("param.emaFastPeriod"), 5, 50, 20, help=tr("description.trend_filter_ema"), key="ema_fast_slider"
             )
             ema_slow = st.slider(
-                "EMA 慢线周期", 20, 200, 60, help="趋势过滤的长周期 EMA。", key="ema_slow_slider"
+                tr("params.ema_slow_period"), 20, 200, 60, help=tr("indicator.trendFilter.longEma"), key="ema_slow_slider"
             )
 
-            st.markdown("**MACD 参数**")
+            st.markdown(tr("param.macd"))
             macd_fast = st.slider(
-                "MACD 快线周期", 5, 20, 12, help="MACD 快线 EMA 周期。", key="macd_fast_slider"
+                tr("indicator.macd_fast_period"), 5, 20, 12, help=tr("indicator.macdFastPeriod"), key="macd_fast_slider"
             )
             macd_slow = st.slider(
-                "MACD 慢线周期", 10, 40, 26, help="MACD 慢线 EMA 周期。", key="macd_slow_slider"
+                tr("indicator.macd_slow_period"), 10, 40, 26, help=tr("indicator.macd.slowEma.period"), key="macd_slow_slider"
             )
             macd_signal = st.slider(
-                "MACD 信号周期", 5, 20, 9, help="MACD 信号线 EMA 周期。", key="macd_signal_slider"
+                tr("parameter.macdSignalPeriod"), 5, 20, 9, help=tr("param.macd_signal_ema_period"), key="macd_signal_slider"
             )
 
-            st.markdown("**RSI 参数**")
+            st.markdown(tr("section.rsi_parameters"))
             rsi_period = st.slider(
-                "RSI 周期", 5, 30, 14, help="RSI 计算周期。", key="rsi_period_slider"
+                tr("rsi.period"), 5, 30, 14, help=tr("param.rsi.period.description"), key="rsi_period_slider"
             )
             rsi_lower = st.slider(
-                "RSI 下限阈值", 10, 50, 30, help="RSI 低于该值视为偏弱。", key="rsi_lower_slider"
+                tr("params.rsi_lower_threshold"), 10, 50, 30, help=tr("indicator.rsi_weak_threshold"), key="rsi_lower_slider"
             )
             rsi_upper = st.slider(
-                "RSI 上限阈值", 50, 90, 70, help="RSI 高于该值视为偏强。", key="rsi_upper_slider"
+                tr("param.rsiUpperThreshold"), 50, 90, 70, help=tr("parameter.rsiStrongThreshold.desc"), key="rsi_upper_slider"
             )
 
-            st.markdown("**ADX 强度参数**")
+            st.markdown(tr("param.adx_strength"))
             adx_period = st.slider(
-                "ADX 周期", 5, 30, 14, help="趋势强度指标的计算周期。", key="adx_period_slider"
+                tr("parameter.adxPeriod"), 5, 30, 14, help=tr("indicator.trendStrength.period"), key="adx_period_slider"
             )
             adx_threshold = st.slider(
-                "ADX 阈值", 10, 40, 20,
-                help="ADX 高于该值才认为趋势有效。",
+                tr("indicator.adx.threshold"), 10, 40, 20,
+                help=tr("adx.trend_threshold"),
                 key="adx_threshold",
             )
 
-            st.markdown("**ATR 止损止盈**")
+            st.markdown(tr("strategy.atr_stop_loss_take_profit"))
             atr_period = st.slider(
-                "ATR 周期", 5, 30, 14, help="波动率（ATR）计算周期。", key="atr_period_slider"
+                tr("parameter.atr.period"), 5, 30, 14, help=tr("indicator.atr.calculationPeriod"), key="atr_period_slider"
             )
 
-            st.markdown("**布林带 / 高级指标参数**")
+            st.markdown(tr("indicator.bollingerBands.advancedParams"))
             bb_period = st.slider(
-                "布林带周期", 5, 50, 20, help="布林带移动平均线的计算周期。", key="bb_period_slider"
+                tr("bollinger.period"), 5, 50, 20, help=tr("indicator.bollinger.maPeriod"), key="bb_period_slider"
             )
             bb_std = st.slider(
-                "布林带标准差倍数", 1.0, 3.0, 2.0, step=0.1,
-                help="布林带上下轨的标准差倍数。",
+                tr("bollinger.std_dev_multiplier"), 1.0, 3.0, 2.0, step=0.1,
+                help=tr("param.bollinger.stdDev.description"),
                 key="bb_std_slider",
             )
             indicator_period = st.slider(
-                "OBV/成交量/价格位置周期", 5, 60, 20,
-                help="OBV 趋势变化率、成交量均量、价格高低点位置的共用计算周期。",
+                tr("indicator.obvVolumePriceCycle"), 5, 60, 20,
+                help=tr("parameter.obvCommonWindow.desc"),
                 key="indicator_period_slider",
             )
 
             stop_loss_mult = st.slider(
-                "ATR 止损倍数", 0.0, 5.0, 2.0, step=0.5,
-                help="止损距离=ATR×倍数。",
+                tr("param.atrStopLossMultiplier"), 0.0, 5.0, 2.0, step=0.5,
+                help=tr("param.stopLoss.formula"),
                 key="stop_loss_mult",
             )
             take_profit_mult = st.slider(
-                "ATR 止盈倍数", 0.0, 8.0, 4.0, step=0.5,
-                help="止盈距离=ATR×倍数。",
+                tr("strategy.atr.takeProfitMultiplier"), 0.0, 8.0, 4.0, step=0.5,
+                help=tr("param.takeProfit.formula"),
                 key="take_profit_mult",
             )
 
-            st.markdown("**因子评分参数**")
-            momentum_short = st.slider("短期动量窗口", 2, 20, 5, help="短期收益率窗口。")
-            momentum_long = st.slider("中期动量窗口", 10, 60, 20, help="中期收益率窗口。")
+            st.markdown(tr("section.factorScoreParameters"))
+            momentum_short = st.slider(tr("params.short_momentum_window"), 2, 20, 5, help=tr("label.short_term_return_window"))
+            momentum_long = st.slider(tr("param.midTermMomentum.window"), 10, 60, 20, help=tr("metrics.midterm_return_window"))
             score_lookback = st.slider(
-                "评分标准化窗口", 10, 120, 30, help="用于计算滚动 Z 分数的窗口。"
+                tr("scoring.normalization_window"), 10, 120, 30, help=tr("parameter.zScoreWindow.desc")
             )
             score_mid_pct = st.slider(
-                "评分分位数-中档", 0.5, 0.9, 0.6, step=0.05,
-                help="评分分位数达到该值进入中档仓位。",
+                tr("scoring.percentile.mid"), 0.5, 0.9, 0.6, step=0.05,
+                help=tr("position.mid_level_threshold"),
             )
             score_high_pct = st.slider(
-                "评分分位数-高档", 0.6, 0.95, 0.8, step=0.05,
-                help="评分分位数达到该值进入高档仓位。",
+                tr("score.quantile.high"), 0.6, 0.95, 0.8, step=0.05,
+                help=tr("position.high_level_threshold"),
             )
             weight_mom_short = st.slider(
-                "短期动量权重", 0.0, 3.0, 1.0, step=0.1, help="短期动量在评分中的权重。"
+                tr("weight.short_term_momentum"), 0.0, 3.0, 1.0, step=0.1, help=tr("factor.weight_short_term_momentum")
             )
             weight_mom_long = st.slider(
-                "中期动量权重", 0.0, 3.0, 1.0, step=0.1, help="中期动量在评分中的权重。"
+                tr("parameter.midTermMomentumWeight"), 0.0, 3.0, 1.0, step=0.1, help=tr("scoring.weight_midterm_momentum")
             )
             weight_macd = st.slider(
-                "MACD 权重", 0.0, 3.0, 1.0, step=0.1, help="MACD 柱在评分中的权重。"
+                tr("parameter.macdWeight"), 0.0, 3.0, 1.0, step=0.1, help=tr("param.macdHistogramWeight")
             )
             weight_rsi = st.slider(
-                "RSI 权重", 0.0, 3.0, 0.5, step=0.1, help="RSI 在评分中的权重。"
+                tr("param.rsi_weight"), 0.0, 3.0, 0.5, step=0.1, help=tr("factor.weight_rsi")
             )
             weight_vol = st.slider(
-                "波动惩罚权重", 0.0, 3.0, 0.5, step=0.1, help="波动率越高，评分惩罚越大。"
+                tr("strategy.volatilityPenalty.weight"), 0.0, 3.0, 0.5, step=0.1, help=tr("scoring.volatilityPenalty")
             )
 
-            st.markdown("**Phase 1 新因子权重**")
+            st.markdown(tr("factor.weight.phase1.title"))
             weight_bb = st.slider(
-                "布林带位置权重", 0.0, 2.0, 0.8, step=0.1,
-                help="布林带位置在评分中的权重。",
+                tr("weight.bollinger_position"), 0.0, 2.0, 0.8, step=0.1,
+                help=tr("bollinger.weight_in_scoring"),
                 key="weight_bb",
             )
             weight_obv = st.slider(
-                "OBV 趋势权重", 0.0, 2.0, 1.0, step=0.1,
-                help="OBV 趋势在评分中的权重。",
+                tr("parameter.obvTrendWeight"), 0.0, 2.0, 1.0, step=0.1,
+                help=tr("scoring.weight_obv_trend"),
                 key="weight_obv",
             )
             weight_volume = st.slider(
-                "成交量比率权重", 0.0, 1.5, 0.6, step=0.1,
-                help="成交量比率在评分中的权重。",
+                tr("weight.volume_ratio"), 0.0, 1.5, 0.6, step=0.1,
+                help=tr("scoring.weight.volumeRatio"),
                 key="weight_volume",
             )
             weight_price = st.slider(
-                "价格位置权重", 0.0, 1.5, 0.7, step=0.1,
-                help="价格在近期高低范围中的位置权重。",
+                tr("strategy.pricePositionWeight"), 0.0, 1.5, 0.7, step=0.1,
+                help=tr("weight.rangePosition"),
                 key="weight_price",
             )
             weight_drawdown = st.slider(
-                "回撤惩罚权重", 0.0, 1.5, 0.5, step=0.1,
-                help="回撤越大，评分惩罚越大。",
+                tr("parameter.drawdownPenaltyWeight"), 0.0, 1.5, 0.5, step=0.1,
+                help=tr("scoring.drawdownPenalty"),
                 key="weight_drawdown",
             )
 
-            st.markdown("**入场/出场评分阈值**")
+            st.markdown(tr("strategy.entryExit.scoreThreshold"))
             entry_threshold = st.slider(
-                "入场评分阈值", -2.0, 2.0, 0.5, step=0.1,
-                help="因子评分高于该值才视为入场信号之一。",
+                tr("strategy.entryScoreThreshold"), -2.0, 2.0, 0.5, step=0.1,
+                help=tr("param.entryThreshold.description"),
                 key="entry_threshold",
             )
             exit_threshold = st.slider(
-                "出场评分阈值", -2.0, 2.0, -0.5, step=0.1,
-                help="因子评分低于该值视为出场信号之一。",
+                tr("threshold.exitScore"), -2.0, 2.0, -0.5, step=0.1,
+                help=tr("factor.exit_threshold"),
                 key="exit_threshold",
             )
 
@@ -594,19 +595,19 @@ def render_sidebar(
     # ===== 反馈与建议 =====
     with st.sidebar:
         st.markdown("---")
-        with st.expander("💬 反馈与建议", expanded=False):
+        with st.expander(tr("menu.feedback"), expanded=False):
             feedback_type = st.selectbox(
-                "类型",
-                ["🐛 Bug 报告", "💡 功能建议", "📝 其他反馈"],
+                tr("common.type"),
+                [tr("menu.bugReport"), tr("section.feature_suggestion"), tr("feedback.otherTitle")],
                 key="feedback_type",
             )
             feedback_text = st.text_area(
-                "描述",
-                placeholder="请描述你遇到的问题或建议...",
+                tr("field.description"),
+                placeholder=tr("feedback.placeholder"),
                 height=120,
                 key="feedback_text",
             )
-            if st.button("📤 提交反馈", key="submit_feedback", use_container_width=True):
+            if st.button(tr("action.submitFeedback"), key="submit_feedback", use_container_width=True):
                 if feedback_text.strip():
                     # 构造 GitHub Issue URL（预填标题和正文）
                     import urllib.parse
@@ -618,11 +619,11 @@ def render_sidebar(
                         f"---\n*通过应用内反馈提交*"
                     )
                     issue_url = f"https://github.com/rikka314/stratagy/issues/new?title={title}&body={body}"
-                    st.success("✅ 感谢反馈！点击下方链接提交到 GitHub：")
+                    st.success(tr("feedback.thank_you"))
                     st.markdown(f"[📋 前往提交 Issue]({issue_url})")
                 else:
-                    st.warning("请先填写反馈内容")
+                    st.warning(tr("feedback.emptyWarning"))
 
-            st.caption("反馈将通过 [GitHub Issues](https://github.com/rikka314/stratagy/issues) 追踪")
+            st.caption(tr("feedback.githubIssues"))
 
     return result

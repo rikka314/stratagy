@@ -1,0 +1,5121 @@
+{
+  "组合 KPI + 个股表现表 + 主图": {
+    "key": "dashboard.combinedLayout",
+    "en": "Portfolio KPI + Stock Performance Table + Main Chart"
+  },
+  "股票相关性热图": {
+    "key": "analysis.correlationHeatmap",
+    "en": "Stock Correlation Heatmap"
+  },
+  "沿用净值上 / 回撤下的组合结构，不把结果拆散成多张独立卡片。": {
+    "key": "layout.preserveStructure",
+    "en": "Keep portfolio structure above net value / below drawdown; do not split results into separate cards."
+  },
+  "Regime -> Adaptive Router V1 -> 动态候选切换 -> 生成策略": {
+    "key": "strategy.generationFlow",
+    "en": "Regime → Adaptive Router V1 → Dynamic Candidate Switching → Strategy Generation"
+  },
+  "📉 出场规则": {
+    "key": "rules.exit",
+    "en": "📉 Exit Rules"
+  },
+  "请输入美股代码后再添加。": {
+    "key": "validation.enterUsStockCode",
+    "en": "Please enter a US stock symbol before adding."
+  },
+  "Top 1 模型": {
+    "key": "model.top1",
+    "en": "Top 1 Model"
+  },
+  "最新成交量": {
+    "key": "market.latestVolume",
+    "en": "Latest Volume"
+  },
+  "支持名称或代码检索。没有索引命中时，也会按代码直接进入分析。": {
+    "key": "search.fallbackToCode",
+    "en": "Search by name or symbol. Falls back to direct analysis by symbol if no index match."
+  },
+  "主图继续沿用结果区里的组合净值图。": {
+    "key": "chart.reusePortfolioChart",
+    "en": "Main chart continues to use the portfolio net value chart from results area."
+  },
+  "入场阈值": {
+    "key": "strategy.entryThreshold",
+    "en": "Entry Threshold"
+  },
+  "个对比标的</span>\n  <span class=\"analysis-pill\">": {
+    "key": "analysis.comparisonTargets",
+    "en": "comparison targets"
+  },
+  "起点基准 (100)": {
+    "key": "chart.baselineStart",
+    "en": "Baseline Start (100)"
+  },
+  "🔄 刷新所选股票数据": {
+    "key": "action.refreshStockData",
+    "en": "🔄 Refresh Selected Stock Data"
+  },
+  "已保存：": {
+    "key": "state.saved",
+    "en": "Saved:"
+  },
+  "平均数据天数": {
+    "key": "data.averageDays",
+    "en": "Average Data Days"
+  },
+  "总览": {
+    "key": "section.overview",
+    "en": "Overview"
+  },
+  "只股票进行对比": {
+    "key": "analysis.stocksCompared",
+    "en": "stocks compared"
+  },
+  "波动率越高，评分惩罚越大。": {
+    "key": "scoring.volatilityPenalty",
+    "en": "Higher volatility results in greater score penalty."
+  },
+  "中性偏强": {
+    "key": "sentiment.neutralBullish",
+    "en": "Neutral-Bullish"
+  },
+  "按当前页面上下文冻结": {
+    "key": "action.freezeContext",
+    "en": "Freeze by Current Page Context"
+  },
+  "[📋 前往提交 Issue](": {
+    "key": "action.submitIssue",
+    "en": "[📋 Submit Issue]("
+  },
+  "20 日均量": {
+    "key": "indicator.volume20d",
+    "en": "20-Day Average Volume"
+  },
+  "当前价格": {
+    "key": "market.currentPrice",
+    "en": "Current Price"
+  },
+  "市场": {
+    "key": "market.name",
+    "en": "Market"
+  },
+  "OBV/成交量/价格位置周期": {
+    "key": "indicator.obvVolumePriceCycle",
+    "en": "OBV/Volume/Price Position Cycle"
+  },
+  "当前技术快照": {
+    "key": "analysis.technicalSnapshot",
+    "en": "Current Technical Snapshot"
+  },
+  "组合权重、生成动作和参数搜索收敛到同一侧；策略参数仍统一复用左侧边栏，不再派生第二套配置来源。": {
+    "key": "layout.unifiedConfiguration",
+    "en": "Portfolio weight, generation actions, and parameter search converge to one side; strategy parameters still reuse the left sidebar uniformly, without a second configuration source."
+  },
+  "相对强弱基准": {
+    "key": "analysis.relativeStrengthBaseline",
+    "en": "Relative Strength Baseline"
+  },
+  "训练集为空，无法生成策略阶段结果": {
+    "key": "error.emptyTrainingSet",
+    "en": "Training set is empty; cannot generate strategy phase results."
+  },
+  "最新可读 run": {
+    "key": "run.latestReadable",
+    "en": "Latest Readable Run"
+  },
+  "从当前主结果区同步": {
+    "key": "action.syncFromResults",
+    "en": "Sync from Current Main Results"
+  },
+  "暗色": {
+    "key": "theme.dark",
+    "en": "Dark"
+  },
+  "当前所选策略没有 ML 过滤质量指标。": {
+    "key": "warning.noMLMetrics",
+    "en": "The selected strategy has no ML filtering quality metrics."
+  },
+  "年化收益 %": {
+    "key": "performance.annualReturnPct",
+    "en": "Annual Return %"
+  },
+  "等权平均": {
+    "key": "method.equalWeightedAvg",
+    "en": "Equal-Weighted Average"
+  },
+  "份 tear sheet": {
+    "key": "report.tearSheets",
+    "en": "tear sheet(s)"
+  },
+  "组合策略": {
+    "key": "strategy.portfolioStrategy",
+    "en": "Portfolio Strategy"
+  },
+  "当前历史窗口不足，无法稳定计算最新因子评分。": {
+    "key": "error.insufficientHistory",
+    "en": "Insufficient historical window for stable latest factor score calculation."
+  },
+  "当前周期下没有可用的 MACD 指标。": {
+    "key": "warning.noMACD",
+    "en": "No MACD indicator available for the current period."
+  },
+  "对每只股票独立计算最新一日综合因子评分，直接回答当前更值得关注谁。": {
+    "key": "analysis.dailyFactorRanking",
+    "en": "Calculate latest daily composite factor score for each stock independently, directly indicating which is more noteworthy now."
+  },
+  "Baseline 路径不允许启用 Search / FSM / ML 增强": {
+    "key": "restriction.baselineNoEnhancements",
+    "en": "Baseline path does not allow enabling Search / FSM / ML enhancements."
+  },
+  "</div>\n<div class=\"analysis-chart-meta\">\n  <span class=\"analysis-chart-chip\">标的": {
+    "key": "chartMeta.target",
+    "en": "Target"
+  },
+  "价格（对数）": {
+    "key": "axis.priceLog",
+    "en": "Price (Log)"
+  },
+  "<h3 class='surface-title'>当前 run 摘要</h3>": {
+    "key": "run.currentSummary",
+    "en": "Current Run Summary"
+  },
+  "当前处于观察仓位，目标仓位": {
+    "key": "position.observationTarget",
+    "en": "Currently in observation position, target position"
+  },
+  "Tear Sheet 列表": {
+    "key": "report.tearSheetList",
+    "en": "Tear Sheet List"
+  },
+  "当前策略净值 / 回撤": {
+    "key": "performance.currentNetDrawdown",
+    "en": "Current Strategy Net Value / Drawdown"
+  },
+  "已生成": {
+    "key": "state.generated",
+    "en": "Generated"
+  },
+  "双线贴合": {
+    "key": "chart.dualLineConvergence",
+    "en": "Dual-Line Convergence"
+  },
+  "贝叶斯优化": {
+    "key": "optimization.bayesian",
+    "zh": "贝叶斯优化",
+    "en": "Bayesian Optimization"
+  },
+  "模型配置": {
+    "key": "model.configuration",
+    "zh": "模型配置",
+    "en": "Model Configuration"
+  },
+  "结果板暂未生成": {
+    "key": "result.board.notGenerated",
+    "zh": "结果板暂未生成",
+    "en": "Result board not yet generated"
+  },
+  "🎁 生成并下载HTML报告": {
+    "key": "report.generateDownloadHTML",
+    "zh": "🎁 生成并下载HTML报告",
+    "en": "🎁 Generate & Download HTML Report"
+  },
+  "成交量比率在评分中的权重。": {
+    "key": "scoring.weight.volumeRatio",
+    "zh": "成交量比率在评分中的权重。",
+    "en": "Weight of volume ratio in scoring."
+  },
+  "单股策略分析 -": {
+    "key": "analysis.singleStock.title",
+    "zh": "单股策略分析 -",
+    "en": "Single Stock Analysis -"
+  },
+  "请先选择参数搜索方法": {
+    "key": "parameterSearch.methodRequired",
+    "zh": "请先选择参数搜索方法",
+    "en": "Please select a parameter search method first"
+  },
+  "影响数据下载的复权方式。": {
+    "key": "data.download.adjustmentMethod",
+    "zh": "影响数据下载的复权方式。",
+    "en": "Adjustment method affecting data download."
+  },
+  "Regime 配置缺失": {
+    "key": "configuration.regime.missing",
+    "zh": "Regime 配置缺失",
+    "en": "Regime Configuration Missing"
+  },
+  "数据行数": {
+    "key": "data.rowCount",
+    "zh": "数据行数",
+    "en": "Data Row Count"
+  },
+  "行价格数据": {
+    "key": "data.priceRows",
+    "zh": "行价格数据",
+    "en": "Price Data Rows"
+  },
+  "Baseline 路径缺少合法的 baseline_kind": {
+    "key": "baseline.path.invalidKind",
+    "zh": "Baseline 路径缺少合法的 baseline_kind",
+    "en": "Baseline path missing valid baseline_kind"
+  },
+  "条；当前参与比较：": {
+    "key": "comparison.countAndCurrent",
+    "zh": "条；当前参与比较：",
+    "en": "items; currently comparing:"
+  },
+  "卖点": {
+    "key": "trading.sellPoint",
+    "zh": "卖点",
+    "en": "Sell Point"
+  },
+  "当日低点与成交量": {
+    "key": "chart.lowAndVolume",
+    "zh": "当日低点与成交量",
+    "en": "Daily Low & Volume"
+  },
+  "出场阈值": {
+    "key": "strategy.exitThreshold",
+    "zh": "出场阈值",
+    "en": "Exit Threshold"
+  },
+  "渲染多股入口页，并在用户发起分析时返回动作。": {
+    "key": "ui.multiStockEntry.render",
+    "zh": "渲染多股入口页，并在用户发起分析时返回动作。",
+    "en": "Render multi-stock entry page and return action on user analysis request."
+  },
+  "| 测试：": {
+    "key": "testing.label",
+    "zh": "| 测试：",
+    "en": "| Test:"
+  },
+  "图表由 Plotly 渲染；离线打开时仍保留响应式缩放。": {
+    "key": "chart.plotlyNote",
+    "zh": "图表由 Plotly 渲染；离线打开时仍保留响应式缩放。",
+    "en": "Charts rendered by Plotly; responsive zoom remains available offline."
+  },
+  "布林带移动平均线的计算周期。": {
+    "key": "indicator.bollinger.maPeriod",
+    "zh": "布林带移动平均线的计算周期。",
+    "en": "Calculation period for Bollinger Bands moving average."
+  },
+  "趋势强度指标的计算周期。": {
+    "key": "indicator.trendStrength.period",
+    "zh": "趋势强度指标的计算周期。",
+    "en": "Calculation period for trend strength indicator."
+  },
+  "📋 策略选择": {
+    "key": "strategy.selection",
+    "zh": "📋 策略选择",
+    "en": "📋 Strategy Selection"
+  },
+  "移除股票": {
+    "key": "portfolio.removeStock",
+    "zh": "移除股票",
+    "en": "Remove Stock"
+  },
+  "<p class='source-note'>当前推荐口径：<strong>": {
+    "key": "note.recommendationSource",
+    "zh": "<p class='source-note'>当前推荐口径：<strong>",
+    "en": "<p class='source-note'>Current recommendation source: <strong>"
+  },
+  "已生成策略：": {
+    "key": "strategy.generatedCount",
+    "zh": "已生成策略：",
+    "en": "Strategies generated:"
+  },
+  "当前仅有 1 条可比较策略。保存更多快照或额外勾选策略后，可进行多策略比较。": {
+    "key": "comparison.insufficientStrategies",
+    "zh": "当前仅有 1 条可比较策略。保存更多快照或额外勾选策略后，可进行多策略比较。",
+    "en": "Only 1 strategy available for comparison. Save more snapshots or select additional strategies for multi-strategy comparison."
+  },
+  "当前数据不足以生成组合策略，请检查股票池长度和时间范围。": {
+    "key": "portfolio.insufficientData",
+    "zh": "当前数据不足以生成组合策略，请检查股票池长度和时间范围。",
+    "en": "Insufficient data to generate portfolio strategy. Check stock pool size and time range."
+  },
+  "· 分数": {
+    "key": "scoring.label",
+    "zh": "· 分数",
+    "en": "· Score"
+  },
+  "已启用参数搜索：搜索结果只进入 lineage / artifact，不会自动回写侧边栏参数。": {
+    "key": "parameterSearch.enabledNote",
+    "zh": "已启用参数搜索：搜索结果只进入 lineage / artifact，不会自动回写侧边栏参数。",
+    "en": "Parameter search enabled: results go to lineage/artifact only, not auto-written to sidebar."
+  },
+  "配置名称": {
+    "key": "configuration.name",
+    "zh": "配置名称",
+    "en": "Configuration Name"
+  },
+  "当前准备分析：": {
+    "key": "analysis.readyFor",
+    "zh": "当前准备分析：",
+    "en": "Ready to analyze:"
+  },
+  "暂无可展示的净值与回撤数据。": {
+    "key": "data.noNavDrawdown",
+    "zh": "暂无可展示的净值与回撤数据。",
+    "en": "No NAV or drawdown data available to display."
+  },
+  "周期收益率热图": {
+    "key": "chart.periodReturnHeatmap",
+    "zh": "周期收益率热图",
+    "en": "Period Return Heatmap"
+  },
+  "多股票价格对比（共": {
+    "key": "chart.multiStockPriceComparison",
+    "zh": "多股票价格对比（共",
+    "en": "Multi-Stock Price Comparison (Total: "
+  },
+  "已保存 ·": {
+    "key": "status.saved",
+    "zh": "已保存 ·",
+    "en": "Saved ·"
+  },
+  "上传多个本地 CSV": {
+    "key": "data.upload.multipleCSV",
+    "zh": "上传多个本地 CSV",
+    "en": "Upload Multiple Local CSVs"
+  },
+  "指标对比表": {
+    "key": "table.metricComparison",
+    "zh": "指标对比表",
+    "en": "Metric Comparison Table"
+  },
+  "数据，买卖点叠加展示所有已选策略。": {
+    "key": "chart.dataWithTradePoints",
+    "zh": "数据，买卖点叠加展示所有已选策略。",
+    "en": "Data with buy/sell points overlaid for all selected strategies."
+  },
+  "相对强弱对比": {
+    "key": "chart.relativeStrength",
+    "zh": "相对强弱对比",
+    "en": "Relative Strength Comparison"
+  },
+  "」预设，以下参数已自动填充。切换为「自定义参数」可手动修改。": {
+    "key": "parameter.presetApplied",
+    "zh": "」预设，以下参数已自动填充。切换为「自定义参数」可手动修改。",
+    "en": "」 preset applied. Parameters below auto-filled. Switch to \"Custom Parameters\" to edit manually."
+  },
+  "图五要求的“组合 KPI 摘要 + 个股表现表”已固定在同一结果区，切换主图不会打散下方信息。": {
+    "key": "layout.combinedKPIAndStockTable",
+    "zh": "图五要求的“组合 KPI 摘要 + 个股表现表”已固定在同一结果区，切换主图不会打散下方信息。",
+    "en": "\"Portfolio KPI Summary + Stock Performance Table\" (Fig.5) is fixed in the same result area; switching main charts won't disrupt info below."
+  },
+  "渲染多行 HTML，避免 markdown 缩进把标签当成普通文本。": {
+    "key": "ui.renderMultiLineHTML",
+    "zh": "渲染多行 HTML，避免 markdown 缩进把标签当成普通文本。",
+    "en": "Render multi-line HTML to avoid markdown indentation treating tags as plain text."
+  },
+  "</span>\n  <span class=\"analysis-chart-chip\">EMA 慢线": {
+    "key": "chart.chip.emaSlow",
+    "zh": "</span>\n  <span class=\"analysis-chart-chip\">EMA 慢线",
+    "en": "</span>\n  <span class=\"analysis-chart-chip\">EMA Slow Line"
+  },
+  "请先在左侧策略库中勾选至少一条策略。": {
+    "key": "strategy.selectionRequired",
+    "zh": "请先在左侧策略库中勾选至少一条策略。",
+    "en": "Please select at least one strategy from the left strategy library."
+  },
+  "还没有选择上传文件。": {
+    "key": "upload.noFileSelected",
+    "zh": "还没有选择上传文件。",
+    "en": "No file selected for upload."
+  },
+  "1年": {
+    "key": "period.1year",
+    "zh": "1年",
+    "en": "1 Year"
+  },
+  "当前没有可展示的策略指标。": {
+    "key": "strategy.noMetrics",
+    "zh": "当前没有可展示的策略指标。",
+    "en": "No strategy metrics available to display."
+  },
+  "多策略买卖点比较": {
+    "key": "comparison.multiStrategyTradePoints",
+    "zh": "多策略买卖点比较",
+    "en": "Multi-Strategy Trade Point Comparison"
+  },
+  "\">进入单股分析</a>\n        <a class=\"cta-link secondary\" href=\"": {
+    "key": "link.enterSingleStockAnalysis",
+    "zh": "\">进入单股分析</a>\n        <a class=\"cta-link secondary\" href=\"",
+    "en": "\">Enter Single Stock Analysis</a>\n        <a class=\"cta-link secondary\" href=\""
+  },
+  "评分分位数-中档": {
+    "key": "scoring.percentile.mid",
+    "zh": "评分分位数-中档",
+    "en": "Score Percentile - Mid"
+  },
+  "Exposure 占比": {
+    "key": "exposure.percentage",
+    "zh": "Exposure 占比",
+    "en": "Exposure Ratio"
+  },
+  "动量突破（激进）": {
+    "key": "strategy.momentum_breakout_aggressive",
+    "zh": "动量突破（激进）",
+    "en": "Momentum Breakout (Aggressive)"
+  },
+  "当前使用上传数据：": {
+    "key": "data.current_uploaded_data",
+    "zh": "当前使用上传数据：",
+    "en": "Current Uploaded Data:"
+  },
+  "启用参数搜索时必须选择合法的搜索方法": {
+    "key": "validation.param_search_method_required",
+    "zh": "启用参数搜索时必须选择合法的搜索方法",
+    "en": "A valid search method is required for parameter search."
+  },
+  "A 股": {
+    "key": "market.cn_stock",
+    "zh": "A 股",
+    "en": "A-Shares"
+  },
+  "优化后夏普": {
+    "key": "metric.optimized_sharpe",
+    "zh": "优化后夏普",
+    "en": "Optimized Sharpe"
+  },
+  "未找到索引匹配，将按该美股代码直接尝试分析。": {
+    "key": "warning.no_index_match_fallback",
+    "zh": "未找到索引匹配，将按该美股代码直接尝试分析。",
+    "en": "No index match found. Will analyze directly using the US stock symbol."
+  },
+  "请选择 ML 模型": {
+    "key": "model.selection_prompt",
+    "zh": "请选择 ML 模型",
+    "en": "Select ML Model"
+  },
+  "渲染内联状态提示。": {
+    "key": "ui.render_inline_status",
+    "zh": "渲染内联状态提示。",
+    "en": "Render inline status hint."
+  },
+  "涨跌": {
+    "key": "price.change",
+    "zh": "涨跌",
+    "en": "Change"
+  },
+  "最新价格": {
+    "key": "price.latest",
+    "zh": "最新价格",
+    "en": "Latest Price"
+  },
+  "各股票独立策略表现": {
+    "key": "performance.individual_stock_strategy",
+    "zh": "各股票独立策略表现",
+    "en": "Individual Stock Strategy Performance"
+  },
+  "预设策略模板会自动填充入场/出场规则和高级设置中的所有参数。选择「自定义参数」可手动调节。": {
+    "key": "strategy.template_description",
+    "zh": "预设策略模板会自动填充入场/出场规则和高级设置中的所有参数。选择「自定义参数」可手动调节。",
+    "en": "Preset templates auto-fill all entry/exit rules and advanced parameters. Select 'Custom Parameters' to adjust manually."
+  },
+  "价格对比分析图": {
+    "key": "chart.price_comparison",
+    "zh": "价格对比分析图",
+    "en": "Price Comparison Chart"
+  },
+  "请先选定一个主策略，再查看收益热图。": {
+    "key": "validation.select_main_strategy_for_heatmap",
+    "zh": "请先选定一个主策略，再查看收益热图。",
+    "en": "Please select a main strategy first to view the return heatmap."
+  },
+  "Regime -> Legacy 双状态路由 -> 生成策略": {
+    "key": "strategy.regime_legacy_dual_state_routing",
+    "zh": "Regime -> Legacy 双状态路由 -> 生成策略",
+    "en": "Regime -> Legacy Dual-State Routing -> Generate Strategy"
+  },
+  "评分标准化窗口": {
+    "key": "scoring.normalization_window",
+    "zh": "评分标准化窗口",
+    "en": "Score Normalization Window"
+  },
+  "当前策略": {
+    "key": "strategy.current",
+    "zh": "当前策略",
+    "en": "Current Strategy"
+  },
+  "左侧用文字快速交代当前标的状态，右侧保留高密度 K 线主图和指标小图，训练/测试边界在行情图里保持可见。": {
+    "key": "layout.chart_description",
+    "zh": "左侧用文字快速交代当前标的状态，右侧保留高密度 K 线主图和指标小图，训练/测试边界在行情图里保持可见。",
+    "en": "Left: quick status summary. Right: high-density main chart with sub-indicators. Train/test boundary visible."
+  },
+  "**ATR 止损止盈**": {
+    "key": "strategy.atr_stop_loss_take_profit",
+    "zh": "**ATR 止损止盈**",
+    "en": "ATR Stop Loss & Take Profit"
+  },
+  "当前 artifact": {
+    "key": "artifact.current",
+    "zh": "当前 artifact",
+    "en": "Current Artifact"
+  },
+  "渲染主 artifact 的训练/测试集交易信号图。": {
+    "key": "chart.render_artifact_signals",
+    "zh": "渲染主 artifact 的训练/测试集交易信号图。",
+    "en": "Render training/test trade signals for the main artifact."
+  },
+  "构建 K 线主图。": {
+    "key": "chart.build_main_candlestick",
+    "zh": "构建 K 线主图。",
+    "en": "Build main candlestick chart."
+  },
+  "日 K": {
+    "key": "chart.daily_k",
+    "zh": "日 K",
+    "en": "Daily"
+  },
+  "用共同交易日收益率构造相关性矩阵，帮助判断股票池是否过于同质化。": {
+    "key": "analysis.correlation_matrix_description",
+    "zh": "用共同交易日收益率构造相关性矩阵，帮助判断股票池是否过于同质化。",
+    "en": "Correlation matrix from common trading days helps assess if the stock pool is too homogeneous."
+  },
+  "越靠左上通常代表越高收益、越低风险；颜色映射到夏普水平。": {
+    "key": "chart.scatter_plot_legend",
+    "zh": "越靠左上通常代表越高收益、越低风险；颜色映射到夏普水平。",
+    "en": "Top-left: higher return, lower risk. Color maps to Sharpe level."
+  },
+  "多股基础信息区": {
+    "key": "section.multi_stock_basic_info",
+    "zh": "多股基础信息区",
+    "en": "Multi-Stock Basic Info"
+  },
+  "在分析页头部渲染时间范围控件，并同步到 sidebar 状态。": {
+    "key": "ui.render_time_range_control",
+    "zh": "在分析页头部渲染时间范围控件，并同步到 sidebar 状态。",
+    "en": "Render time range control in header and sync with sidebar."
+  },
+  "分位数 %": {
+    "key": "statistics.quantile_percent",
+    "zh": "分位数 %",
+    "en": "Quantile %"
+  },
+  "已启用，暂未生成": {
+    "key": "status.enabled_not_generated",
+    "zh": "已启用，暂未生成",
+    "en": "Enabled, not yet generated"
+  },
+  "RSI 低于该值视为偏弱。": {
+    "key": "indicator.rsi_weak_threshold",
+    "zh": "RSI 低于该值视为偏弱。",
+    "en": "RSI below this is considered weak."
+  },
+  "上传单只股票 CSV": {
+    "key": "action.upload_single_stock_csv",
+    "zh": "上传单只股票 CSV",
+    "en": "Upload Single Stock CSV"
+  },
+  "默认相对基准使用等权平均，判断每只股票是持续跑赢还是持续跑输股票池。": {
+    "key": "analysis.benchmark_equal_weight_description",
+    "zh": "默认相对基准使用等权平均，判断每只股票是持续跑赢还是持续跑输股票池。",
+    "en": "Uses equal-weighted average as benchmark to identify consistent outperformers/underperformers."
+  },
+  "当前市场的快照和推荐入口": {
+    "key": "section.market_snapshot_and_entry",
+    "zh": "当前市场的快照和推荐入口",
+    "en": "Market Snapshot & Entry Points"
+  },
+  "EMA 价差": {
+    "key": "indicator.ema_spread",
+    "zh": "EMA 价差",
+    "en": "EMA Spread"
+  },
+  "直接回答当前更值得关注谁，作为图表以外的第二条判断线。": {
+    "key": "analysis.secondary_judgment_line",
+    "zh": "直接回答当前更值得关注谁，作为图表以外的第二条判断线。",
+    "en": "Direct recommendation on which to watch, as a second judgment line beyond charts."
+  },
+  "Walk-Forward 策略收益：": {
+    "key": "backtest.walk_forward_returns",
+    "zh": "Walk-Forward 策略收益：",
+    "en": "Walk-Forward Strategy Returns:"
+  },
+  "✓ 将使用上传的CSV数据": {
+    "key": "status.using_uploaded_csv",
+    "zh": "✓ 将使用上传的CSV数据",
+    "en": "✓ Using uploaded CSV data"
+  },
+  "成交量比率权重": {
+    "key": "weight.volume_ratio",
+    "zh": "成交量比率权重",
+    "en": "Volume Ratio Weight"
+  },
+  "-> 生成策略": {
+    "key": "action.generate_strategy",
+    "zh": "-> 生成策略",
+    "en": "-> Generate Strategy"
+  },
+  "MACD 柱体": {
+    "key": "indicator.macd_histogram",
+    "zh": "MACD 柱体",
+    "en": "MACD Histogram"
+  },
+  "当前处于单股路由，仅使用第一只股票进入主分析页。": {
+    "key": "routing.single_stock_mode_notice",
+    "zh": "当前处于单股路由，仅使用第一只股票进入主分析页。",
+    "en": "Single-stock routing mode: only the first stock enters the main analysis."
+  },
+  "季度": {
+    "key": "period.quarter",
+    "zh": "季度",
+    "en": "Quarter"
+  },
+  "当前没有可分析的股票，请返回入口页重新选择。": {
+    "key": "error.no_stocks_to_analyze",
+    "zh": "当前没有可分析的股票，请返回入口页重新选择。",
+    "en": "No stocks to analyze. Please go back and reselect."
+  },
+  "切换": {
+    "key": "action.switch",
+    "zh": "切换",
+    "en": "Switch"
+  },
+  "训练集": {
+    "key": "dataset.training",
+    "zh": "训练集",
+    "en": "Training Set"
+  },
+  "组合权重之和必须大于 0。": {
+    "key": "validation.portfolio_weight_sum",
+    "zh": "组合权重之和必须大于 0。",
+    "en": "Portfolio weight sum must be greater than 0."
+  },
+  "已切到 stock-only": {
+    "key": "status.switched_to_stock_only",
+    "zh": "已切到 stock-only",
+    "en": "Switched to stock-only"
+  },
+  "最终阶段": {
+    "key": "stage.final",
+    "zh": "最终阶段",
+    "en": "Final Stage"
+  },
+  "渲染 Walk-Forward 回测区域。": {
+    "key": "ui.render_walk_forward_backtest",
+    "zh": "渲染 Walk-Forward 回测区域。",
+    "en": "Render Walk-Forward backtest area."
+  },
+  "按当前时间筛选后的有效样本": {
+    "key": "filter.validSamples.currentTime",
+    "zh": "按当前时间筛选后的有效样本",
+    "en": "Valid samples filtered by current time"
+  },
+  "启用 ML 过滤": {
+    "key": "settings.enableMLFilter",
+    "zh": "启用 ML 过滤",
+    "en": "Enable ML filter"
+  },
+  "最高价": {
+    "key": "price.highest",
+    "zh": "最高价",
+    "en": "Highest price"
+  },
+  "区间位置": {
+    "key": "range.position",
+    "zh": "区间位置",
+    "en": "Range position"
+  },
+  "买卖点": {
+    "key": "trading.buySellPoints",
+    "zh": "买卖点",
+    "en": "Buy/Sell points"
+  },
+  "先看市场上下文，再决定这次研究到底从哪只股票或哪组股票开始。": {
+    "key": "guidance.researchStart",
+    "zh": "先看市场上下文，再决定这次研究到底从哪只股票或哪组股票开始。",
+    "en": "Check market context first, then decide which stock or group to start with."
+  },
+  "总分": {
+    "key": "score.total",
+    "zh": "总分",
+    "en": "Total score"
+  },
+  "入场评分阈值": {
+    "key": "strategy.entryScoreThreshold",
+    "zh": "入场评分阈值",
+    "en": "Entry score threshold"
+  },
+  "覆盖区间": {
+    "key": "data.coverageRange",
+    "zh": "覆盖区间",
+    "en": "Coverage range"
+  },
+  "请选择 Search 基础模型": {
+    "key": "model.selectSearchBase",
+    "zh": "请选择 Search 基础模型",
+    "en": "Select Search base model"
+  },
+  "目标不是把更多面板堆上来，而是让研究路径一眼就能看懂。": {
+    "key": "ui.designPrinciple",
+    "zh": "目标不是把更多面板堆上来，而是让研究路径一眼就能看懂。",
+    "en": "Goal: clarity over clutter—make the research path instantly understandable."
+  },
+  "搜索并确认标的": {
+    "key": "action.searchConfirmTarget",
+    "zh": "搜索并确认标的",
+    "en": "Search and confirm target"
+  },
+  "按主策略测试集日收益率复利聚合到月份；绿色代表正收益，红色代表负收益。": {
+    "key": "chart.monthlyReturnsDescription",
+    "zh": "按主策略测试集日收益率复利聚合到月份；绿色代表正收益，红色代表负收益。",
+    "en": "Monthly compounded returns from daily test-set yields; green = positive, red = negative."
+  },
+  "模型还没准备好。": {
+    "key": "status.modelNotReady",
+    "zh": "模型还没准备好。",
+    "en": "Model not ready."
+  },
+  "未知 search_method:": {
+    "key": "error.unknownSearchMethod",
+    "zh": "未知 search_method:",
+    "en": "Unknown search_method:"
+  },
+  "--- *通过应用内反馈提交*": {
+    "key": "feedback.inAppSubmission",
+    "zh": "--- *通过应用内反馈提交*",
+    "en": "--- *Submit via in-app feedback*"
+  },
+  "训练比例": {
+    "key": "model.trainRatio",
+    "zh": "训练比例",
+    "en": "Training ratio"
+  },
+  "最新开盘 / 最高 / 最低": {
+    "key": "price.latestOHL",
+    "zh": "最新开盘 / 最高 / 最低",
+    "en": "Latest Open / High / Low"
+  },
+  "FSM基础": {
+    "key": "model.fsmBase",
+    "zh": "FSM基础",
+    "en": "FSM base"
+  },
+  "选择 run": {
+    "key": "action.selectRun",
+    "zh": "选择 run",
+    "en": "Select run"
+  },
+  "亮色": {
+    "key": "theme.light",
+    "zh": "亮色",
+    "en": "Light"
+  },
+  "下载 tear sheet": {
+    "key": "action.downloadTearSheet",
+    "zh": "下载 tear sheet",
+    "en": "Download tear sheet"
+  },
+  "📊 控制面板": {
+    "key": "section.title.controlPanel",
+    "en": "📊 Control Panel"
+  },
+  "多股票价格对比分析图": {
+    "key": "chart.multiStockComparison",
+    "zh": "多股票价格对比分析图",
+    "en": "Multi-stock price comparison chart"
+  },
+  "只读结果浏览页": {
+    "key": "page.readOnlyResults",
+    "zh": "只读结果浏览页",
+    "en": "Read-only results viewer"
+  },
+  "输入新股票后即可直接切换，当前页面的工作流会跟随新标的重新建立。": {
+    "key": "workflow.dynamicSwitch",
+    "zh": "输入新股票后即可直接切换，当前页面的工作流会跟随新标的重新建立。",
+    "en": "Enter a new ticker to switch instantly; workflow rebuilds for the new target."
+  },
+  "代理模式": {
+    "key": "mode.proxy",
+    "zh": "代理模式",
+    "en": "Proxy mode"
+  },
+  "· 涨跌": {
+    "key": "price.change",
+    "zh": "· 涨跌",
+    "en": "Change"
+  },
+  "每个 CSV 视为一只股票，列名需兼容 date/open/high/low/close/volume 标准。": {
+    "key": "data.csvFormat",
+    "zh": "每个 CSV 视为一只股票，列名需兼容 date/open/high/low/close/volume 标准。",
+    "en": "Each CSV = one stock; columns must follow date/open/high/low/close/volume."
+  },
+  "模型家族": {
+    "key": "model.family",
+    "zh": "模型家族",
+    "en": "Model family"
+  },
+  "策略结果结构": {
+    "key": "strategy.resultStructure",
+    "zh": "策略结果结构",
+    "en": "Strategy result structure"
+  },
+  "<h3 class='surface-title'>浏览已有研究 run</h3>": {
+    "key": "section.browseExistingRuns",
+    "zh": "<h3 class='surface-title'>浏览已有研究 run</h3>",
+    "en": "<h3 class='surface-title'>Browse existing research runs</h3>"
+  },
+  "主窗口 +": {
+    "key": "window.mainPlus",
+    "zh": "主窗口 +",
+    "en": "Main window +"
+  },
+  "遗传算法": {
+    "key": "algorithm.genetic",
+    "zh": "遗传算法",
+    "en": "Genetic algorithm"
+  },
+  "当前正在配置策略请求；完成必要选择后即可生成。": {
+    "key": "status.configuringStrategy",
+    "zh": "当前正在配置策略请求；完成必要选择后即可生成。",
+    "en": "Configuring strategy request—complete selections to generate."
+  },
+  "当前上下文中已有最新生成策略，可继续查看下游分析或再次生成。": {
+    "key": "status.strategyReady",
+    "zh": "当前上下文中已有最新生成策略，可继续查看下游分析或再次生成。",
+    "en": "Latest strategy ready. Proceed to downstream analysis or regenerate."
+  },
+  "最大回撤 %": {
+    "key": "metrics.maxDrawdownPercent",
+    "zh": "最大回撤 %",
+    "en": "Max drawdown %"
+  },
+  "价格在近期高低范围中的位置权重。": {
+    "key": "weight.rangePosition",
+    "zh": "价格在近期高低范围中的位置权重。",
+    "en": "Weight of price within recent high-low range."
+  },
+  "数据量不足，无法进行策略工作流分析。": {
+    "key": "error.insufficientData",
+    "zh": "数据量不足，无法进行策略工作流分析。",
+    "en": "Insufficient data for strategy workflow analysis."
+  },
+  "模型": {
+    "key": "common.model",
+    "zh": "模型",
+    "en": "Model"
+  },
+  "当前版本只在美股展示，默认使用 SPY 作为市场代理；若代理不可用，会降级为 stock-only 路由。": {
+    "key": "scope.usMarketNote",
+    "zh": "当前版本只在美股展示，默认使用 SPY 作为市场代理；若代理不可用，会降级为 stock-only 路由。",
+    "en": "Current version: US stocks only. SPY as default market proxy; falls back to stock-only if unavailable."
+  },
+  "周期热图和主图分开承载，便于桌面和移动端独立阅读。": {
+    "key": "chart.periodHeatmapLayout",
+    "zh": "周期热图和主图分开承载，便于桌面和移动端独立阅读。",
+    "en": "Period heatmap and main chart separated for desktop/mobile readability."
+  },
+  "数据集时间": {
+    "key": "data.datasetTime",
+    "zh": "数据集时间",
+    "en": "Dataset time"
+  },
+  "📤 提交反馈": {
+    "key": "action.submitFeedback",
+    "en": "Submit Feedback"
+  },
+  "市场快照暂不可用": {
+    "key": "status.marketSnapshotUnavailable",
+    "zh": "市场快照暂不可用",
+    "en": "Market snapshot unavailable"
+  },
+  "请先在上方选择 Baseline 或 Search，再展开具体配置。": {
+    "key": "instruction.selectFamilyFirst",
+    "zh": "请先在上方选择 Baseline 或 Search，再展开具体配置。",
+    "en": "First select Baseline or Search above, then configure."
+  },
+  "</span>\n  <span class=\"analysis-chart-chip\">当前市场": {
+    "key": "chip.currentMarket",
+    "zh": "</span>\n  <span class=\"analysis-chart-chip\">当前市场",
+    "en": "</span>\n  <span class=\"analysis-chart-chip\">Current market"
+  },
+  "➕ 添加股票 / 上传数据": {
+    "key": "action.addStockOrUpload",
+    "zh": "➕ 添加股票 / 上传数据",
+    "en": "➕ Add stock / Upload data"
+  },
+  "先在左侧选择 Baseline 或 Search 家族，结果板才会进入可配置状态。": {
+    "key": "instruction.selectFamilyForConfig",
+    "zh": "先在左侧选择 Baseline 或 Search 家族，结果板才会进入可配置状态。",
+    "en": "Select Baseline or Search family on the left to enable result board configuration."
+  },
+  "均持仓(日)": {
+    "key": "metrics.avgPositionDays",
+    "zh": "均持仓(日)",
+    "en": "Avg holding (days)"
+  },
+  "中文": {
+    "key": "language.chinese",
+    "en": "Chinese"
+  },
+  "个，失败": {
+    "key": "count.failed",
+    "en": "failed"
+  },
+  "当前草稿路径：": {
+    "key": "draft.currentPath",
+    "en": "Current draft path:"
+  },
+  "生成策略": {
+    "key": "strategy.generate",
+    "en": "Generate Strategy"
+  },
+  "当前没有足够数据生成价格对比图。": {
+    "key": "chart.priceComparison.insufficientData",
+    "en": "Insufficient data to generate price comparison chart."
+  },
+  "ADX 阈值": {
+    "key": "indicator.adx.threshold",
+    "en": "ADX Threshold"
+  },
+  "单股入口": {
+    "key": "navigation.singleStock.entry",
+    "en": "Single Stock Entry"
+  },
+  "主分析页逻辑不变，变化的是入口节奏、视觉层级和网站感。": {
+    "key": "ui.analysisPage.description",
+    "en": "Main analysis logic unchanged; changes are in entry flow, visual hierarchy, and site feel."
+  },
+  "当前推荐口径：": {
+    "key": "recommendation.current",
+    "en": "Current recommendation:"
+  },
+  "波动惩罚权重": {
+    "key": "strategy.volatilityPenalty.weight",
+    "en": "Volatility Penalty Weight"
+  },
+  "</span>\n  <span class=\"analysis-chart-chip\">最新收盘": {
+    "key": "chart.latestClose.label",
+    "en": "Latest Close"
+  },
+  "ATR 止盈倍数": {
+    "key": "strategy.atr.takeProfitMultiplier",
+    "en": "ATR Take-Profit Multiplier"
+  },
+  "&middot; 涨跌": {
+    "key": "price.change",
+    "en": "Change"
+  },
+  "无": {
+    "key": "common.none",
+    "en": "None"
+  },
+  "测试集": {
+    "key": "backtest.testSet",
+    "en": "Test Set"
+  },
+  "多股基础信息图表": {
+    "key": "chart.multiStock.basicInfo",
+    "en": "Multi-Stock Basic Info Chart"
+  },
+  "当前没有可读取的研究 run。": {
+    "key": "research.run.empty",
+    "en": "No research runs available."
+  },
+  "· 上传数据": {
+    "key": "action.uploadData",
+    "en": "Upload Data"
+  },
+  "拼接真实路由路径。": {
+    "key": "system.routing.buildPath",
+    "en": "Construct actual routing path."
+  },
+  "**组合权重配置**": {
+    "key": "portfolio.weight.configuration",
+    "en": "Portfolio Weight Configuration"
+  },
+  "多股分析": {
+    "key": "analysis.multiStock",
+    "en": "Multi-Stock Analysis"
+  },
+  "详细对比表": {
+    "key": "table.detailedComparison",
+    "en": "Detailed Comparison Table"
+  },
+  "MACD 慢线 EMA 周期。": {
+    "key": "indicator.macd.slowEma.period",
+    "en": "MACD Slow EMA Period"
+  },
+  "浏览已有研究 run": {
+    "key": "action.browseResearchRuns",
+    "en": "Browse Research Runs"
+  },
+  "当前主策略的测试集跨度不足以生成月度收益热图。": {
+    "key": "chart.monthlyReturnsHeatmap.insufficientData",
+    "en": "Test set span is insufficient to generate monthly returns heatmap."
+  },
+  "| 买卖点读取：": {
+    "key": "backtest.buySellPoints.read",
+    "en": "Buy/Sell Points:"
+  },
+  "多股票对比分析页面\n==================\n选中多只股票时展示的完整对比分析界面。": {
+    "key": "page.multiStockComparison.description",
+    "en": "Multi-Stock Comparison Page\n==================\nFull comparative analysis interface when multiple stocks are selected."
+  },
+  "波动率（ATR）计算周期。": {
+    "key": "indicator.atr.calculationPeriod",
+    "en": "ATR Calculation Period"
+  },
+  "收益率(%)": {
+    "key": "metric.return.percentage",
+    "en": "Return (%)"
+  },
+  "对比股票数量": {
+    "key": "comparison.stockCount",
+    "en": "Number of Stocks Compared"
+  },
+  "字段缺失会回退为 N/A，不会阻断图表和后续策略工作流。": {
+    "key": "data.missingField.fallback",
+    "en": "Missing fields fall back to N/A and do not block charts or subsequent workflows."
+  },
+  "MACD 指标": {
+    "key": "indicator.macd",
+    "en": "MACD Indicator"
+  },
+  "热图周期": {
+    "key": "chart.heatmap.period",
+    "en": "Heatmap Period"
+  },
+  "**入场/出场评分阈值**": {
+    "key": "strategy.entryExit.scoreThreshold",
+    "en": "Entry/Exit Score Threshold"
+  },
+  "当前没有可展示的 MLflow 信息。": {
+    "key": "mlflow.info.empty",
+    "en": "No MLflow information to display."
+  },
+  "待完成项：": {
+    "key": "todo.list",
+    "en": "To-Do:"
+  },
+  "Walk-Forward 回测未产生结果。": {
+    "key": "backtest.walkForward.noResults",
+    "en": "Walk-Forward backtest produced no results."
+  },
+  "**布林带 / 高级指标参数**": {
+    "key": "indicator.bollingerBands.advancedParams",
+    "en": "Bollinger Bands / Advanced Indicator Parameters"
+  },
+  "月 K": {
+    "key": "chart.monthlyK",
+    "en": "Monthly K-Line"
+  },
+  "试验次数越多越精确，但耗时更长。建议先用 30 次验证路径。": {
+    "key": "optimization.trialCount.tip",
+    "en": "More trials increase accuracy but take longer. Start with 30 to verify the path."
+  },
+  "渲染单股入口页，并在用户发起分析时返回动作。": {
+    "key": "ui.singleStockEntry.description",
+    "en": "Render single stock entry page and return action when user initiates analysis."
+  },
+  "请选择 Naive / Mean / Drift": {
+    "key": "strategy.selection.prompt",
+    "en": "Select Naive / Mean / Drift"
+  },
+  "例如：AAPL / NVDA / 贵州茅台 / 600519": {
+    "key": "input.stock.example",
+    "en": "e.g., AAPL / NVDA / Kweichow Moutai / 600519"
+  },
+  "| 买入并持有收益：": {
+    "key": "backtest.buyAndHold.return",
+    "en": "Buy & Hold Return:"
+  },
+  "正在加载最新市场数据。": {
+    "key": "data.market.loading",
+    "en": "Loading latest market data."
+  },
+  "导出页把多股基础信息、横向对比和组合策略结果收进统一的站点式报告，避免再回到旧版大卡片堆叠。": {
+    "key": "export.page.description",
+    "en": "Export page consolidates multi-stock info, comparisons, and portfolio results into a unified site-style report, moving away from stacked cards."
+  },
+  "趋势过滤的长周期 EMA。": {
+    "key": "indicator.trendFilter.longEma",
+    "en": "Long-period EMA for trend filtering."
+  },
+  "当前结果缺少可展示的组合净值图。": {
+    "key": "chart.portfolioNetValue.missing",
+    "en": "Current results lack a displayable portfolio net value chart."
+  },
+  "量能放大": {
+    "key": "indicator.volume.amplification",
+    "en": "Volume Amplification"
+  },
+  "查看图表": {
+    "key": "chart.view",
+    "zh": "查看图表",
+    "en": "View Chart"
+  },
+  "当前策略固定置顶；已保存策略按最近保存倒序展示。比较器按底层 artifact 去重，不重复画线。": {
+    "key": "strategyList.displayRules",
+    "zh": "当前策略固定置顶；已保存策略按最近保存倒序展示。比较器按底层 artifact 去重，不重复画线。",
+    "en": "Current strategy pinned. Saved strategies sorted by recency. Comparators deduplicated by underlying artifact."
+  },
+  "</span>\n  <span class=\"analysis-chart-chip\">显示名": {
+    "key": "component.analysisChartChip.displayName",
+    "zh": "显示名",
+    "en": "Display Name"
+  },
+  "✓ 已选择": {
+    "key": "state.selected",
+    "zh": "✓ 已选择",
+    "en": "✓ Selected"
+  },
+  "页面只消费 report.json 已汇总的结果和可选的 QuantStats / MLflow 元信息。": {
+    "key": "dataSource.description",
+    "zh": "页面只消费 report.json 已汇总的结果和可选的 QuantStats / MLflow 元信息。",
+    "en": "Page consumes aggregated report.json results and optional QuantStats/MLflow metadata."
+  },
+  "当前请求已完成配置，尚未生成结果。": {
+    "key": "status.configCompleteNoResult",
+    "zh": "当前请求已完成配置，尚未生成结果。",
+    "en": "Configuration complete. Results pending."
+  },
+  "评分 / 分位": {
+    "key": "metric.scoreAndQuantile",
+    "zh": "评分 / 分位",
+    "en": "Score / Quantile"
+  },
+  "年度": {
+    "key": "time.annual",
+    "zh": "年度",
+    "en": "Annual"
+  },
+  "买入持有收益": {
+    "key": "metric.buyAndHoldReturn",
+    "zh": "买入持有收益",
+    "en": "Buy & Hold Return"
+  },
+  "该股票已经在当前股票池里。": {
+    "key": "stockPool.duplicateWarning",
+    "zh": "该股票已经在当前股票池里。",
+    "en": "Stock already in pool."
+  },
+  "数据量较少，已固定训练/测试窗口。": {
+    "key": "data.warning.fixedWindow",
+    "zh": "数据量较少，已固定训练/测试窗口。",
+    "en": "Limited data. Fixed train/test window."
+  },
+  "日期": {
+    "key": "common.date",
+    "zh": "日期",
+    "en": "Date"
+  },
+  "名称": {
+    "key": "common.name",
+    "zh": "名称",
+    "en": "Name"
+  },
+  "天": {
+    "key": "time.day",
+    "zh": "天",
+    "en": "Day(s)"
+  },
+  "先把股票池整理清楚": {
+    "key": "action.organizeStockPool",
+    "zh": "先把股票池整理清楚",
+    "en": "Organize stock pool first"
+  },
+  "上传 CSV（列名：open, close, volumn/volume, high, low）": {
+    "key": "upload.csvFormat",
+    "zh": "上传 CSV（列名：open, close, volumn/volume, high, low）",
+    "en": "Upload CSV (columns: open, close, volume, high, low)"
+  },
+  "查看最优参数": {
+    "key": "action.viewOptimalParams",
+    "zh": "查看最优参数",
+    "en": "View Optimal Params"
+  },
+  "读取选中 run 的 report 与可选 MLflow manifest。": {
+    "key": "action.loadRunReport",
+    "zh": "读取选中 run 的 report 与可选 MLflow manifest。",
+    "en": "Load report and optional MLflow manifest for selected run."
+  },
+  "ml_horizon_days 必须为正整数": {
+    "key": "validation.mlHorizonDays",
+    "zh": "ml_horizon_days 必须为正整数",
+    "en": "ml_horizon_days must be a positive integer."
+  },
+  "按最近一个交易日信号与目标仓位生成": {
+    "key": "strategy.generationRule",
+    "zh": "按最近一个交易日信号与目标仓位生成",
+    "en": "Generated using latest trading day signal and target position."
+  },
+  "随机搜索": {
+    "key": "optimization.randomSearch",
+    "zh": "随机搜索",
+    "en": "Random Search"
+  },
+  "主图、小图指标与训练窗口在离线报告里保持同样的阅读重心。": {
+    "key": "report.designConsistency",
+    "zh": "主图、小图指标与训练窗口在离线报告里保持同样的阅读重心。",
+    "en": "Main/sub charts and training window maintain visual focus in offline report."
+  },
+  "越低越稳": {
+    "key": "metric.lowerIsBetter",
+    "zh": "越低越稳",
+    "en": "Lower is more stable"
+  },
+  "优化后回撤": {
+    "key": "metric.optimizedDrawdown",
+    "zh": "优化后回撤",
+    "en": "Optimized Drawdown"
+  },
+  "指标小图跟主图分栏展开，便于在移动端单独阅读。": {
+    "key": "layout.mobileFriendlyCharts",
+    "zh": "指标小图跟主图分栏展开，便于在移动端单独阅读。",
+    "en": "Sub-charts expand in separate columns for mobile viewing."
+  },
+  "相对强弱对比（基准:": {
+    "key": "chart.relativeStrength",
+    "zh": "相对强弱对比（基准:",
+    "en": "Relative Strength (vs "
+  },
+  "ATR 止损倍数": {
+    "key": "param.atrStopLossMultiplier",
+    "zh": "ATR 止损倍数",
+    "en": "ATR Stop Loss Multiplier"
+  },
+  "Naive（买入持有）": {
+    "key": "strategy.naiveBuyAndHold",
+    "zh": "Naive（买入持有）",
+    "en": "Naive (Buy & Hold)"
+  },
+  "策略比对": {
+    "key": "action.compareStrategies",
+    "zh": "策略比对",
+    "en": "Compare Strategies"
+  },
+  "无法获取": {
+    "key": "state.unavailable",
+    "zh": "无法获取",
+    "en": "Unavailable"
+  },
+  "推荐列表放在同一个轻量 sheet 里，点击右侧小按钮即可直接进入分析。": {
+    "key": "ui.recommendationSheet",
+    "zh": "推荐列表放在同一个轻量 sheet 里，点击右侧小按钮即可直接进入分析。",
+    "en": "Recommendations in a lightweight sheet. Click button to analyze."
+  },
+  "策略流程": {
+    "key": "section.strategyWorkflow",
+    "zh": "策略流程",
+    "en": "Strategy Workflow"
+  },
+  "未记录 MLflow。": {
+    "key": "state.mlflowNotRecorded",
+    "zh": "未记录 MLflow。",
+    "en": "MLflow not recorded."
+  },
+  "/ 分位": {
+    "key": "label.quantile",
+    "zh": "/ 分位",
+    "en": "/ Quantile"
+  },
+  "个市场标的": {
+    "key": "market.instruments",
+    "zh": "个市场标的",
+    "en": " market instruments"
+  },
+  "未获取到有效数据": {
+    "key": "error.noValidData",
+    "zh": "未获取到有效数据",
+    "en": "No valid data retrieved."
+  },
+  "策略结果区": {
+    "key": "section.strategyResults",
+    "zh": "策略结果区",
+    "en": "Strategy Results"
+  },
+  "检测到股票池、权重或边栏参数变化，请重新生成组合策略。": {
+    "key": "warning.rebuildStrategy",
+    "zh": "检测到股票池、权重或边栏参数变化，请重新生成组合策略。",
+    "en": "Stock pool, weights, or sidebar params changed. Please regenerate strategy."
+  },
+  "MACD 柱在评分中的权重。": {
+    "key": "param.macdHistogramWeight",
+    "zh": "MACD 柱在评分中的权重。",
+    "en": "MACD histogram weight in scoring."
+  },
+  "离线 HTML": {
+    "key": "report.offlineHtml",
+    "zh": "离线 HTML",
+    "en": "Offline HTML"
+  },
+  "市场数据": {
+    "key": "data.marketData",
+    "zh": "市场数据",
+    "en": "Market Data"
+  },
+  "RSI 上限阈值": {
+    "key": "param.rsiUpperThreshold",
+    "zh": "RSI 上限阈值",
+    "en": "RSI Upper Threshold"
+  },
+  "family 只支持 baseline、search 或 regime": {
+    "key": "validation.familyParam",
+    "zh": "family 只支持 baseline、search 或 regime",
+    "en": "Family only supports 'baseline', 'search', or 'regime'."
+  },
+  "📤 导出分析报告": {
+    "key": "action.exportAnalysisReport",
+    "zh": "📤 导出分析报告",
+    "en": "📤 Export Analysis Report"
+  },
+  "股票收益率相关性矩阵（按股票配对计算）": {
+    "key": "chart.correlationMatrix",
+    "zh": "股票收益率相关性矩阵（按股票配对计算）",
+    "en": "Stock Return Correlation Matrix (by pair)"
+  },
+  "当前使用「": {
+    "key": "label.currentUsing",
+    "zh": "当前使用「",
+    "en": "Currently using \""
+  },
+  "主窗口 + 稳健性综合评分": {
+    "key": "scoring.mainAndRobustness",
+    "zh": "主窗口 + 稳健性综合评分",
+    "en": "Main Window + Robustness Score"
+  },
+  "</strong> 个标的\n  （手动/推荐": {
+    "key": "count.instrumentsSource",
+    "zh": "个标的（手动/推荐",
+    "en": " instruments (Manual/Recommended"
+  },
+  "当前已选股票": {
+    "key": "section.currentSelectedStocks",
+    "zh": "当前已选股票",
+    "en": "Selected Stocks"
+  },
+  "输入股票名称或代码后，这里会出现可直接进入分析的候选项。": {
+    "key": "ui.stockSearchHint",
+    "zh": "输入股票名称或代码后，这里会出现可直接进入分析的候选项。",
+    "en": "Enter name or code to see analysis candidates here."
+  },
+  "价格对比": {
+    "key": "priceComparison.title",
+    "zh": "价格对比",
+    "en": "Price Comparison"
+  },
+  "侧边栏 UI 模块\n================\n渲染 Streamlit 侧边栏的所有控件，返回完整的参数字典。": {
+    "key": "sidebar.module.description",
+    "zh": "侧边栏 UI 模块\n================\n渲染 Streamlit 侧边栏的所有控件，返回完整的参数字典。",
+    "en": "Sidebar UI Module\n================\nRenders all Streamlit sidebar controls and returns a complete parameter dictionary."
+  },
+  "| 训练：": {
+    "key": "training.label",
+    "zh": "| 训练：",
+    "en": "| Training:"
+  },
+  "中位超额收益": {
+    "key": "performance.medianExcessReturn",
+    "zh": "中位超额收益",
+    "en": "Median Excess Return"
+  },
+  "先在左侧选择 Baseline、Search 或 Regime 家族，结果板才会进入可配置状态。": {
+    "key": "strategy.configurationHint",
+    "zh": "先在左侧选择 Baseline、Search 或 Regime 家族，结果板才会进入可配置状态。",
+    "en": "Select a Baseline, Search, or Regime family on the left to enable configuration of the results panel."
+  },
+  "暂无可展示的指标数据。": {
+    "key": "data.noMetricsAvailable",
+    "zh": "暂无可展示的指标数据。",
+    "en": "No metric data available for display."
+  },
+  "· 偏冷": {
+    "key": "sentiment.slightlyCold",
+    "zh": "· 偏冷",
+    "en": "· Slightly Cold"
+  },
+  "多股概览": {
+    "key": "multiStock.overview",
+    "zh": "多股概览",
+    "en": "Multi-Stock Overview"
+  },
+  "请先在左侧工作台生成一条策略。": {
+    "key": "strategy.creationPrompt",
+    "zh": "请先在左侧工作台生成一条策略。",
+    "en": "Please generate a strategy first in the left-side workspace."
+  },
+  "盈亏比 / 基准": {
+    "key": "performance.profitLossRatioVsBenchmark",
+    "zh": "盈亏比 / 基准",
+    "en": "Profit/Loss Ratio / Benchmark"
+  },
+  "当前 run 没有 robustness 汇总。": {
+    "key": "run.noRobustnessSummary",
+    "zh": "当前 run 没有 robustness 汇总。",
+    "en": "No robustness summary available for the current run."
+  },
+  "分析区切换": {
+    "key": "analysis.areaSwitch",
+    "zh": "分析区切换",
+    "en": "Analysis Area Switch"
+  },
+  "价格位置权重": {
+    "key": "strategy.pricePositionWeight",
+    "zh": "价格位置权重",
+    "en": "Price Position Weight"
+  },
+  "止盈倍数": {
+    "key": "strategy.takeProfitMultiplier",
+    "zh": "止盈倍数",
+    "en": "Take Profit Multiplier"
+  },
+  "例如：AAPL / Apple / 600519": {
+    "key": "search.stockExample",
+    "zh": "例如：AAPL / Apple / 600519",
+    "en": "e.g., AAPL / Apple / 600519"
+  },
+  "Step 2 完成模型配置；Step 3 点击“生成策略”提交当前请求。": {
+    "key": "strategy.workflowSteps",
+    "zh": "Step 2 完成模型配置；Step 3 点击“生成策略”提交当前请求。",
+    "en": "Step 2: Complete model configuration; Step 3: Click 'Generate Strategy' to submit the request."
+  },
+  "选中的 run 读取失败。": {
+    "key": "run.selectionFailed",
+    "zh": "选中的 run 读取失败。",
+    "en": "Failed to load the selected run."
+  },
+  "导出保留主分析页当前股票池顺序": {
+    "key": "export.preserveStockOrder",
+    "zh": "导出保留主分析页当前股票池顺序",
+    "en": "Export preserves the current stock pool order from the main analysis page."
+  },
+  "直接来自当前行情窗口": {
+    "key": "data.source.currentMarketWindow",
+    "zh": "直接来自当前行情窗口",
+    "en": "Directly from the current market window."
+  },
+  "| 日期范围：": {
+    "key": "dateRange.label",
+    "zh": "| 日期范围：",
+    "en": "| Date Range:"
+  },
+  "时间占比": {
+    "key": "performance.timeProportion",
+    "zh": "时间占比",
+    "en": "Time Proportion"
+  },
+  "这个入口页只负责建立研究上下文。左侧完成市场切换、搜索和上传，右侧持续展示当前市场快照与推荐入口。": {
+    "key": "landing.pageDescription",
+    "zh": "这个入口页只负责建立研究上下文。左侧完成市场切换、搜索和上传，右侧持续展示当前市场快照与推荐入口。",
+    "en": "This landing page establishes the research context. The left side handles market switching, search, and uploads, while the right side continuously displays the current market snapshot and recommended entry points."
+  },
+  "正在刷新数据...": {
+    "key": "data.refreshing",
+    "zh": "正在刷新数据...",
+    "en": "Refreshing data..."
+  },
+  "切换股票": {
+    "key": "stock.switch",
+    "zh": "切换股票",
+    "en": "Switch Stock"
+  },
+  "股票池": {
+    "key": "stock.pool",
+    "zh": "股票池",
+    "en": "Stock Pool"
+  },
+  "结果细看": {
+    "key": "results.detailedView",
+    "zh": "结果细看",
+    "en": "Detailed Results"
+  },
+  "选择一只股票进行策略分析，或多只股票进行对比分析": {
+    "key": "stock.selectionPrompt",
+    "zh": "选择一只股票进行策略分析，或多只股票进行对比分析",
+    "en": "Select a single stock for strategy analysis, or multiple stocks for comparative analysis."
+  },
+  "参与策略数": {
+    "key": "strategy.participationCount",
+    "zh": "参与策略数",
+    "en": "Number of Participating Strategies"
+  },
+  "年化收益率（回报）%": {
+    "key": "performance.annualizedReturnPercent",
+    "zh": "年化收益率（回报）%",
+    "en": "Annualized Return %"
+  },
+  "生成组合策略": {
+    "key": "strategy.generatePortfolio",
+    "zh": "生成组合策略",
+    "en": "Generate Portfolio Strategy"
+  },
+  "搜索索引加载失败：": {
+    "key": "search.indexLoadFailed",
+    "zh": "搜索索引加载失败：",
+    "en": "Search index load failed:"
+  },
+  "中位夏普": {
+    "key": "performance.medianSharpe",
+    "zh": "中位夏普",
+    "en": "Median Sharpe Ratio"
+  },
+  "MACD 快线周期需要小于慢线周期。": {
+    "key": "indicator.macdValidation",
+    "zh": "MACD 快线周期需要小于慢线周期。",
+    "en": "MACD fast period must be less than the slow period."
+  },
+  "训练截止": {
+    "key": "training.cutoff",
+    "zh": "训练截止",
+    "en": "Training Cutoff"
+  },
+  "多股基础信息与右侧图表共用同一筛选结果": {
+    "key": "multiStock.sharedFilter",
+    "zh": "多股基础信息与右侧图表共用同一筛选结果",
+    "en": "Multi-stock basic info and right-side charts share the same filter results."
+  },
+  "请选择模型路径并生成第一条策略。": {
+    "key": "strategy.firstStrategyPrompt",
+    "zh": "请选择模型路径并生成第一条策略。",
+    "en": "Please select a model path and generate your first strategy."
+  },
+  "最大回撤：": {
+    "key": "performance.maxDrawdown",
+    "zh": "最大回撤：",
+    "en": "Max Drawdown:"
+  },
+  "没有找到匹配股票。": {
+    "key": "search.noMatchingStocks",
+    "zh": "没有找到匹配股票。",
+    "en": "No matching stocks found."
+  },
+  "为多股票页统一清洗日期和价格列，避免静默缺图。": {
+    "key": "data.multiStockCleaning",
+    "zh": "为多股票页统一清洗日期和价格列，避免静默缺图。",
+    "en": "Unify date and price column cleaning for multi-stock pages to prevent silent missing charts."
+  },
+  "数据区间": {
+    "key": "data.range",
+    "zh": "数据区间",
+    "en": "Data Range"
+  },
+  "字段缺失会回退为 N/A，不会阻断页面其余部分。": {
+    "key": "data.missingFieldFallback",
+    "zh": "字段缺失会回退为 N/A，不会阻断页面其余部分。",
+    "en": "Missing fields fall back to N/A and do not block the rest of the page."
+  },
+  "研究状态": {
+    "key": "research.status",
+    "zh": "研究状态",
+    "en": "Research Status"
+  },
+  "当前信号偏多，目标仓位": {
+    "key": "signal.bullishTargetPosition",
+    "zh": "当前信号偏多，目标仓位",
+    "en": "Current signal is bullish, target position"
+  },
+  "最优值": {
+    "key": "performance.optimalValue",
+    "zh": "最优值",
+    "en": "Optimal Value"
+  },
+  "横向比较 random / bayesian / genetic 的平均表现与胜出模型。": {
+    "key": "model.comparisonDescription",
+    "zh": "横向比较 random / bayesian / genetic 的平均表现与胜出模型。",
+    "en": "Horizontally compare the average performance and winning models of random, Bayesian, and genetic approaches."
+  },
+  "请先从搜索结果中选择股票。": {
+    "key": "stock.selectionFromSearchPrompt",
+    "zh": "请先从搜索结果中选择股票。",
+    "en": "Please select stocks from the search results first."
+  },
+  "多股导出报告": {
+    "key": "export.multiStockReport",
+    "zh": "多股导出报告",
+    "en": "Multi-Stock Export Report"
+  },
+  "模型数": {
+    "key": "model.count",
+    "zh": "模型数",
+    "en": "Model Count"
+  },
+  "市场上下文": {
+    "key": "market.context",
+    "zh": "市场上下文",
+    "en": "Market Context"
+  },
+  "搜索次数": {
+    "key": "search.count",
+    "zh": "搜索次数",
+    "en": "Search Count"
+  },
+  "Regime 阶段命中缓存。": {
+    "key": "regime.cache_hit",
+    "en": "Regime phase cache hit."
+  },
+  "正在运行多股组合策略模拟...": {
+    "key": "strategy.running_multi_stock_simulation",
+    "en": "Running multi-stock portfolio strategy simulation..."
+  },
+  "成交量": {
+    "key": "chart.volume",
+    "en": "Volume"
+  },
+  "上传自定义CSV数据文件": {
+    "key": "data.upload_custom_csv",
+    "en": "Upload custom CSV data file"
+  },
+  "SPY 代理可用": {
+    "key": "market.spy_proxy_available",
+    "en": "SPY proxy available"
+  },
+  "K 线主图": {
+    "key": "chart.candlestick_main",
+    "en": "Candlestick Chart"
+  },
+  "移除": {
+    "key": "common.remove",
+    "en": "Remove"
+  },
+  "风险-收益散点图（年化）": {
+    "key": "chart.risk_return_scatter_annualized",
+    "en": "Risk-Return Scatter Plot (Annualized)"
+  },
+  "选择预设策略": {
+    "key": "strategy.select_preset",
+    "en": "Select preset strategy"
+  },
+  "当前请求未启用参数搜索": {
+    "key": "strategy.param_search_disabled",
+    "en": "Parameter search is disabled for this request."
+  },
+  "的": {
+    "key": "common.of",
+    "en": "of"
+  },
+  "策略结果视图": {
+    "key": "strategy.result_view",
+    "en": "Strategy Result View"
+  },
+  "训练窗口（交易日）": {
+    "key": "backtest.training_window_days",
+    "en": "Training Window (Trading Days)"
+  },
+  "当前导出实际包含的有效股票数": {
+    "key": "export.valid_stocks_count",
+    "en": "Number of valid stocks in current export"
+  },
+  "6月": {
+    "key": "date.june",
+    "en": "June"
+  },
+  "策略库规模：当前 1 条，已保存": {
+    "key": "strategy.library_status",
+    "en": "Strategy library: 1 current, saved"
+  },
+  "导出分析报告": {
+    "key": "export.analysis_report",
+    "en": "Export Analysis Report"
+  },
+  "Search -> 等待选择 SM / FSM": {
+    "key": "search.await_sm_fsm_selection",
+    "en": "Search → Awaiting SM/FSM selection"
+  },
+  "到": {
+    "key": "common.to",
+    "en": "to"
+  },
+  "未找到索引匹配，将按该 A 股代码加入股票池。": {
+    "key": "stock_pool.add_by_a_share_code",
+    "en": "No index match found. Adding to stock pool by A-share code."
+  },
+  "最新因子评分横向对比": {
+    "key": "factor.latest_score_comparison",
+    "en": "Latest Factor Score Comparison"
+  },
+  "正在生成HTML报告...": {
+    "key": "report.generating_html",
+    "en": "Generating HTML report..."
+  },
+  "最新交易日": {
+    "key": "market.latest_trading_day",
+    "en": "Latest Trading Day"
+  },
+  "因子评分": {
+    "key": "factor.score",
+    "en": "Factor Score"
+  },
+  "多策略净值 / 回撤": {
+    "key": "chart.multi_strategy_net_drawdown",
+    "en": "Multi-Strategy NAV / Drawdown"
+  },
+  "季度收益率热图": {
+    "key": "chart.quarterly_return_heatmap",
+    "en": "Quarterly Return Heatmap"
+  },
+  "测试期结果": {
+    "key": "backtest.test_period_result",
+    "en": "Test Period Results"
+  },
+  "· 偏热": {
+    "key": "indicator.slightly_hot",
+    "en": "· Slightly Hot"
+  },
+  "短期动量在评分中的权重。": {
+    "key": "factor.weight_short_term_momentum",
+    "en": "Weight of short-term momentum in scoring."
+  },
+  "图表结果区": {
+    "key": "ui.chart_result_area",
+    "en": "Chart Result Area"
+  },
+  "未记录": {
+    "key": "common.not_recorded",
+    "en": "Not recorded"
+  },
+  "当前主图与单股结果区共用同一套“净值上 / 回撤下”的结果图组件。": {
+    "key": "chart.shared_net_drawdown_component",
+    "en": "The main chart and single-stock result area share the same 'NAV above / Drawdown below' chart component."
+  },
+  "超额 %": {
+    "key": "metric.excess_percent",
+    "en": "Excess %"
+  },
+  "结果模式": {
+    "key": "view.result_mode",
+    "en": "Result Mode"
+  },
+  "相对强弱": {
+    "key": "indicator.relative_strength",
+    "en": "Relative Strength"
+  },
+  "切换后将使用对应市场的默认股票池和数据下载路径。": {
+    "key": "market.switch_defaults_notice",
+    "en": "After switching, the default stock pool and data download path for that market will be used."
+  },
+  "✓ 数据刷新完成：成功": {
+    "key": "data.refresh_complete_success",
+    "en": "✓ Data refresh completed: Success"
+  },
+  "进化代数": {
+    "key": "optimization.generation",
+    "en": "Generation"
+  },
+  "上传文件": {
+    "key": "common.upload_file",
+    "en": "Upload File"
+  },
+  "MACD 快线周期": {
+    "key": "indicator.macd_fast_period",
+    "en": "MACD Fast Period"
+  },
+  "MACD 慢线周期": {
+    "key": "indicator.macd_slow_period",
+    "en": "MACD Slow Period"
+  },
+  "RSI 在评分中的权重。": {
+    "key": "factor.weight_rsi",
+    "en": "Weight of RSI in scoring."
+  },
+  "量能相对值": {
+    "key": "indicator.volume_relative",
+    "en": "Relative Volume"
+  },
+  "评分分位数达到该值进入中档仓位。": {
+    "key": "position.mid_level_threshold",
+    "en": "Enter medium position when score percentile reaches this value."
+  },
+  "评分分位数达到该值进入高档仓位。": {
+    "key": "position.high_level_threshold",
+    "en": "Enter high position when score percentile reaches this value."
+  },
+  "MACD（压缩）": {
+    "key": "indicator.macd_compressed",
+    "en": "MACD (Compressed)"
+  },
+  "条策略结果": {
+    "key": "strategy.results_count",
+    "en": "strategy results"
+  },
+  "按当前输入加入": {
+    "key": "action.add_with_current_input",
+    "en": "Add with current input"
+  },
+  "FSM（FA增强）": {
+    "key": "model.fsm_fa_enhanced",
+    "en": "FSM (FA Enhanced)"
+  },
+  "稳健性总分": {
+    "key": "score.robustness_total",
+    "en": "Robustness Total Score"
+  },
+  "最新 Regime": {
+    "key": "regime.latest",
+    "zh": "最新 Regime",
+    "en": "Latest Regime"
+  },
+  "风险调整后表现": {
+    "key": "performance.risk_adjusted",
+    "zh": "风险调整后表现",
+    "en": "Risk-Adjusted Performance"
+  },
+  "主榜单固定读取 report.json 中的汇总结果，不在页面内重扫 artifacts。": {
+    "key": "note.main_leaderboard_source",
+    "zh": "主榜单固定读取 report.json 中的汇总结果，不在页面内重扫 artifacts。",
+    "en": "Main leaderboard reads aggregated results from report.json; does not rescan artifacts in-page."
+  },
+  "首页模块\n========": {
+    "key": "home.section_header",
+    "zh": "首页模块\n========",
+    "en": "Home Module"
+  },
+  "<div class='model-eval-rank-empty'>暂无可展示结果。</div>": {
+    "key": "message.no_results_to_display",
+    "zh": "暂无可展示结果。",
+    "en": "No results to display."
+  },
+  "盈亏比": {
+    "key": "metric.profit_loss_ratio",
+    "zh": "盈亏比",
+    "en": "Profit/Loss Ratio"
+  },
+  "训练 / 测试": {
+    "key": "phase.train_test",
+    "zh": "训练 / 测试",
+    "en": "Train / Test"
+  },
+  "策略概览": {
+    "key": "section.strategy_overview",
+    "zh": "策略概览",
+    "en": "Strategy Overview"
+  },
+  "例如：AAPL / Apple / 贵州茅台 / 600519": {
+    "key": "placeholder.stock_example",
+    "zh": "例如：AAPL / Apple / 贵州茅台 / 600519",
+    "en": "e.g., AAPL / Apple / Kweichow Moutai / 600519"
+  },
+  "**ADX 强度参数**": {
+    "key": "param.adx_strength",
+    "zh": "ADX 强度参数",
+    "en": "ADX Strength Parameter"
+  },
+  "市场快照加载失败：": {
+    "key": "error.market_snapshot_failed",
+    "zh": "市场快照加载失败：",
+    "en": "Market snapshot failed to load:"
+  },
+  "最近 30 个交易日": {
+    "key": "period.last_30_trading_days",
+    "zh": "最近 30 个交易日",
+    "en": "Last 30 Trading Days"
+  },
+  "胜率": {
+    "key": "metric.win_rate",
+    "zh": "胜率",
+    "en": "Win Rate"
+  },
+  "波动偏稳": {
+    "key": "characteristic.low_volatility",
+    "zh": "波动偏稳",
+    "en": "Low Volatility"
+  },
+  "**MACD 参数**": {
+    "key": "param.macd",
+    "zh": "MACD 参数",
+    "en": "MACD Parameter"
+  },
+  "Search 路径的固定顺序是：基础策略 -> 可选参数搜索 -> 可选 ML 过滤。": {
+    "key": "note.search_workflow",
+    "zh": "Search 路径的固定顺序是：基础策略 -> 可选参数搜索 -> 可选 ML 过滤。",
+    "en": "Search path order: Base Strategy -> Optional Param Search -> Optional ML Filter."
+  },
+  "周期收益率热图已移动到策略区，基础信息区只保留图四对应的多股对比图表。": {
+    "key": "note.chart_relocation",
+    "zh": "周期收益率热图已移动到策略区，基础信息区只保留图四对应的多股对比图表。",
+    "en": "Period return heatmap moved to Strategy section. Base Info keeps multi-stock comparison chart (Fig.4)."
+  },
+  "RSI 权重": {
+    "key": "param.rsi_weight",
+    "zh": "RSI 权重",
+    "en": "RSI Weight"
+  },
+  "启用 Walk-Forward": {
+    "key": "action.enable_walk_forward",
+    "zh": "启用 Walk-Forward",
+    "en": "Enable Walk-Forward"
+  },
+  "当前 run 摘要": {
+    "key": "section.current_run_summary",
+    "zh": "当前 run 摘要",
+    "en": "Current Run Summary"
+  },
+  "OBV权重": {
+    "key": "param.obv_weight",
+    "zh": "OBV权重",
+    "en": "OBV Weight"
+  },
+  "请选择 Baseline、Search 或 Regime": {
+    "key": "prompt.select_mode",
+    "zh": "请选择 Baseline、Search 或 Regime",
+    "en": "Select Baseline, Search, or Regime"
+  },
+  "当前主策略没有可用于比较的价格与信号数据。": {
+    "key": "message.no_comparison_data",
+    "zh": "当前主策略没有可用于比较的价格与信号数据。",
+    "en": "No price/signal data available for comparison in current main strategy."
+  },
+  "<p class='selection-note'>已选择文件：<strong>": {
+    "key": "label.selected_file",
+    "zh": "已选择文件：",
+    "en": "Selected file:"
+  },
+  "<p class=\"plain-helper\">\n  入口页只负责把研究对象和市场背景整理清楚。进入主分析页后，原有策略工作流、artifact 和下游分析继续保持不变。\n</p>": {
+    "key": "note.entry_page_scope",
+    "zh": "入口页只负责把研究对象和市场背景整理清楚。进入主分析页后，原有策略工作流、artifact 和下游分析继续保持不变。",
+    "en": "Entry page clarifies research subject & market context. Original workflow, artifacts, and downstream analysis remain unchanged in main analysis."
+  },
+  "净值（起始=1.0）": {
+    "key": "metric.net_value",
+    "zh": "净值（起始=1.0）",
+    "en": "Net Value (Start=1.0)"
+  },
+  "当前没有可移除的股票。": {
+    "key": "message.no_stocks_to_remove",
+    "zh": "当前没有可移除的股票。",
+    "en": "No stocks to remove."
+  },
+  "买入持有夏普": {
+    "key": "metric.buy_hold_sharpe",
+    "zh": "买入持有夏普",
+    "en": "Buy & Hold Sharpe"
+  },
+  "RSI 指标": {
+    "key": "indicator.rsi",
+    "zh": "RSI 指标",
+    "en": "RSI Indicator"
+  },
+  "渲染站点级顶部导航。": {
+    "key": "action.render_site_nav",
+    "zh": "渲染站点级顶部导航。",
+    "en": "Render site-level top navigation."
+  },
+  "最新收盘": {
+    "key": "price.latest_close",
+    "zh": "最新收盘",
+    "en": "Latest Close"
+  },
+  "搜索股票名称或代码": {
+    "key": "placeholder.search_stock",
+    "zh": "搜索股票名称或代码",
+    "en": "Search stock name or code"
+  },
+  "当前没有可展示结果。": {
+    "key": "message.no_results_current",
+    "zh": "当前没有可展示结果。",
+    "en": "No results available."
+  },
+  "最低价": {
+    "key": "price.low",
+    "zh": "最低价",
+    "en": "Low"
+  },
+  "💡 功能建议": {
+    "key": "section.feature_suggestion",
+    "zh": "💡 功能建议",
+    "en": "💡 Feature Suggestion"
+  },
+  "成功率": {
+    "key": "metric.success_rate",
+    "zh": "成功率",
+    "en": "Success Rate"
+  },
+  "扫描目录：": {
+    "key": "label.scan_directory",
+    "zh": "扫描目录：",
+    "en": "Scan directory:"
+  },
+  "当前标的：": {
+    "key": "label.current_symbol",
+    "zh": "当前标的：",
+    "en": "Current symbol:"
+  },
+  "胜率 %": {
+    "key": "metric.win_rate_percent",
+    "zh": "胜率 %",
+    "en": "Win Rate %"
+  },
+  "导入标识：": {
+    "key": "label.import_id",
+    "zh": "导入标识：",
+    "en": "Import ID:"
+  },
+  "夏普比率": {
+    "key": "metric.sharpe_ratio",
+    "zh": "夏普比率",
+    "en": "Sharpe Ratio"
+  },
+  "正在下载": {
+    "key": "status.downloading",
+    "zh": "正在下载",
+    "en": "Downloading"
+  },
+  "上传本地单股 CSV": {
+    "key": "action.upload_local_csv",
+    "zh": "上传本地单股 CSV",
+    "en": "Upload Local Single-Stock CSV"
+  },
+  "区间收益": {
+    "key": "metric.period_return",
+    "zh": "区间收益",
+    "en": "Period Return"
+  },
+  "✓ 将分析": {
+    "key": "status.will_analyze",
+    "zh": "✓ 将分析",
+    "en": "✓ Will analyze"
+  },
+  "买入并持有": {
+    "key": "strategy.buy_and_hold",
+    "zh": "买入并持有",
+    "en": "Buy and Hold"
+  },
+  "⬇️ 下载HTML报告": {
+    "key": "action.download_html_report",
+    "zh": "⬇️ 下载HTML报告",
+    "en": "⬇️ Download HTML Report"
+  },
+  "研究市场": {
+    "key": "action.research_market",
+    "zh": "研究市场",
+    "en": "Research Market"
+  },
+  "MACD 信号线 EMA 周期。": {
+    "key": "param.macd_signal_ema_period",
+    "zh": "MACD 信号线 EMA 周期。",
+    "en": "MACD Signal Line EMA Period"
+  },
+  "买卖点图保留为独立图层，方便和主结果图区分阅读。": {
+    "key": "note.buy_sell_chart_layer",
+    "zh": "买卖点图保留为独立图层，方便和主结果图区分阅读。",
+    "en": "Buy/Sell chart kept as separate layer for clear distinction from main results."
+  },
+  "默认展示最新可读 run，并允许在不同 run 之间切换浏览。": {
+    "key": "runBrowser.defaultDescription",
+    "zh": "默认展示最新可读 run，并允许在不同 run 之间切换浏览。",
+    "en": "Displays the latest readable run by default and allows switching between different runs."
+  },
+  "推荐股票": {
+    "key": "recommendation.stocks",
+    "zh": "推荐股票",
+    "en": "Recommended Stocks"
+  },
+  "接近 1 代表正相关，接近 -1 代表负相关，接近 0 代表相关性弱。": {
+    "key": "correlation.legend",
+    "zh": "接近 1 代表正相关，接近 -1 代表负相关，接近 0 代表相关性弱。",
+    "en": "Close to 1 indicates positive correlation, close to -1 indicates negative correlation, close to 0 indicates weak correlation."
+  },
+  "当前有效标的不足 2 个，请返回入口页重新组建股票池。": {
+    "key": "stockPool.insufficientWarning",
+    "zh": "当前有效标的不足 2 个，请返回入口页重新组建股票池。",
+    "en": "Insufficient valid securities (less than 2). Please return to the entry page to rebuild the stock pool."
+  },
+  "请先填写反馈内容": {
+    "key": "feedback.emptyWarning",
+    "zh": "请先填写反馈内容",
+    "en": "Please enter feedback content first."
+  },
+  "风险收益分析": {
+    "key": "analysis.riskReturn",
+    "zh": "风险收益分析",
+    "en": "Risk-Return Analysis"
+  },
+  "共享前端主题层\n==============\n为 W6 首页、入口页和路由壳层提供暖米白官网式样式。": {
+    "key": "theme.sharedLayerDescription",
+    "zh": "共享前端主题层\n==============\n为 W6 首页、入口页和路由壳层提供暖米白官网式样式。",
+    "en": "Shared Frontend Theme Layer\n==============\nProvides a warm off-white official website style for the W6 homepage, entry page, and routing shell."
+  },
+  "来源": {
+    "key": "common.source",
+    "zh": "来源",
+    "en": "Source"
+  },
+  "当前市场的快照与推荐补充": {
+    "key": "market.snapshotTitle",
+    "zh": "当前市场的快照与推荐补充",
+    "en": "Current Market Snapshot & Recommendations"
+  },
+  "RS 曲线上升代表相对强势，下降代表相对弱势。": {
+    "key": "relativeStrength.legend",
+    "zh": "RS 曲线上升代表相对强势，下降代表相对弱势。",
+    "en": "A rising RS curve indicates relative strength; a falling curve indicates relative weakness."
+  },
+  "**描述**：": {
+    "key": "common.descriptionLabel",
+    "zh": "**描述**：",
+    "en": "**Description:**"
+  },
+  "添加到股票列表": {
+    "key": "stockList.addAction",
+    "zh": "添加到股票列表",
+    "en": "Add to Stock List"
+  },
+  "个上传数据源</span>\n</div>": {
+    "key": "dataSource.countSuffix",
+    "zh": "个上传数据源</span>\n</div>",
+    "en": " uploaded data sources</span>\n</div>"
+  },
+  "</div><div class='recommend-row-meta'>现价": {
+    "key": "recommendation.currentPricePrefix",
+    "zh": "</div><div class='recommend-row-meta'>现价",
+    "en": "</div><div class='recommend-row-meta'>Current Price"
+  },
+  "这张表固定承接图四要求的“摘要数字 + 明细表”，不再把所有信息挤进图里。": {
+    "key": "summaryTable.description",
+    "zh": "这张表固定承接图四要求的“摘要数字 + 明细表”，不再把所有信息挤进图里。",
+    "en": "This table consistently presents the \"summary metrics + details table\" as required by Chart 4, avoiding clutter within the chart itself."
+  },
+  "回撤": {
+    "key": "metrics.drawdown",
+    "zh": "回撤",
+    "en": "Drawdown"
+  },
+  "等权平均基准": {
+    "key": "benchmark.equalWeight",
+    "zh": "等权平均基准",
+    "en": "Equal-Weighted Average Benchmark"
+  },
+  "顶部先给出股票池摘要和明细表，右侧主图在价格对比、相对强弱、风险收益、最新因子评分和相关性之间切换，不再顺序堆叠成长页面。": {
+    "key": "console.layoutDescription",
+    "zh": "顶部先给出股票池摘要和明细表，右侧主图在价格对比、相对强弱、风险收益、最新因子评分和相关性之间切换，不再顺序堆叠成长页面。",
+    "en": "Top section shows stock pool summary and details table. The main chart on the right toggles between price comparison, relative strength, risk-return, latest factor scores, and correlation, replacing a long sequential page."
+  },
+  "选择回测数据的起止日期": {
+    "key": "backtest.dateRangePicker",
+    "zh": "选择回测数据的起止日期",
+    "en": "Select Backtest Start & End Dates"
+  },
+  "实验名": {
+    "key": "experiment.name",
+    "zh": "实验名",
+    "en": "Experiment Name"
+  },
+  "正在生成策略工作流...": {
+    "key": "strategy.workflowGenerating",
+    "zh": "正在生成策略工作流...",
+    "en": "Generating strategy workflow..."
+  },
+  "测试起点": {
+    "key": "backtest.testStart",
+    "zh": "测试起点",
+    "en": "Test Start"
+  },
+  "当前策略缺少可展示的信号数据。": {
+    "key": "strategy.noSignalData",
+    "zh": "当前策略缺少可展示的信号数据。",
+    "en": "Current strategy lacks displayable signal data."
+  },
+  "分数": {
+    "key": "common.score",
+    "zh": "分数",
+    "en": "Score"
+  },
+  "渲染单股票 HTML 报告导出区域。": {
+    "key": "report.exportAreaDescription",
+    "zh": "渲染单股票 HTML 报告导出区域。",
+    "en": "Renders the single-stock HTML report export area."
+  },
+  "在一个平面里同时看回报、风险和夏普，便于快速识别结构差异。": {
+    "key": "analysis.riskReturnSharpeDescription",
+    "zh": "在一个平面里同时看回报、风险和夏普，便于快速识别结构差异。",
+    "en": "View return, risk, and Sharpe ratio together on one plane for quick identification of structural differences."
+  },
+  "📝 其他反馈": {
+    "key": "feedback.otherTitle",
+    "zh": "📝 其他反馈",
+    "en": "📝 Other Feedback"
+  },
+  "评分分位数%": {
+    "key": "score.percentile",
+    "zh": "评分分位数%",
+    "en": "Score Percentile %"
+  },
+  "加入股票池": {
+    "key": "stockPool.addAction",
+    "zh": "加入股票池",
+    "en": "Add to Stock Pool"
+  },
+  "<div class=\"analysis-subsurface\">\n  <h4 class=\"analysis-callout-title\">策略比对模式</h4>\n  <p class=\"analysis-callout-copy\">左侧保留策略库选择器，右侧只切换结果内容。当前最佳候选：": {
+    "key": "strategy.comparisonModeHtml",
+    "zh": "<div class=\"analysis-subsurface\">\n  <h4 class=\"analysis-callout-title\">策略比对模式</h4>\n  <p class=\"analysis-callout-copy\">左侧保留策略库选择器，右侧只切换结果内容。当前最佳候选：",
+    "en": "<div class=\"analysis-subsurface\">\n  <h4 class=\"analysis-callout-title\">Strategy Comparison Mode</h4>\n  <p class=\"analysis-callout-copy\">Left panel retains strategy library selector; right panel toggles result content. Current best candidate:"
+  },
+  "年化收益率": {
+    "key": "metrics.annualizedReturn",
+    "zh": "年化收益率",
+    "en": "Annualized Return"
+  },
+  "最新 Regime：": {
+    "key": "regime.latestLabel",
+    "zh": "最新 Regime：",
+    "en": "Latest Regime:"
+  },
+  "股票周期": {
+    "key": "stock.cycle",
+    "zh": "股票周期",
+    "en": "Stock Cycle"
+  },
+  "生成并下载HTML报告": {
+    "key": "report.generateDownloadAction",
+    "zh": "生成并下载HTML报告",
+    "en": "Generate & Download HTML Report"
+  },
+  "注入全局共享样式。": {
+    "key": "theme.injectGlobalStyles",
+    "zh": "注入全局共享样式。",
+    "en": "Inject global shared styles."
+  },
+  "共同交易日": {
+    "key": "date.commonTradingDays",
+    "zh": "共同交易日",
+    "en": "Common Trading Days"
+  },
+  "多股组合控制台": {
+    "key": "console.multiStockTitle",
+    "zh": "多股组合控制台",
+    "en": "Multi-Stock Portfolio Console"
+  },
+  "基准夏普": {
+    "key": "metrics.benchmarkSharpe",
+    "zh": "基准夏普",
+    "en": "Benchmark Sharpe"
+  },
+  "导出页沿用主站点的暖白产品页语法，把单股基础信息、策略摘要和关键图表收进同一份可离线阅读的报告。": {
+    "key": "report.exportPageDescription",
+    "zh": "导出页沿用主站点的暖白产品页语法，把单股基础信息、策略摘要和关键图表收进同一份可离线阅读的报告。",
+    "en": "The export page follows the main site's warm-white product page style, compiling single-stock basics, strategy summary, and key charts into one offline-readable report."
+  },
+  "参数搜索失败，已回退到基础策略：": {
+    "key": "strategy.paramSearchFallback",
+    "zh": "参数搜索失败，已回退到基础策略：",
+    "en": "Parameter search failed, fell back to base strategy:"
+  },
+  "加载对比股票数据...": {
+    "key": "data.loadingComparison",
+    "zh": "加载对比股票数据...",
+    "en": "Loading comparison stock data..."
+  },
+  "%Y年%m月%d日 %H:%M:%S": {
+    "key": "dateTime.formatLong",
+    "zh": "%Y年%m月%d日 %H:%M:%S",
+    "en": "%Y-%m-%d %H:%M:%S"
+  },
+  "个标的": {
+    "key": "stockPool.countSuffix",
+    "zh": "个标的",
+    "en": " securities"
+  },
+  "次试验）...": {
+    "key": "experiment.countSuffix",
+    "zh": "次试验）...",
+    "en": " trials)..."
+  },
+  "公开路径": {
+    "key": "path.public",
+    "zh": "公开路径",
+    "en": "Public Path"
+  },
+  "没有加载到数据。": {
+    "key": "data.loadingFailed",
+    "zh": "没有加载到数据。",
+    "en": "No data loaded."
+  },
+  "当前没有足够的信号数据。": {
+    "key": "strategy.insufficientSignalData",
+    "zh": "当前没有足够的信号数据。",
+    "en": "Currently insufficient signal data."
+  },
+  "选择时间区间": {
+    "key": "common.selectTimeRange",
+    "zh": "选择时间区间",
+    "en": "Select Time Range"
+  },
+  "当前策略默认参与；已保存策略按需勾选加入多策略比较。": {
+    "key": "strategy.comparisonRule",
+    "zh": "当前策略默认参与；已保存策略按需勾选加入多策略比较。",
+    "en": "Current strategy participates by default; saved strategies are optionally checked for multi-strategy comparison."
+  },
+  "当前上下文中存在最新策略和已保存快照。": {
+    "key": "strategy.contextStatus",
+    "zh": "当前上下文中存在最新策略和已保存快照。",
+    "en": "Latest strategy and saved snapshots exist in the current context."
+  },
+  "按当前日期范围统计": {
+    "key": "statistics.dateRange.current",
+    "zh": "按当前日期范围统计",
+    "en": "Statistics by Current Date Range"
+  },
+  "请先选择 Baseline 或 Search": {
+    "key": "validation.selectBaselineOrSearch",
+    "zh": "请先选择 Baseline 或 Search",
+    "en": "Please select Baseline or Search first"
+  },
+  "来自最新一行 target_position": {
+    "key": "data.source.latestTargetPosition",
+    "zh": "来自最新一行 target_position",
+    "en": "From latest target_position row"
+  },
+  "当前 run 未生成 QuantStats tear sheet。": {
+    "key": "quantstats.tearSheet.notGenerated",
+    "zh": "当前 run 未生成 QuantStats tear sheet。",
+    "en": "QuantStats tear sheet not generated for this run."
+  },
+  "已记录 MLflow": {
+    "key": "mlflow.recorded",
+    "zh": "已记录 MLflow",
+    "en": "Logged to MLflow"
+  },
+  "用上传数据开始分析": {
+    "key": "analysis.startWithUploadedData",
+    "zh": "用上传数据开始分析",
+    "en": "Start analysis with uploaded data"
+  },
+  "没有找到索引匹配，将按当前输入直接加入。": {
+    "key": "index.mismatch.addDirectly",
+    "zh": "没有找到索引匹配，将按当前输入直接加入。",
+    "en": "No index match found. Adding input directly."
+  },
+  "至少需要 2 个有效标的；如股票池、权重或边栏参数变化，结果区会要求重新生成。": {
+    "key": "validation.minimumTwoValidInstruments",
+    "zh": "至少需要 2 个有效标的；如股票池、权重或边栏参数变化，结果区会要求重新生成。",
+    "en": "At least 2 valid instruments required. Changes to pool, weights, or sidebar parameters will trigger regeneration."
+  },
+  "这里固定承接第七周结果区的核心指标摘要，用表格把当前导出的模型收益、回撤、夏普和胜率集中展示。": {
+    "key": "summary.coreMetricsTable.description",
+    "zh": "这里固定承接第七周结果区的核心指标摘要，用表格把当前导出的模型收益、回撤、夏普和胜率集中展示。",
+    "en": "Displays core metrics summary: model returns, drawdown, Sharpe ratio, and win rate in a table."
+  },
+  "ML 阶段命中缓存。": {
+    "key": "ml.cache.hit",
+    "zh": "ML 阶段命中缓存。",
+    "en": "ML stage cache hit."
+  },
+  "暂无可展示的 K 线数据。": {
+    "key": "data.kline.notAvailable",
+    "zh": "暂无可展示的 K 线数据。",
+    "en": "No K-line data available."
+  },
+  "没有加载到有效的股票数据。": {
+    "key": "data.stocks.invalid",
+    "zh": "没有加载到有效的股票数据。",
+    "en": "No valid stock data loaded."
+  },
+  "反馈将通过 [GitHub Issues](https://github.com/rikka314/stratagy/issues) 追踪": {
+    "key": "feedback.githubIssues",
+    "zh": "反馈将通过 [GitHub Issues](https://github.com/rikka314/stratagy/issues) 追踪",
+    "en": "Feedback tracked via [GitHub Issues](https://github.com/rikka314/stratagy/issues)"
+  },
+  "回撤越大，评分惩罚越大。": {
+    "key": "scoring.drawdownPenalty",
+    "zh": "回撤越大，评分惩罚越大。",
+    "en": "Larger drawdown incurs greater score penalty."
+  },
+  "暂无可展示结果。": {
+    "key": "results.notAvailable",
+    "zh": "暂无可展示结果。",
+    "en": "No results available."
+  },
+  "止损倍数": {
+    "key": "strategy.stopLossMultiplier",
+    "zh": "止损倍数",
+    "en": "Stop Loss Multiplier"
+  },
+  "读取失败：": {
+    "key": "io.read.failed",
+    "zh": "读取失败：",
+    "en": "Read failed:"
+  },
+  "空头动能": {
+    "key": "indicators.bearishMomentum",
+    "zh": "空头动能",
+    "en": "Bearish Momentum"
+  },
+  "当前工作流链路": {
+    "key": "workflow.currentPipeline",
+    "zh": "当前工作流链路",
+    "en": "Current Workflow Pipeline"
+  },
+  "主策略": {
+    "key": "strategy.primary",
+    "zh": "主策略",
+    "en": "Primary Strategy"
+  },
+  "当前展示": {
+    "key": "display.current",
+    "zh": "当前展示",
+    "en": "Currently Displaying"
+  },
+  "图表切换": {
+    "key": "chart.switch",
+    "zh": "图表切换",
+    "en": "Chart Switch"
+  },
+  "指标小图": {
+    "key": "chart.indicatorsMini",
+    "zh": "指标小图",
+    "en": "Indicator Mini-Chart"
+  },
+  "快线在下": {
+    "key": "indicators.fastLineBelow",
+    "zh": "快线在下",
+    "en": "Fast Line Below"
+  },
+  "当前没有可展示标的": {
+    "key": "instruments.noneAvailable",
+    "zh": "当前没有可展示标的",
+    "en": "No instruments available for display."
+  },
+  "工作台入口": {
+    "key": "navigation.workbenchEntry",
+    "zh": "工作台入口",
+    "en": "Workbench Entry"
+  },
+  "入口页只负责把研究对象和市场背景整理清楚。进入主分析页后，原有策略工作流、artifact 和下游分析继续保持不变。": {
+    "key": "page.entry.description",
+    "zh": "入口页只负责把研究对象和市场背景整理清楚。进入主分析页后，原有策略工作流、artifact 和下游分析继续保持不变。",
+    "en": "Entry page organizes research subjects and market context. Existing workflows, artifacts, and downstream analysis remain unchanged on the main page."
+  },
+  "收益贡献": {
+    "key": "analysis.returnContribution",
+    "zh": "收益贡献",
+    "en": "Return Contribution"
+  },
+  "命中缓存。": {
+    "key": "cache.hit",
+    "zh": "命中缓存。",
+    "en": "Cache hit."
+  },
+  "股票": {
+    "key": "instrument.type.stock",
+    "zh": "股票",
+    "en": "Stocks"
+  },
+  "研究禁用市场代理": {
+    "key": "research.disableMarketProxy",
+    "zh": "研究禁用市场代理",
+    "en": "Disable Market Proxy for Research"
+  },
+  "按 baseline / sm / fsm 族查看平均得分与最佳模型。": {
+    "key": "model.family.scoreOverview",
+    "zh": "按 baseline / sm / fsm 族查看平均得分与最佳模型。",
+    "en": "View average scores and best models by baseline / sm / fsm families."
+  },
+  "累计收益": {
+    "key": "returns.cumulative",
+    "zh": "累计收益",
+    "en": "Cumulative Return"
+  },
+  "📈 入场规则": {
+    "key": "strategy.entryRules",
+    "en": "Entry Rules"
+  },
+  "已启用 ML 过滤：ML 始终消费最近一步成功的上游结果。": {
+    "key": "ml.filter.enabled",
+    "zh": "已启用 ML 过滤：ML 始终消费最近一步成功的上游结果。",
+    "en": "ML filter enabled: ML consumes the latest successful upstream result."
+  },
+  "在一个平面里同时看年化收益、波动率和夏普，适合快速识别风险收益结构。": {
+    "key": "chart.riskReturn.description",
+    "zh": "在一个平面里同时看年化收益、波动率和夏普，适合快速识别风险收益结构。",
+    "en": "View annualized return, volatility, and Sharpe ratio together for quick risk-return assessment."
+  },
+  "个）。\n</p>": {
+    "key": "count.unit",
+    "zh": "个）。\n</p>",
+    "en": ")."
+  },
+  "当前展示的是上次成功生成的结果；重新生成后才会更新下游分析。": {
+    "key": "display.cachedResultsNotice",
+    "zh": "当前展示的是上次成功生成的结果；重新生成后才会更新下游分析。",
+    "en": "Displaying last successful result. Downstream analysis updates after regeneration."
+  },
+  "均衡策略（默认）": {
+    "key": "strategy.balanced.default",
+    "zh": "均衡策略（默认）",
+    "en": "Balanced Strategy (Default)"
+  },
+  "<p class=\"plain-helper\">\n  入口页只负责把股票池整理清楚。进入主分析页后，现有多股图表、组合模拟和后续分析逻辑继续沿用。\n</p>": {
+    "key": "page.entry.stockPoolDescription",
+    "zh": "<p class=\"plain-helper\">\n  入口页只负责把股票池整理清楚。进入主分析页后，现有多股图表、组合模拟和后续分析逻辑继续沿用。\n</p>",
+    "en": "Entry page organizes the stock pool. Existing multi-stock charts, portfolio simulation, and analysis logic remain on the main page."
+  },
+  "个上传源，": {
+    "key": "upload.sources.count",
+    "zh": "个上传源，",
+    "en": "upload sources,"
+  },
+  "需要同时满足的出场条件数量。数值越大出场越宽松（不容易被踢出），1=原始逻辑（任一触发就出场），4=全部满足才出场": {
+    "key": "rules.exit.conditions.description",
+    "zh": "需要同时满足的出场条件数量。数值越大出场越宽松（不容易被踢出），1=原始逻辑（任一触发就出场），4=全部满足才出场",
+    "en": "Number of exit conditions required. Higher value = looser exit (harder to trigger). 1 = original logic (any condition), 4 = all conditions."
+  },
+  "未生成": {
+    "key": "status.notGenerated",
+    "zh": "未生成",
+    "en": "Not Generated"
+  },
+  "· 阶段": {
+    "key": "workflow.stage",
+    "zh": "· 阶段",
+    "en": "· Stage"
+  },
+  "单股分析": {
+    "key": "analysis.singleInstrument",
+    "zh": "单股分析",
+    "en": "Single Instrument Analysis"
+  },
+  "参数搜索：": {
+    "key": "parameter.search",
+    "zh": "参数搜索：",
+    "en": "Parameter Search:"
+  },
+  "当前建议": {
+    "key": "suggestions.current",
+    "zh": "当前建议",
+    "en": "Current Suggestions"
+  },
+  "当前策略 1 条 + 已保存": {
+    "key": "strategy.count.currentAndSaved",
+    "zh": "当前策略 1 条 + 已保存",
+    "en": "1 current strategy + saved"
+  },
+  "累计收益率": {
+    "key": "returns.cumulativeRate",
+    "zh": "累计收益率",
+    "en": "Cumulative Return Rate"
+  },
+  "ADX阈值": {
+    "key": "indicators.adx.threshold",
+    "zh": "ADX阈值",
+    "en": "ADX Threshold"
+  },
+  "未找到索引匹配，将按该 A 股代码直接尝试分析。": {
+    "key": "analysis.fallback.noIndexMatch",
+    "en": "No index match found. Will attempt direct analysis using this A-share code."
+  },
+  "这个页面只读取本地 <code>model-test/outputs</code> 下的现有研究产物，不触发任何研究执行。": {
+    "key": "page.description.readOnlyOutputs",
+    "en": "This page only reads existing research artifacts from the local <code>model-test/outputs</code> directory and does not trigger any new research execution."
+  },
+  "单股研究与多股比较的路由式策略站点。": {
+    "key": "site.description.routingStrategy",
+    "en": "A routing-based strategy site for single-stock research and multi-stock comparison."
+  },
+  "Legacy Regime 路径会固定执行双状态路由：股票状态 + 市场代理状态 -> trend / range / risk-off。": {
+    "key": "strategy.legacyRegime.description",
+    "en": "The Legacy Regime path enforces a dual-state routing: stock state + market proxy state -> trend / range / risk-off."
+  },
+  "只）": {
+    "key": "ui.label.onlyParenthesis",
+    "en": "Only)"
+  },
+  "当前还没有已选股票。至少准备 2 个标的后再进入多股分析。": {
+    "key": "stock.selection.insufficientForMulti",
+    "en": "No stocks selected yet. Prepare at least 2 tickers before entering multi-stock analysis."
+  },
+  "参数搜索至少需要 50 个训练样本；当前训练样本不足，已禁用“生成策略”。": {
+    "key": "paramSearch.insufficientSamples",
+    "en": "Parameter search requires at least 50 training samples. Insufficient samples, 'Generate Strategy' disabled."
+  },
+  "请先选择 ML 模型": {
+    "key": "model.selection.prompt",
+    "en": "Please select an ML model first."
+  },
+  "左侧固定为模型控制台，右侧固定为结果展示板。W5 已冻结的 request、lineage、artifact、回测和导出链路继续复用，本轮只重构交互壳层与结果组织方式。": {
+    "key": "layout.description.consoleAndBoard",
+    "en": "Left side is fixed as the model console, right side as the results board. Frozen W5 request, lineage, artifact, backtest, and export pipelines are reused. This iteration only refactors the interaction layer and results organization."
+  },
+  "列名需兼容 date/open/high/low/close/volume 标准。": {
+    "key": "data.columnName.standard",
+    "en": "Column names must be compatible with the standard: date/open/high/low/close/volume."
+  },
+  "左侧保持文字型信息载体，先回答当前导出里到底包含什么模型、什么时间窗口和什么主要结论。": {
+    "key": "export.summary.requirements",
+    "en": "The left side maintains a text-based information carrier, first answering what models, time windows, and key conclusions are contained in the current export."
+  },
+  "开始组合搜索": {
+    "key": "action.startComboSearch",
+    "en": "Start Combo Search"
+  },
+  "当前最佳": {
+    "key": "status.currentBest",
+    "en": "Current Best"
+  },
+  "**组合参数搜索**": {
+    "key": "section.title.comboParamSearch",
+    "en": "**Combo Parameter Search**"
+  },
+  "布林带权重": {
+    "key": "param.bollingerWeight",
+    "en": "Bollinger Weight"
+  },
+  "ML 质量": {
+    "key": "metric.mlQuality",
+    "en": "ML Quality"
+  },
+  "若已生成则附带 KPI 与个股贡献表": {
+    "key": "strategy.generation.includes",
+    "en": "If generated, includes KPIs and individual stock contribution table."
+  },
+  "相对强弱对比图": {
+    "key": "chart.relativeStrength",
+    "en": "Relative Strength Comparison Chart"
+  },
+  "##### 净值与回撤": {
+    "key": "section.title.netValueAndDrawdown",
+    "en": "##### Net Value & Drawdown"
+  },
+  "右侧主图区固定承接价格对比、相对强弱、风险收益、因子评分和相关性，不再堆成长页面。": {
+    "key": "layout.mainChartArea.function",
+    "en": "The right main chart area is fixed for price comparison, relative strength, risk/return, factor scores, and correlation, avoiding a long scrolling page."
+  },
+  "表中累计/年化/回撤/胜率/换手/超额等为 ×100 后的百分比数值；夏普与盈亏比为原始比率，未缩放。": {
+    "key": "table.note.percentageFormat",
+    "en": "Values for Cum Return/Annualized/Drawdown/Win Rate/Turnover/Alpha etc. in the table are percentages (×100). Sharpe and Profit/Loss Ratio are raw ratios, not scaled."
+  },
+  "模型ID": {
+    "key": "field.modelId",
+    "en": "Model ID"
+  },
+  "参数搜索未返回有效结果": {
+    "key": "paramSearch.noValidResults",
+    "en": "Parameter search returned no valid results."
+  },
+  "多股主分析页": {
+    "key": "page.title.multiStockAnalysis",
+    "en": "Multi-Stock Analysis"
+  },
+  "点击下方按钮后，系统会按当前请求生成新的 current_artifact。": {
+    "key": "action.generateArtifact.note",
+    "en": "Clicking the button below will generate a new current_artifact based on the current request."
+  },
+  "📅 时间范围": {
+    "key": "time.range",
+    "en": "📅 Time Range"
+  },
+  "稳健性分": {
+    "key": "metric.robustnessScore",
+    "en": "Robustness Score"
+  },
+  "EMA 快线周期": {
+    "key": "param.emaFastPeriod",
+    "en": "EMA Fast Period"
+  },
+  "主窗口分": {
+    "key": "metric.mainWindowScore",
+    "en": "Main Window Score"
+  },
+  "策略生成失败。": {
+    "key": "strategy.generation.failed",
+    "en": "Strategy generation failed."
+  },
+  "入场最少信号数": {
+    "key": "param.minEntrySignals",
+    "en": "Minimum Entry Signals"
+  },
+  "构建指标小图。": {
+    "key": "action.buildIndicatorMiniChart",
+    "en": "Build indicator mini-charts."
+  },
+  "<p class='surface-copy'>页面只消费 report.json 已汇总的结果和可选的 QuantStats / MLflow 元信息。</p>": {
+    "key": "page.description.consumesReportOnly",
+    "en": "<p class='surface-copy'>This page only consumes results aggregated in report.json and optional QuantStats / MLflow metadata.</p>"
+  },
+  "价格": {
+    "key": "field.price",
+    "en": "Price"
+  },
+  "扫描可读 run，忽略内部目录、无报告目录和读取失败目录。": {
+    "key": "run.scan.description",
+    "en": "Scan for readable runs, ignoring internal directories, directories without reports, and directories that fail to read."
+  },
+  "输入名称或代码后，可把新标的直接加入当前股票池。": {
+    "key": "stock.pool.addInstruction",
+    "en": "After entering a name or code, you can directly add the new ticker to the current stock pool."
+  },
+  "这个站点先用市场上下文和清楚的入口动作建立研究方向，再把你送进原有单股或多股分析链路。": {
+    "key": "site.workflow.description",
+    "en": "This site first establishes a research direction using market context and clear entry actions, then directs you into the existing single or multi-stock analysis pipeline."
+  },
+  "生成策略后可查看评分走势。": {
+    "key": "strategy.postGeneration.viewScores",
+    "en": "After generating a strategy, you can view its score trend."
+  },
+  "参数搜索阶段命中缓存。": {
+    "key": "paramSearch.cacheHit",
+    "en": "Cache hit during parameter search phase."
+  },
+  "##### 核心指标": {
+    "key": "section.title.coreMetrics",
+    "en": "##### Core Metrics"
+  },
+  "推荐区域保持为单个白色 sheet，内部是轻量行列表和小型加入按钮。": {
+    "key": "ui.recommendationArea.spec",
+    "en": "The recommendation area remains a single white sheet, containing a lightweight row list and small add buttons."
+  },
+  "平均总分": {
+    "key": "metric.averageTotalScore",
+    "en": "Average Total Score"
+  },
+  "暂时无法获取推荐股票。": {
+    "key": "recommendation.unavailable",
+    "en": "Stock recommendations are temporarily unavailable."
+  },
+  "排名": {
+    "key": "field.rank",
+    "en": "Rank"
+  },
+  "当前路径：": {
+    "key": "ui.label.currentPath",
+    "en": "Current Path:"
+  },
+  "多头动能": {
+    "key": "metric.longMomentum",
+    "en": "Long Momentum"
+  },
+  "市场快照": {
+    "key": "section.title.marketSnapshot",
+    "en": "Market Snapshot"
+  },
+  "<p class='selection-note'>当前准备分析：<strong>": {
+    "key": "analysis.selection.currentlyPreparing",
+    "en": "<p class='selection-note'>Preparing to analyze: <strong>"
+  },
+  "页面只显示 mlflow_run.json 元数据，不尝试启动或嵌入 MLflow UI。": {
+    "key": "mlflow.metadata.displayOnly",
+    "en": "This page only displays metadata from mlflow_run.json and does not attempt to launch or embed the MLflow UI."
+  },
+  "Baseline -> 等待选择 Naive / Mean / Drift": {
+    "key": "baseline.selection_prompt",
+    "en": "Baseline → Select Naive / Mean / Drift"
+  },
+  "比对细看": {
+    "key": "comparison.detail_view",
+    "en": "Compare Details"
+  },
+  "布林带周期": {
+    "key": "bollinger.period",
+    "en": "Bollinger Band Period"
+  },
+  "SM基础": {
+    "key": "model.sm_basic",
+    "en": "SM Basic"
+  },
+  "布林带位置在评分中的权重。": {
+    "key": "bollinger.weight_in_scoring",
+    "en": "Weight of Bollinger Band position in scoring."
+  },
+  "未知 baseline_kind:": {
+    "key": "error.unknown_baseline_kind",
+    "en": "Unknown baseline_kind:"
+  },
+  "按时间顺序切分训练/测试集。": {
+    "key": "data.split_chronological",
+    "en": "Split train/test sets chronologically."
+  },
+  "买卖点比较": {
+    "key": "analysis.trade_point_comparison",
+    "en": "Trade Point Comparison"
+  },
+  "模型控制台": {
+    "key": "console.model",
+    "en": "Model Console"
+  },
+  "市场选择": {
+    "key": "market.selection",
+    "en": "Market Selection"
+  },
+  "短期动量窗口需要小于中期动量窗口。": {
+    "key": "validation.momentum_window_order",
+    "en": "Short-term momentum window must be smaller than medium-term."
+  },
+  "💬 反馈与建议": {
+    "key": "menu.feedback",
+    "en": "💬 Feedback & Suggestions"
+  },
+  "若 run 启用了 rolling robustness，这里显示稳健性汇总；否则只展示空态。": {
+    "key": "results.rolling_robustness_summary",
+    "en": "Shows robustness summary if rolling robustness is enabled; otherwise empty."
+  },
+  "候选搜索失败：": {
+    "key": "error.candidate_search_failed",
+    "en": "Candidate search failed:"
+  },
+  "ADX 高于该值才认为趋势有效。": {
+    "key": "adx.trend_threshold",
+    "en": "Trend is valid only when ADX is above this value."
+  },
+  "生成并下载 HTML 报告": {
+    "key": "report.generate_download_html",
+    "en": "Generate & Download HTML Report"
+  },
+  "完整数据": {
+    "key": "data.full",
+    "en": "Full Data"
+  },
+  "参与标的": {
+    "key": "portfolio.involved_symbols",
+    "en": "Involved Symbols"
+  },
+  "修改训练比例后，训练/测试边界、workspace 上下文和右侧结果板会一起刷新。": {
+    "key": "note.train_ratio_change_impact",
+    "en": "Changing train ratio refreshes train/test boundary, workspace context, and results panel."
+  },
+  "模型数量": {
+    "key": "model.count",
+    "en": "Model Count"
+  },
+  "测试集为空，无法生成策略阶段结果": {
+    "key": "error.empty_test_set",
+    "en": "Test set is empty; cannot generate strategy phase results."
+  },
+  "包含生成日期": {
+    "key": "report.include_generation_date",
+    "en": "Include generation date"
+  },
+  "中性偏弱": {
+    "key": "sentiment.neutral_weak",
+    "en": "Neutral-Weak"
+  },
+  "主价格曲线读取": {
+    "key": "data.main_price_curve_reading",
+    "en": "Main Price Curve Reading"
+  },
+  "请先生成策略后再导出 HTML 报告。": {
+    "key": "warning.generate_strategy_before_export",
+    "en": "Please generate a strategy before exporting HTML report."
+  },
+  "组合结果区": {
+    "key": "results.portfolio_section",
+    "en": "Portfolio Results"
+  },
+  "因子评分低于该值视为出场信号之一。": {
+    "key": "factor.exit_threshold",
+    "en": "Factor score below this is considered an exit signal."
+  },
+  "年度收益率热图": {
+    "key": "visualization.annual_return_heatmap",
+    "en": "Annual Return Heatmap"
+  },
+  "波动偏高": {
+    "key": "volatility.relatively_high",
+    "en": "Volatility Relatively High"
+  },
+  "快线在上": {
+    "key": "indicator.fast_above",
+    "en": "Fast Line Above"
+  },
+  "基准年化 %": {
+    "key": "metrics.benchmark_annualized_pct",
+    "en": "Benchmark Annualized %"
+  },
+  "最大回撤": {
+    "key": "metrics.max_drawdown",
+    "en": "Max Drawdown"
+  },
+  "最新因子评分对比图": {
+    "key": "visualization.latest_factor_score_comparison",
+    "en": "Latest Factor Score Comparison"
+  },
+  "当前站点已经具备单股与多股两条真实路由，入口和主分析页顺序一致。": {
+    "key": "note.routing_structure",
+    "en": "Site now has separate routes for single/multi-stock, with consistent entry and analysis page order."
+  },
+  "买卖点读取": {
+    "key": "data.trade_point_reading",
+    "en": "Trade Point Reading"
+  },
+  "所选时间区间内没有数据。": {
+    "key": "error.no_data_in_selected_range",
+    "en": "No data in selected time range."
+  },
+  "买入持有回撤": {
+    "key": "metrics.buy_hold_drawdown",
+    "en": "Buy & Hold Drawdown"
+  },
+  "阶段": {
+    "key": "common.phase",
+    "en": "Phase"
+  },
+  "当前没有可展示的个股独立策略表现。": {
+    "key": "info.no_individual_strategy_performance",
+    "en": "No individual strategy performance to display."
+  },
+  "参数搜索方法": {
+    "key": "optimization.parameter_search_method",
+    "en": "Parameter Search Method"
+  },
+  "未找到匹配的股票，请尝试更完整的名称或直接输入代码。": {
+    "key": "error.no_matching_stock",
+    "en": "No matching stock found. Try a more complete name or enter the code directly."
+  },
+  "请选择 Naive / Mean / Drift 之一。": {
+    "key": "validation.select_baseline_type",
+    "en": "Please select one of Naive / Mean / Drift."
+  },
+  "把所有股票起点统一到同一基准，先判断谁在当前观察区间内跑得更快。": {
+    "key": "strategy.unified_start_comparison",
+    "en": "Align all stocks to the same starting point to compare performance within the observation period."
+  },
+  "请先选择 SM 或 FSM，再决定是否追加参数搜索与 ML 过滤。": {
+    "key": "workflow.select_model_first",
+    "en": "Select SM or FSM first, then decide on adding parameter search and ML filtering."
+  },
+  "帮助识别股票池是否过于同质化。": {
+    "key": "analysis.identify_homogeneity",
+    "en": "Helps identify if the stock pool is too homogeneous."
+  },
+  "布林带标准差倍数": {
+    "key": "bollinger.std_dev_multiplier",
+    "en": "Bollinger Band Std Dev Multiplier"
+  },
+  "训练窗口 + 测试窗口超过数据长度，请调小窗口。": {
+    "key": "error.window_exceeds_data_length",
+    "en": "Train + test window exceeds data length. Please reduce window sizes."
+  },
+  "Step 2 · Search 基础模型": {
+    "key": "step2.search_base_model",
+    "zh": "Step 2 · Search 基础模型",
+    "en": "Step 2 · Search Base Model"
+  },
+  "支持名称或代码检索。命中索引后加入股票池；没有索引时也支持按代码直接加入。": {
+    "key": "search.instructions",
+    "zh": "支持名称或代码检索。命中索引后加入股票池；没有索引时也支持按代码直接加入。",
+    "en": "Search by name or ticker. Add to pool on match, or directly by ticker if no match."
+  },
+  "分析": {
+    "key": "button.analyze",
+    "zh": "分析",
+    "en": "Analyze"
+  },
+  "策略组合": {
+    "key": "nav.strategy_portfolio",
+    "zh": "策略组合",
+    "en": "Strategy Portfolio"
+  },
+  "的数据，请检查网络连接。": {
+    "key": "error.data_fetch_failed",
+    "zh": "的数据，请检查网络连接。",
+    "en": "data failed to load. Check network."
+  },
+  "波动适中": {
+    "key": "status.volatility_moderate",
+    "zh": "波动适中",
+    "en": "Moderate Volatility"
+  },
+  "先看大盘快照，再往下进入推荐股票和分析入口。": {
+    "key": "onboarding.market_overview_flow",
+    "zh": "先看大盘快照，再往下进入推荐股票和分析入口。",
+    "en": "Start with market snapshot, then proceed to recommended stocks and analysis."
+  },
+  "RSI 下限需要小于上限。": {
+    "key": "validation.rsi_range",
+    "zh": "RSI 下限需要小于上限。",
+    "en": "RSI lower bound must be less than upper bound."
+  },
+  "美股": {
+    "key": "market.us_stocks",
+    "zh": "美股",
+    "en": "US Stocks"
+  },
+  "当前主策略没有可用的买卖点数据。": {
+    "key": "info.no_trading_signals",
+    "zh": "当前主策略没有可用的买卖点数据。",
+    "en": "No trading signals available for the current strategy."
+  },
+  "单股模式适合围绕一个标的持续展开， 多股模式适合先组织股票池再看横向比较、组合结果和后续策略摘要。": {
+    "key": "mode.selection.description",
+    "zh": "单股模式适合围绕一个标的持续展开， 多股模式适合先组织股票池再看横向比较、组合结果和后续策略摘要。",
+    "en": "Single-stock mode focuses on one asset. Multi-stock mode builds a pool for comparison, portfolio results, and strategy summaries."
+  },
+  "请先选定一个主策略，再查看买卖点。": {
+    "key": "instruction.select_strategy_first",
+    "zh": "请先选定一个主策略，再查看买卖点。",
+    "en": "Select a primary strategy first to view trading signals."
+  },
+  "每次用训练窗口后接测试窗口滚动回测。": {
+    "key": "backtest.method.rolling_window",
+    "zh": "每次用训练窗口后接测试窗口滚动回测。",
+    "en": "Rolling backtest with train window followed by test window."
+  },
+  "模型还没准备好。先在左侧确认权重，再点击“生成组合策略”。": {
+    "key": "model.not_ready",
+    "zh": "模型还没准备好。先在左侧确认权重，再点击“生成组合策略”。",
+    "en": "Model not ready. Confirm weights on the left, then click 'Generate Portfolio Strategy'."
+  },
+  "参与下游比较的策略": {
+    "key": "section.strategies_for_comparison",
+    "zh": "参与下游比较的策略",
+    "en": "Strategies for Downstream Comparison"
+  },
+  "买卖点查看数据集": {
+    "key": "dataset.trading_signals",
+    "zh": "买卖点查看数据集",
+    "en": "Trading Signals Dataset"
+  },
+  "当前更接近观望状态，执行分支": {
+    "key": "status.leaning_neutral",
+    "zh": "当前更接近观望状态，执行分支",
+    "en": "Leaning neutral, executing branch"
+  },
+  "周 K": {
+    "key": "chart.weekly_k",
+    "zh": "周 K",
+    "en": "Weekly K"
+  },
+  "短期动量权重": {
+    "key": "weight.short_term_momentum",
+    "zh": "短期动量权重",
+    "en": "Short-term Momentum Weight"
+  },
+  "成交量权重": {
+    "key": "weight.volume",
+    "zh": "成交量权重",
+    "en": "Volume Weight"
+  },
+  "布林带位置权重": {
+    "key": "weight.bollinger_position",
+    "zh": "布林带位置权重",
+    "en": "Bollinger Band Position Weight"
+  },
+  "ML 失败，已保留最近一步成功结果：": {
+    "key": "error.ml_fallback",
+    "zh": "ML 失败，已保留最近一步成功结果：",
+    "en": "ML failed, kept last successful result:"
+  },
+  "缺失字段会回退为 N/A，不会阻断图表和后续策略工作流。": {
+    "key": "info.missing_field_fallback",
+    "zh": "缺失字段会回退为 N/A，不会阻断图表和后续策略工作流。",
+    "en": "Missing fields fall back to N/A without blocking charts or strategy workflow."
+  },
+  "来源：搜索或推荐加入": {
+    "key": "source.search_or_recommendation",
+    "zh": "来源：搜索或推荐加入",
+    "en": "Source: Search or Recommendation"
+  },
+  "按当前输入切换": {
+    "key": "action.switch_by_input",
+    "zh": "按当前输入切换",
+    "en": "Switch by Current Input"
+  },
+  "Adaptive Router V1（推荐）": {
+    "key": "router.adaptive_v1_recommended",
+    "zh": "Adaptive Router V1（推荐）",
+    "en": "Adaptive Router V1 (Recommended)"
+  },
+  "量能平稳": {
+    "key": "status.volume_stable",
+    "zh": "量能平稳",
+    "en": "Volume Stable"
+  },
+  "最新信号偏空，目标仓位": {
+    "key": "signal.bearish_target",
+    "zh": "最新信号偏空，目标仓位",
+    "en": "Latest signal bearish, target position"
+  },
+  "参数搜索": {
+    "key": "section.parameter_search",
+    "zh": "参数搜索",
+    "en": "Parameter Search"
+  },
+  "说明": {
+    "key": "button.explanation",
+    "zh": "说明",
+    "en": "Info"
+  },
+  "个，上传": {
+    "key": "count.upload",
+    "zh": "个，上传",
+    "en": "items, upload"
+  },
+  "组合最大回撤": {
+    "key": "metric.portfolio_max_drawdown",
+    "zh": "组合最大回撤",
+    "en": "Portfolio Max Drawdown"
+  },
+  "已在数据库中": {
+    "key": "status.already_in_database",
+    "zh": "已在数据库中",
+    "en": "Already in Database"
+  },
+  "默认相对基准使用等权平均，观察每只股票是持续跑赢还是跑输股票池。": {
+    "key": "description.baseline_equal_weight",
+    "zh": "默认相对基准使用等权平均，观察每只股票是持续跑赢还是跑输股票池。",
+    "en": "Uses equal-weighted average as baseline to track if stocks consistently outperform or underperform the pool."
+  },
+  "模型评估": {
+    "key": "section.model_evaluation",
+    "zh": "模型评估",
+    "en": "Model Evaluation"
+  },
+  "短期收益率窗口。": {
+    "key": "label.short_term_return_window",
+    "zh": "短期收益率窗口。",
+    "en": "Short-term Return Window"
+  },
+  "行数：": {
+    "key": "label.row_count",
+    "zh": "行数：",
+    "en": "Rows:"
+  },
+  "Adaptive Router V1 会优先读取最近一次离线 `regime_artifacts/`；缺失时自动降级到 legacy dual-state router。": {
+    "key": "router.adaptive_v1_fallback",
+    "zh": "Adaptive Router V1 会优先读取最近一次离线 `regime_artifacts/`；缺失时自动降级到 legacy dual-state router。",
+    "en": "Adaptive Router V1 prioritizes latest offline `regime_artifacts/`; falls back to legacy dual-state router if missing."
+  },
+  "换手 %": {
+    "key": "metric.turnover_percent",
+    "zh": "换手 %",
+    "en": "Turnover %"
+  },
+  "<h4 class='analysis-section-title'>Run 元信息</h4>": {
+    "key": "section.run_metadata",
+    "zh": "<h4 class='analysis-section-title'>Run 元信息</h4>",
+    "en": "<h4 class='analysis-section-title'>Run Metadata</h4>"
+  },
+  "趋势跟随（保守）": {
+    "key": "strategy.trend_following_conservative",
+    "zh": "趋势跟随（保守）",
+    "en": "Trend Following (Conservative)"
+  },
+  "当前市场": {
+    "key": "section.current_market",
+    "zh": "当前市场",
+    "en": "Current Market"
+  },
+  "行</span>\n  <span class=\"analysis-chart-chip\">测试": {
+    "key": "chart.label.test_rows",
+    "zh": "行</span>\n  <span class=\"analysis-chart-chip\">测试",
+    "en": "rows</span>\n  <span class=\"analysis-chart-chip\">Test"
+  },
+  "基准线 (RS=1.0)": {
+    "key": "chart.baseline_rs_1",
+    "zh": "基准线 (RS=1.0)",
+    "en": "Baseline (RS=1.0)"
+  },
+  "当前没有可展示的": {
+    "key": "status.nothing_to_display",
+    "zh": "当前没有可展示的",
+    "en": "Nothing to display"
+  },
+  "---\n*通过应用内反馈提交*": {
+    "key": "footer.in_app_feedback",
+    "zh": "---\n*通过应用内反馈提交*",
+    "en": "---\n*Submit via in-app feedback*"
+  },
+  "搜索并加入股票": {
+    "key": "action.search_and_add_stocks",
+    "zh": "搜索并加入股票",
+    "en": "Search & Add Stocks"
+  },
+  "右侧保持一个大的上下文展示区，帮助你从搜索之外补充新的比较对象。": {
+    "key": "ui.context_display_area",
+    "zh": "右侧保持一个大的上下文展示区，帮助你从搜索之外补充新的比较对象。",
+    "en": "Right panel maintains a large context area to add comparison targets beyond search."
+  },
+  "趋势过滤的短周期 EMA。": {
+    "key": "description.trend_filter_ema",
+    "zh": "趋势过滤的短周期 EMA。",
+    "en": "Short-period EMA for trend filtering."
+  },
+  "优化试验次数": {
+    "key": "param.optimization_trials",
+    "zh": "优化试验次数",
+    "en": "Optimization Trials"
+  },
+  "当前周期下训练窗口可用样本不足，已回退到完整数据区间。": {
+    "key": "training.insufficient_samples_fallback",
+    "en": "Insufficient samples in current training window. Fallback to full data range."
+  },
+  "单股入口页\n==========": {
+    "key": "single_stock.entry_page_title",
+    "en": "Single Stock Entry"
+  },
+  "</span>\n  <span class=\"analysis-chart-chip\">当前标的": {
+    "key": "analysis.current_symbol_chip",
+    "en": "Current Symbol"
+  },
+  "测试期": {
+    "key": "common.testing_period",
+    "en": "Testing Period"
+  },
+  "入口页只负责把股票池整理清楚。进入主分析页后，现有多股图表、组合模拟和后续分析逻辑继续沿用。": {
+    "key": "entry_page.description",
+    "en": "The entry page organizes the stock pool. Existing multi-stock charts, portfolio simulation, and analysis logic continue on the main analysis page."
+  },
+  "模型摘要表": {
+    "key": "analysis.model_summary_table",
+    "en": "Model Summary"
+  },
+  "<div class=\"analysis-subsurface\">\n  <h4 class=\"analysis-callout-title\">当前策略摘要</h4>\n  <p class=\"analysis-callout-copy\">当前已提交 artifact：": {
+    "key": "analysis.strategy_summary_section",
+    "en": "Current Strategy Summary\nSubmitted artifact:"
+  },
+  "请选择 SM 或 FSM": {
+    "key": "strategy.selection_prompt",
+    "en": "Select SM or FSM"
+  },
+  "手动调整所有策略参数，或使用高级策略自动搜索最优值。": {
+    "key": "strategy.param_description",
+    "en": "Manually adjust all strategy parameters, or use advanced strategy to auto-search for optimal values."
+  },
+  "上传多个单股 CSV": {
+    "key": "upload.multi_csv_title",
+    "en": "Upload Multiple Single-Stock CSVs"
+  },
+  "把股票策略入口做成真正的网站首页。": {
+    "key": "homepage.vision",
+    "en": "Make the stock strategy entry the actual website homepage."
+  },
+  "股票池操作": {
+    "key": "stock_pool.operations",
+    "en": "Stock Pool Operations"
+  },
+  "Walk-Forward 策略": {
+    "key": "strategy.walk_forward",
+    "en": "Walk-Forward Strategy"
+  },
+  "市场切换、搜索确认、开始分析和本地上传都放在同一张主操作卡里。": {
+    "key": "ui.main_card_design",
+    "en": "Market switch, search confirmation, start analysis, and local upload are all placed in the same main operation card."
+  },
+  "主策略（供收益热图 / 买卖点细看）": {
+    "key": "strategy.main_for_details",
+    "en": "Main Strategy (for profit heatmap / trade point details)"
+  },
+  "检测到股票/数据上下文变化，已清空上一个上下文中的策略结果。": {
+    "key": "context.change_detected",
+    "en": "Stock/data context change detected. Cleared strategy results from previous context."
+  },
+  "EMA 慢线周期": {
+    "key": "params.ema_slow_period",
+    "en": "EMA Slow Period"
+  },
+  "短期动量窗口": {
+    "key": "params.short_momentum_window",
+    "en": "Short Momentum Window"
+  },
+  "ml_min_excess_samples 必须为正整数": {
+    "key": "validation.ml_min_excess_samples",
+    "en": "ml_min_excess_samples must be a positive integer."
+  },
+  "相关性": {
+    "key": "metrics.correlation",
+    "en": "Correlation"
+  },
+  "当前没有可展示的 QuantStats 信息。": {
+    "key": "quantstats.no_data",
+    "en": "No QuantStats information available to display."
+  },
+  "报告文件：": {
+    "key": "report.file_label",
+    "en": "Report File:"
+  },
+  "##### 策略库 / 多策略选择器": {
+    "key": "strategy_library.title",
+    "en": "Strategy Library / Multi-Strategy Selector"
+  },
+  "行</span>\n  <span class=\"analysis-chart-chip\">比例": {
+    "key": "analysis.row_proportion_chip",
+    "en": "Row Proportion"
+  },
+  "</div><div class='upload-row-meta'>导入标识：": {
+    "key": "upload.import_id_label",
+    "en": "Import ID:"
+  },
+  "当前周期下没有可用的成交量数据。": {
+    "key": "data.no_volume_current_period",
+    "en": "No volume data available for the current period."
+  },
+  "仅主窗口总分": {
+    "key": "scoring.main_window_only",
+    "en": "Main Window Score Only"
+  },
+  "较前一日": {
+    "key": "comparison.vs_previous_day",
+    "en": "vs Previous Day"
+  },
+  "生成与策略库": {
+    "key": "actions.generate_and_library",
+    "en": "Generate & Strategy Library"
+  },
+  "这个页面只读取本地 <code>model-test/outputs</code> 下的现有研究产物，不触发任何研究执行。默认展示最新可读 run，并允许在不同 run 之间切换浏览。": {
+    "key": "research_viewer.description",
+    "en": "This page only reads existing research artifacts from the local <code>model-test/outputs</code> folder and does not trigger any research execution. It displays the latest readable run by default and allows switching between runs."
+  },
+  "核心指标": {
+    "key": "metrics.core_metrics",
+    "en": "Core Metrics"
+  },
+  "当前 run 没有异常样本。": {
+    "key": "run.no_anomalous_samples",
+    "en": "No anomalous samples in the current run."
+  },
+  "方法": {
+    "key": "common.method",
+    "en": "Method"
+  },
+  "请先输入 A 股名称或代码，并从候选结果中选择。": {
+    "key": "search.a_share_prompt",
+    "en": "Please enter an A-share name or code and select from the candidate results."
+  },
+  "当前版本只在美股展示，默认使用 SPY 作为市场代理；若 adaptive artifact 缺失或损坏，会降级到 legacy dual-state router。": {
+    "key": "version.market_scope_note",
+    "en": "Current version only displays US stocks, using SPY as the default market proxy. Falls back to legacy dual-state router if adaptive artifact is missing or corrupted."
+  },
+  "基于已选 artifact 渲染多策略净值/回撤比较。": {
+    "key": "visualization.multi_strategy_comparison",
+    "en": "Renders multi-strategy NAV/drawdown comparison based on selected artifact."
+  },
+  "中间阶段结果": {
+    "key": "results.intermediate_stage",
+    "en": "Intermediate Stage Results"
+  },
+  "最佳表现": {
+    "key": "performance.best",
+    "en": "Best Performance"
+  },
+  "组合策略已生成，右侧结果区已更新。": {
+    "key": "portfolio.generation_complete",
+    "en": "Portfolio strategy generated. Results area on the right has been updated."
+  },
+  "RSI 下限阈值": {
+    "key": "params.rsi_lower_threshold",
+    "en": "RSI Lower Threshold"
+  },
+  "多股分析至少需要 2 个标的。可以组合搜索结果与上传文件。": {
+    "key": "multi_stock.minimum_requirement",
+    "en": "Multi-stock analysis requires at least 2 symbols. You can combine search results with uploaded files."
+  },
+  "搜索候选项失败：": {
+    "key": "search.candidates_failed",
+    "en": "Failed to fetch search candidates:"
+  },
+  "### 导出分析报告": {
+    "key": "export.report_title",
+    "en": "Export Analysis Report"
+  },
+  "**EMA 趋势参数**": {
+    "key": "params.ema_trend_parameters",
+    "en": "EMA Trend Parameters"
+  },
+  "先确定一个标的，再进入单股分析。": {
+    "key": "single_stock.prerequisite",
+    "en": "First, select a symbol to enter single-stock analysis."
+  },
+  "基准回撤 %": {
+    "key": "metrics.benchmark_drawdown_pct",
+    "en": "Benchmark Drawdown %"
+  },
+  "种群大小": {
+    "key": "optimization.population_size",
+    "en": "Population Size"
+  },
+  "出场最少信号数": {
+    "key": "strategy.min_exit_signals",
+    "en": "Minimum Exit Signals"
+  },
+  "训练集比例": {
+    "key": "data.training_set_ratio",
+    "en": "Training Set Ratio"
+  },
+  "入场需满足以下信号中的至少 N 个：": {
+    "key": "strategy.entry_condition",
+    "en": "Entry requires at least N of the following signals:"
+  },
+  "Baseline 阶段命中缓存。": {
+    "key": "baseline.cache_hit",
+    "en": "Cache hit during Baseline phase."
+  },
+  "✅ 感谢反馈！点击下方链接提交到 GitHub：": {
+    "key": "feedback.thank_you",
+    "en": "✅ Thanks for your feedback! Click the link below to submit to GitHub:"
+  },
+  "ML过滤": {
+    "key": "ml.filter",
+    "en": "ML Filter"
+  },
+  "当前草稿尚未补齐，先完成左侧待选项。": {
+    "key": "draft.incomplete",
+    "en": "Current draft is incomplete. Please fill in the pending options on the left first."
+  },
+  "渲染 `/strategy/model-evaluation`。": {
+    "key": "route.rendering",
+    "en": "Rendering `/strategy/model-evaluation`."
+  },
+  "导出结构不再沿用旧版蓝灰卡片样式，而是和主分析页保持同一套站点式暖白表面与响应式布局。": {
+    "key": "export.structure_update",
+    "en": "The export structure no longer uses the old blue-gray card style. It now adopts the same site-style warm white surface and responsive layout as the main analysis page."
+  },
+  "没有找到索引匹配，将按当前输入直接切换。": {
+    "key": "navigation.no_index_match",
+    "en": "No index match found. Will switch directly based on current input."
+  },
+  "请先从搜索结果中选择一只股票。": {
+    "key": "stock_selection.required",
+    "en": "Please select a stock from the search results first."
+  },
+  "市场代理": {
+    "key": "market.proxy",
+    "en": "Market Proxy"
+  },
+  "月度": {
+    "key": "period.monthly",
+    "en": "Monthly"
+  },
+  "先选模型路径，再显式点击“生成策略”；页面不再默认预计算全模型结果。": {
+    "key": "strategy.generation_flow",
+    "en": "First select a model path, then explicitly click 'Generate Strategy'. The page no longer pre-computes all model results by default."
+  },
+  "Regime -> 等待选择 adaptive / legacy 路径": {
+    "key": "regime.path_pending",
+    "en": "Regime -> Waiting for selection of adaptive / legacy path."
+  },
+  "评分（可选）": {
+    "key": "scoring.optional",
+    "en": "Scoring (Optional)"
+  },
+  "中期动量在评分中的权重。": {
+    "key": "scoring.weight_midterm_momentum",
+    "en": "Weight of mid-term momentum in the scoring."
+  },
+  "Regime 路径缺少合法的 regime_kind": {
+    "key": "regime.missing_kind",
+    "en": "Regime path is missing a valid regime_kind."
+  },
+  "Run 元信息": {
+    "key": "run.metadata",
+    "en": "Run Metadata"
+  },
+  "1月": {
+    "key": "month.january",
+    "en": "January"
+  },
+  "请选择 Baseline 类型": {
+    "key": "baseline.type_prompt",
+    "en": "Please select a Baseline type."
+  },
+  "所有股票起点统一到同一基准，先判断谁在当前观察区间内跑得更快。": {
+    "key": "comparison.unified_start",
+    "en": "All stocks start from the same baseline to determine which performs better within the current observation window."
+  },
+  "靠近区间高位": {
+    "key": "position.near_high",
+    "en": "Near range high"
+  },
+  "当前请求未启用 ML 过滤": {
+    "key": "ml.filter_disabled",
+    "en": "ML filter is not enabled for the current request."
+  },
+  "中期收益率窗口。": {
+    "key": "metrics.midterm_return_window",
+    "en": "Mid-term return window."
+  },
+  "已启用": {
+    "key": "status.enabled",
+    "en": "Enabled"
+  },
+  "买点": {
+    "key": "signal.buy_point",
+    "en": "Buy Point"
+  },
+  "##### 指标对比表": {
+    "key": "table.metrics_comparison",
+    "en": "##### Metrics Comparison Table"
+  },
+  "站点结构同步": {
+    "key": "layout.site_sync",
+    "en": "Site Structure Sync"
+  },
+  "数据天数": {
+    "key": "data.days",
+    "en": "Data Days"
+  },
+  "单股主分析页": {
+    "key": "page.single_stock_analysis",
+    "en": "Single Stock Analysis Page"
+  },
+  "Step 2 · Baseline 路径": {
+    "key": "step.baseline_path",
+    "en": "Step 2 · Baseline Path"
+  },
+  "对齐图四要求": {
+    "key": "requirement.align_chart_four",
+    "en": "Align with Chart 4 requirements"
+  },
+  "需要同时满足的入场条件数量。数值越大入场越严格，1=最宽松（任一满足即入场），5=最严格（全部满足才入场）": {
+    "key": "condition.entry_threshold",
+    "en": "Number of entry conditions required to be met simultaneously. Higher values mean stricter entry: 1=most lenient (any condition), 5=strictest (all conditions)."
+  },
+  "Search 路径必须选择 SM 或 FSM": {
+    "key": "search.path_required",
+    "en": "Search path must select either SM or FSM."
+  },
+  "ML 质量展示": {
+    "key": "ml.quality_display",
+    "en": "ML Quality Display"
+  },
+  "时间范围": {
+    "key": "time.range",
+    "en": "Time Range"
+  },
+  "按测试期累计收益优先，夏普作为并列时的次级排序": {
+    "key": "sorting.cumulative_return_first",
+    "en": "Sort by cumulative return during test period first, use Sharpe ratio as secondary tie-breaker."
+  },
+  "策略库视图：": {
+    "key": "view.strategy_library",
+    "en": "Strategy Library View:"
+  },
+  "RSI 周期": {
+    "key": "rsi.period",
+    "en": "RSI Period"
+  },
+  "复权方式": {
+    "key": "data.adjustment",
+    "en": "Adjustment Method"
+  },
+  "输入名称或代码后，这里会出现可加入股票池的候选项。": {
+    "key": "stock_pool.candidates_hint",
+    "en": "Enter a name or code, and candidate stocks for the pool will appear here."
+  },
+  "回测净值 / 回撤": {
+    "key": "backtest.net_value_drawdown",
+    "en": "Backtest Net Value / Drawdown"
+  },
+  "**RSI 参数**": {
+    "key": "section.rsi_parameters",
+    "en": "**RSI Parameters**"
+  },
+  "贝叶斯优化中（": {
+    "key": "optimization.bayesian_running",
+    "en": "Bayesian optimization in progress ("
+  },
+  "当前维持高仓位，目标仓位": {
+    "key": "position.high_current_target",
+    "en": "Currently maintaining high position. Target position:"
+  },
+  "个可读 run</span>\n      <span class=\"analysis-pill\">": {
+    "key": "run.readable_count",
+    "en": " readable run(s)</span>\n      <span class=\"analysis-pill\">"
+  },
+  "tearsheet.html 文件不存在，当前只保留元数据。": {
+    "key": "file.tearsheet_missing",
+    "en": "tearsheet.html file does not exist. Only metadata is retained."
+  },
+  "OBV 趋势在评分中的权重。": {
+    "key": "scoring.weight_obv_trend",
+    "en": "Weight of OBV trend in the scoring."
+  },
+  "多股票对比分析 -": {
+    "key": "page.multi_stock_comparison",
+    "en": "Multi-Stock Comparison Analysis -"
+  },
+  "月度收益热图": {
+    "key": "chart.monthly_return_heatmap",
+    "en": "Monthly Return Heatmap"
+  },
+  "当前标的": {
+    "key": "selection.current_symbol",
+    "en": "Current Symbol"
+  },
+  "不足 20 日时按现有窗口计算": {
+    "key": "calculation.insufficient_days",
+    "en": "If fewer than 20 days, calculate using the available window."
+  },
+  "**Phase 1 新因子权重**": {
+    "key": "factor.weight.phase1.title",
+    "zh": "**Phase 1 新因子权重**",
+    "en": "Phase 1: New Factor Weights"
+  },
+  "风险收益": {
+    "key": "metric.riskReturn",
+    "zh": "风险收益",
+    "en": "Risk-Return"
+  },
+  "柱子越高，说明当前综合因子评分越强；颜色对应建议仓位。": {
+    "key": "chart.factorScore.tooltip",
+    "zh": "柱子越高，说明当前综合因子评分越强；颜色对应建议仓位。",
+    "en": "Taller bars indicate stronger composite factor scores; color corresponds to suggested position."
+  },
+  "止损距离=ATR×倍数。": {
+    "key": "param.stopLoss.formula",
+    "zh": "止损距离=ATR×倍数。",
+    "en": "Stop Loss Distance = ATR × Multiplier"
+  },
+  "3月": {
+    "key": "time.month.march",
+    "zh": "3月",
+    "en": "Mar"
+  },
+  "因子评分高于该值才视为入场信号之一。": {
+    "key": "param.entryThreshold.description",
+    "zh": "因子评分高于该值才视为入场信号之一。",
+    "en": "Factor score must exceed this value to be considered an entry signal."
+  },
+  "RSI 计算周期。": {
+    "key": "param.rsi.period.description",
+    "zh": "RSI 计算周期。",
+    "en": "RSI calculation period."
+  },
+  "每次滚动的测试区间长度。": {
+    "key": "backtest.rollingWindow.description",
+    "zh": "每次滚动的测试区间长度。",
+    "en": "Length of each rolling test window."
+  },
+  "从完整 params 中提取策略相关参数子集（去除 UI 状态键）。": {
+    "key": "function.extractStrategyParams.description",
+    "zh": "从完整 params 中提取策略相关参数子集（去除 UI 状态键）。",
+    "en": "Extract strategy-related parameter subset from full params (excluding UI state keys)."
+  },
+  "中期动量窗口": {
+    "key": "param.midTermMomentum.window",
+    "zh": "中期动量窗口",
+    "en": "Mid-term Momentum Window"
+  },
+  "渲染搜索与添加股票区域，输入时仅局部刷新。": {
+    "key": "component.stockSearch.description",
+    "zh": "渲染搜索与添加股票区域，输入时仅局部刷新。",
+    "en": "Renders stock search & add area; partial refresh on input."
+  },
+  "族": {
+    "key": "category.family",
+    "zh": "族",
+    "en": "Family"
+  },
+  "暂无可展示的行情与指标数据。": {
+    "key": "data.marketIndicator.empty",
+    "zh": "暂无可展示的行情与指标数据。",
+    "en": "No market or indicator data available."
+  },
+  "字段缺失时回退为 N/A": {
+    "key": "data.fallback.na",
+    "zh": "字段缺失时回退为 N/A",
+    "en": "Fallback to N/A if field is missing."
+  },
+  "目标仓位": {
+    "key": "position.target",
+    "zh": "目标仓位",
+    "en": "Target Position"
+  },
+  "组合夏普": {
+    "key": "metric.portfolioSharpe",
+    "zh": "组合夏普",
+    "en": "Portfolio Sharpe"
+  },
+  "暂无可比策略": {
+    "key": "strategy.comparison.empty",
+    "zh": "暂无可比策略",
+    "en": "No comparable strategies."
+  },
+  "数据来源": {
+    "key": "data.source",
+    "zh": "数据来源",
+    "en": "Data Source"
+  },
+  "最新更新时间": {
+    "key": "data.lastUpdated",
+    "zh": "最新更新时间",
+    "en": "Last Updated"
+  },
+  "Drift（漂移基线）": {
+    "key": "metric.driftBaseline",
+    "zh": "Drift（漂移基线）",
+    "en": "Drift (Baseline)"
+  },
+  "所选策略都没有可展示的买卖点数据。": {
+    "key": "strategy.signal.empty",
+    "zh": "所选策略都没有可展示的买卖点数据。",
+    "en": "No buy/sell point data available for selected strategies."
+  },
+  "基础信息结构": {
+    "key": "component.basicInfo.structure",
+    "zh": "基础信息结构",
+    "en": "Basic Info Structure"
+  },
+  "多股入口": {
+    "key": "navigation.multiStock.entry",
+    "zh": "多股入口",
+    "en": "Multi-Stock Entry"
+  },
+  "渲染 `/strategy` 首页。": {
+    "key": "page.strategy.home.description",
+    "zh": "渲染 `/strategy` 首页。",
+    "en": "Renders the `/strategy` homepage."
+  },
+  "稳健性": {
+    "key": "metric.robustness",
+    "zh": "稳健性",
+    "en": "Robustness"
+  },
+  "单股基础信息区": {
+    "key": "component.singleStock.basicInfo",
+    "zh": "单股基础信息区",
+    "en": "Single Stock Basic Info"
+  },
+  "当日开高": {
+    "key": "price.openHigh.today",
+    "zh": "当日开高",
+    "en": "Today's Open-High"
+  },
+  "</div>\n<div class=\"analysis-chart-meta\">\n  <span class=\"analysis-chart-chip\">训练截止": {
+    "key": "chart.meta.trainingCutoff",
+    "zh": "</div>\n<div class=\"analysis-chart-meta\">\n  <span class=\"analysis-chart-chip\">训练截止",
+    "en": "</div>\n<div class=\"analysis-chart-meta\">\n  <span class=\"analysis-chart-chip\">Training Cutoff"
+  },
+  "请先指定主策略，再查看多策略买卖点。": {
+    "key": "instruction.selectPrimaryStrategy",
+    "zh": "请先指定主策略，再查看多策略买卖点。",
+    "en": "Please select a primary strategy first to view multi-strategy signals."
+  },
+  "##### ML 质量展示": {
+    "key": "section.mlQuality.title",
+    "zh": "##### ML 质量展示",
+    "en": "ML Quality Display"
+  },
+  "策略区": {
+    "key": "section.strategy",
+    "zh": "策略区",
+    "en": "Strategy Section"
+  },
+  "<h1 class=\"analysis-title\">多股主分析页</h1>\n<div class=\"analysis-subtitle\">": {
+    "key": "page.multiStockAnalysis.header",
+    "zh": "<h1 class=\"analysis-title\">多股主分析页</h1>\n<div class=\"analysis-subtitle\">",
+    "en": "<h1 class=\"analysis-title\">Multi-Stock Analysis</h1>\n<div class=\"analysis-subtitle\">"
+  },
+  "累计收益 %": {
+    "key": "metric.cumulativeReturn.percent",
+    "zh": "累计收益 %",
+    "en": "Cumulative Return %"
+  },
+  "🐛 Bug 报告": {
+    "key": "menu.bugReport",
+    "zh": "🐛 Bug 报告",
+    "en": "🐛 Bug Report"
+  },
+  "止盈距离=ATR×倍数。": {
+    "key": "param.takeProfit.formula",
+    "zh": "止盈距离=ATR×倍数。",
+    "en": "Take Profit Distance = ATR × Multiplier"
+  },
+  "现价": {
+    "key": "price.current",
+    "zh": "现价",
+    "en": "Current Price"
+  },
+  "⚙️ 高级设置（自定义参数 / 查看当前值）": {
+    "key": "button.advancedSettings",
+    "zh": "⚙️ 高级设置（自定义参数 / 查看当前值）",
+    "en": "⚙️ Advanced Settings (Customize / View Params)"
+  },
+  "先看大盘快照，再往下进入推荐股票和补充股票池。": {
+    "key": "workflow.marketSnapshotFirst",
+    "zh": "先看大盘快照，再往下进入推荐股票和补充股票池。",
+    "en": "First view market snapshot, then proceed to recommended stocks and supplementary pool."
+  },
+  "参数": {
+    "key": "section.parameters",
+    "zh": "参数",
+    "en": "Parameters"
+  },
+  "缺少必需列：": {
+    "key": "error.missingRequiredColumns",
+    "zh": "缺少必需列：",
+    "en": "Missing required columns:"
+  },
+  "基准累计 %": {
+    "key": "metric.benchmarkCumulative.percent",
+    "zh": "基准累计 %",
+    "en": "Benchmark Cumulative %"
+  },
+  "共享 HTML 导出报告 builder\n=========================\n为单股 / 多股页面生成符合 W6-W8 站点风格的离线 HTML 报告。": {
+    "key": "component.htmlReportBuilder.description",
+    "zh": "共享 HTML 导出报告 builder\n=========================\n为单股 / 多股页面生成符合 W6-W8 站点风格的离线 HTML 报告。",
+    "en": "Shared HTML Report Builder\n=========================\nGenerates offline HTML reports in W6-W8 site style for single/multi-stock pages."
+  },
+  "状态": {
+    "key": "label.status",
+    "zh": "状态",
+    "en": "Status"
+  },
+  "未生成策略": {
+    "key": "strategy.notGenerated",
+    "zh": "未生成策略",
+    "en": "Strategy Not Generated"
+  },
+  "市场代理：": {
+    "key": "label.marketProxy",
+    "zh": "市场代理：",
+    "en": "Market Proxy:"
+  },
+  "布林带上下轨的标准差倍数。": {
+    "key": "param.bollinger.stdDev.description",
+    "zh": "布林带上下轨的标准差倍数。",
+    "en": "Standard deviation multiplier for Bollinger Bands upper/lower bands."
+  },
+  "暂无股票数据，请先添加股票": {
+    "key": "data.stock.empty",
+    "zh": "暂无股票数据，请先添加股票",
+    "en": "No stock data. Please add stocks first."
+  },
+  "请先选择 SM 或 FSM": {
+    "key": "instruction.selectSmOrFsm",
+    "zh": "请先选择 SM 或 FSM",
+    "en": "Please select SM or FSM first."
+  },
+  "成交量（压缩）": {
+    "key": "metric.volume.compressed",
+    "zh": "成交量（压缩）",
+    "en": "Volume (Compressed)"
+  },
+  "动能中性": {
+    "key": "state.momentum.neutral",
+    "zh": "动能中性",
+    "en": "Momentum Neutral"
+  },
+  "未找到索引匹配，将按该美股代码加入股票池。": {
+    "key": "stockPool.addByTicker",
+    "en": "No index match found. Adding to stock pool by US ticker."
+  },
+  "] 用户反馈": {
+    "key": "feedback.title",
+    "en": "User Feedback"
+  },
+  "当前周期下没有可用的 RSI 指标。": {
+    "key": "indicator.rsi.unavailable",
+    "en": "No RSI indicator available for the current period."
+  },
+  "启用参数搜索": {
+    "key": "parameterSearch.enable",
+    "en": "Enable Parameter Search"
+  },
+  "优化后收益": {
+    "key": "backtest.optimizedReturn",
+    "en": "Optimized Return"
+  },
+  "阶段链路：": {
+    "key": "workflow.stageLink",
+    "en": "Stage Link:"
+  },
+  "评分分位数-高档": {
+    "key": "score.quantile.high",
+    "en": "Score Quantile - High"
+  },
+  "Walk-Forward 回测": {
+    "key": "backtest.walkForward",
+    "en": "Walk-Forward Backtest"
+  },
+  "用于计算滚动 Z 分数的窗口。": {
+    "key": "parameter.zScoreWindow.desc",
+    "en": "Window for calculating rolling Z-score."
+  },
+  "摘要数字 + 明细表 + 图表组": {
+    "key": "report.composition",
+    "en": "Summary + Details + Charts"
+  },
+  "市场指数": {
+    "key": "market.index",
+    "en": "Market Index"
+  },
+  "天数": {
+    "key": "common.days",
+    "en": "Days"
+  },
+  "回撤曲线": {
+    "key": "chart.drawdownCurve",
+    "en": "Drawdown Curve"
+  },
+  "多股策略结果区": {
+    "key": "strategy.multiStockResults",
+    "en": "Multi-Stock Strategy Results"
+  },
+  "评分分位数": {
+    "key": "score.quantile",
+    "en": "Score Quantile"
+  },
+  "暂无数据": {
+    "key": "common.noData",
+    "en": "No Data Available"
+  },
+  "##### 月度收益热图": {
+    "key": "chart.monthlyReturnsHeatmap.title",
+    "en": "Monthly Returns Heatmap"
+  },
+  "对齐图五要求": {
+    "key": "chart.alignmentRequirement",
+    "en": "Align with Chart 5 Requirements"
+  },
+  "最新因子评分对比": {
+    "key": "factor.latestScoreComparison",
+    "en": "Latest Factor Score Comparison"
+  },
+  "股票/模型": {
+    "key": "common.stockOrModel",
+    "en": "Stock / Model"
+  },
+  "v1 只展示条目摘要并提供文件下载，不在应用内嵌入整页 HTML。": {
+    "key": "report.v1Scope",
+    "en": "v1: Shows entry summary and file download only. Full HTML not embedded."
+  },
+  "刷新失败:": {
+    "key": "action.refreshFailed",
+    "en": "Refresh Failed:"
+  },
+  "右侧所有结果默认读取 current_artifact": {
+    "key": "results.defaultSource",
+    "en": "All results on the right read from current_artifact by default."
+  },
+  "OBV 趋势变化率、成交量均量、价格高低点位置的共用计算周期。": {
+    "key": "parameter.obvCommonWindow.desc",
+    "en": "Common calculation period for OBV trend rate, average volume, and price high/low points."
+  },
+  "单股导出报告": {
+    "key": "report.singleStockExport",
+    "en": "Single Stock Export Report"
+  },
+  "RSI 高于该值视为偏强。": {
+    "key": "parameter.rsiStrongThreshold.desc",
+    "en": "RSI above this value is considered strong."
+  },
+  "预设来源": {
+    "key": "data.presetSource",
+    "en": "Preset Source"
+  },
+  "上传数据": {
+    "key": "action.uploadData",
+    "en": "Upload Data"
+  },
+  "Mean（均值基线）": {
+    "key": "baseline.mean",
+    "en": "Mean (Baseline)"
+  },
+  "数据不足以计算相关性热图（需要至少 5 个共同交易日）。": {
+    "key": "chart.correlationHeatmap.insufficientData",
+    "en": "Insufficient data for correlation heatmap (minimum 5 common trading days required)."
+  },
+  "</div>\n<div class=\"analysis-chart-meta\">\n  <span class=\"analysis-chart-chip\">数据区间": {
+    "key": "chart.meta.dataRange",
+    "en": "Data Range"
+  },
+  "Regime 评分": {
+    "key": "score.regime",
+    "en": "Regime Score"
+  },
+  "MACD 信号周期": {
+    "key": "parameter.macdSignalPeriod",
+    "en": "MACD Signal Period"
+  },
+  "<h4 class='analysis-section-title'>Tear Sheet 列表</h4>": {
+    "key": "tearSheet.list.title",
+    "en": "Tear Sheet List"
+  },
+  "未记录 MLflow": {
+    "key": "mlflow.notRecorded",
+    "en": "Not Logged to MLflow"
+  },
+  "年化波动率（风险）%": {
+    "key": "metric.annualizedVolatility",
+    "en": "Annualized Volatility (Risk) %"
+  },
+  "例如: TSLA / Apple / 贵州茅台 / 600519": {
+    "key": "example.tickerOrName",
+    "en": "e.g., TSLA / Apple / Kweichow Moutai / 600519"
+  },
+  "多股票价格对比（归一化）": {
+    "key": "chart.multiStockPriceComparison",
+    "en": "Multi-Stock Price Comparison (Normalized)"
+  },
+  "个": {
+    "key": "common.unit.item",
+    "en": ""
+  },
+  "当前只有 1 条策略参与比较。继续保存更多快照后，再观察曲线差异会更有价值。": {
+    "key": "strategy.comparison.insufficientSnapshots",
+    "en": "Only 1 strategy in comparison. Save more snapshots to better observe curve differences."
+  },
+  "当前市场的快照与推荐入口": {
+    "key": "market.snapshotAndRecommendations",
+    "en": "Current Market Snapshot & Recommendations"
+  },
+  "自定义参数": {
+    "key": "parameter.custom",
+    "en": "Custom Parameters"
+  },
+  "总收益率": {
+    "key": "metric.totalReturn",
+    "en": "Total Return"
+  },
+  "**类型**：": {
+    "key": "common.type",
+    "en": "Type:"
+  },
+  "保存当前策略": {
+    "key": "strategy.saveCurrent",
+    "en": "Save Current Strategy"
+  },
+  "<p class='analysis-section-copy'>页面只显示 mlflow_run.json 元数据，不尝试启动或嵌入 MLflow UI。</p>": {
+    "key": "mlflow.uiScopeNote",
+    "en": "This page displays mlflow_run.json metadata only. It does not launch or embed the MLflow UI."
+  },
+  "市场切换、搜索加入、上传文件和已选股票管理都收进同一张主操作卡，不再拆成多组厚重表单。": {
+    "key": "ui.mainOperationCard.desc",
+    "en": "Market switch, search & add, file upload, and selected stock management are consolidated into one main operation card, avoiding multiple heavy forms."
+  },
+  "投资组合模拟": {
+    "key": "simulation.portfolio",
+    "en": "Portfolio Simulation"
+  },
+  "从一个清楚的入口动作开始": {
+    "key": "onboarding.clearEntry",
+    "en": "Start with a clear entry action."
+  },
+  "类型": {
+    "key": "common.type",
+    "zh": "类型",
+    "en": "Type"
+  },
+  "多股策略区": {
+    "key": "strategy.multiStockZone",
+    "zh": "多股策略区",
+    "en": "Multi-Stock Strategy Zone"
+  },
+  "SM（10因子）": {
+    "key": "strategy.sm10Factor",
+    "zh": "SM（10因子）",
+    "en": "SM (10-Factor)"
+  },
+  "左侧固定为模型控制台与组合搜索，右侧固定为结果图区、组合 KPI 摘要和个股表现表，对齐第七周第 8 项的“左控台 / 右结果区”结构。": {
+    "key": "layout.description",
+    "zh": "左侧固定为模型控制台与组合搜索，右侧固定为结果图区、组合 KPI 摘要和个股表现表，对齐第七周第 8 项的“左控台 / 右结果区”结构。",
+    "en": "Left side fixed for model console & portfolio search; right side fixed for result charts, portfolio KPI summary, and stock performance table. Aligns with Week 7 Item 8's 'Left Console / Right Results' structure."
+  },
+  "，执行分支": {
+    "key": "workflow.executionBranch",
+    "zh": "，执行分支",
+    "en": "Execution Branch"
+  },
+  "左侧负责把待比较股票整理清楚，右侧持续提供当前市场快照和推荐补充入口。 搜索、上传和推荐最终都会汇到同一个待分析列表。": {
+    "key": "comparison.layoutLogic",
+    "zh": "左侧负责把待比较股票整理清楚，右侧持续提供当前市场快照和推荐补充入口。 搜索、上传和推荐最终都会汇到同一个待分析列表。",
+    "en": "Left side organizes stocks for comparison; right side provides live market snapshot and recommendation entry. Search, upload, and recommendations feed into a unified analysis list."
+  },
+  "这部分固定保留组合 KPI、主结果图和各股票表现表，切换主图时不会打散稳定信息区。": {
+    "key": "results.stableZone",
+    "zh": "这部分固定保留组合 KPI、主结果图和各股票表现表，切换主图时不会打散稳定信息区。",
+    "en": "This area retains portfolio KPIs, main result chart, and stock performance tables. Switching charts won't disrupt the stable info zone."
+  },
+  "等权基准": {
+    "key": "benchmark.equalWeight",
+    "zh": "等权基准",
+    "en": "Equal-Weight Benchmark"
+  },
+  "在页面底部渲染 HTML 导出区域。": {
+    "key": "export.htmlZone",
+    "zh": "在页面底部渲染 HTML 导出区域。",
+    "en": "Render HTML export area at page bottom."
+  },
+  "主策略：": {
+    "key": "strategy.primary",
+    "zh": "主策略：",
+    "en": "Primary Strategy:"
+  },
+  "MACD 快线 EMA 周期。": {
+    "key": "indicator.macdFastPeriod",
+    "zh": "MACD 快线 EMA 周期。",
+    "en": "MACD Fast Line EMA Period."
+  },
+  "添加成功": {
+    "key": "notification.addSuccess",
+    "zh": "添加成功",
+    "en": "Added Successfully"
+  },
+  "当前 ·": {
+    "key": "status.current",
+    "zh": "当前 ·",
+    "en": "Current ·"
+  },
+  "只读浏览已有模型研究结果。": {
+    "key": "model.viewOnlyDescription",
+    "zh": "只读浏览已有模型研究结果。",
+    "en": "Read-only view of existing model research results."
+  },
+  "行索引": {
+    "key": "table.rowIndex",
+    "zh": "行索引",
+    "en": "Row Index"
+  },
+  "正在生成 HTML 报告...": {
+    "key": "report.generatingHtml",
+    "zh": "正在生成 HTML 报告...",
+    "en": "Generating HTML Report..."
+  },
+  "中档分位数需要小于高档分位数。": {
+    "key": "validation.quantileOrder",
+    "zh": "中档分位数需要小于高档分位数。",
+    "en": "Mid quantile must be less than high quantile."
+  },
+  "中期动量权重": {
+    "key": "parameter.midTermMomentumWeight",
+    "zh": "中期动量权重",
+    "en": "Mid-Term Momentum Weight"
+  },
+  "策略收益": {
+    "key": "metric.strategyReturn",
+    "zh": "策略收益",
+    "en": "Strategy Return"
+  },
+  "最低 / 成交量": {
+    "key": "chart.lowVolume",
+    "zh": "最低 / 成交量",
+    "en": "Low / Volume"
+  },
+  "模型评估页\n==========\n只读浏览 `model-test/outputs` 里的已有研究产物。": {
+    "key": "page.modelEvaluation",
+    "zh": "模型评估页\n==========\n只读浏览 `model-test/outputs` 里的已有研究产物。",
+    "en": "Model Evaluation Page\n==========\nRead-only view of existing research outputs in `model-test/outputs`."
+  },
+  "的交易策略": {
+    "key": "strategy.ofTrading",
+    "zh": "的交易策略",
+    "en": "Trading Strategy"
+  },
+  "所有曲线都以同一基准起点归一化，适合先看整体强弱排序。": {
+    "key": "chart.normalizedCurvesNote",
+    "zh": "所有曲线都以同一基准起点归一化，适合先看整体强弱排序。",
+    "en": "All curves normalized to the same baseline start. Suitable for initial strength ranking."
+  },
+  "</div><div class='selection-row-meta'>来源：搜索或推荐加入</div></div>": {
+    "key": "selection.source",
+    "zh": "</div><div class='selection-row-meta'>来源：搜索或推荐加入</div></div>",
+    "en": "Source: Added via search or recommendation."
+  },
+  "窗口": {
+    "key": "common.window",
+    "zh": "窗口",
+    "en": "Window"
+  },
+  "这里只展示 report.json 里已汇总的异常样本，不重新追踪底层任务日志。": {
+    "key": "anomaly.summaryOnly",
+    "zh": "这里只展示 report.json 里已汇总的异常样本，不重新追踪底层任务日志。",
+    "en": "Shows only aggregated anomaly samples from report.json, without re-tracing underlying task logs."
+  },
+  "报告标题": {
+    "key": "report.title",
+    "zh": "报告标题",
+    "en": "Report Title"
+  },
+  "Regime 路径必须选择合法的 regime_kind": {
+    "key": "validation.regimePath",
+    "zh": "Regime 路径必须选择合法的 regime_kind",
+    "en": "Regime path must select a valid regime_kind."
+  },
+  "启用 ML 时必须选择合法的 ML 模型": {
+    "key": "validation.mlModelRequired",
+    "zh": "启用 ML 时必须选择合法的 ML 模型",
+    "en": "A valid ML model must be selected when ML is enabled."
+  },
+  "导出模型": {
+    "key": "action.exportModel",
+    "zh": "导出模型",
+    "en": "Export Model"
+  },
+  "由 Strategy Lab 导出，结构与站点主分析页保持同一前端语法。": {
+    "key": "export.description",
+    "zh": "由 Strategy Lab 导出，结构与站点主分析页保持同一前端语法。",
+    "en": "Exported by Strategy Lab, maintaining the same front-end syntax as the main analysis page."
+  },
+  "数据不足以计算相对强弱（至少需要 2 只有效股票）。": {
+    "key": "error.insufficientDataForRelativeStrength",
+    "zh": "数据不足以计算相对强弱（至少需要 2 只有效股票）。",
+    "en": "Insufficient data to calculate relative strength (at least 2 valid stocks required)."
+  },
+  "当前没有可比较的 artifact，跳过净值与回撤。": {
+    "key": "warning.noComparableArtifacts",
+    "zh": "当前没有可比较的 artifact，跳过净值与回撤。",
+    "en": "No comparable artifacts available, skipping NAV and drawdown."
+  },
+  "请选择参数搜索方法": {
+    "key": "prompt.selectParamSearchMethod",
+    "zh": "请选择参数搜索方法",
+    "en": "Please select a parameter search method."
+  },
+  "组合结果": {
+    "key": "results.portfolio",
+    "zh": "组合结果",
+    "en": "Portfolio Results"
+  },
+  "策略": {
+    "key": "common.strategy",
+    "zh": "策略",
+    "en": "Strategy"
+  },
+  "刷新市场快照": {
+    "key": "action.refreshMarketSnapshot",
+    "zh": "刷新市场快照",
+    "en": "Refresh Market Snapshot"
+  },
+  "OBV 趋势权重": {
+    "key": "parameter.obvTrendWeight",
+    "zh": "OBV 趋势权重",
+    "en": "OBV Trend Weight"
+  },
+  "ML 训练样本为空，无法训练过滤器": {
+    "key": "error.mlTrainingDataEmpty",
+    "zh": "ML 训练样本为空，无法训练过滤器",
+    "en": "ML training samples are empty, cannot train filter."
+  },
+  "回撤惩罚权重": {
+    "key": "parameter.drawdownPenaltyWeight",
+    "zh": "回撤惩罚权重",
+    "en": "Drawdown Penalty Weight"
+  },
+  "🔍 股票选择": {
+    "key": "section.stockSelection",
+    "zh": "🔍 股票选择",
+    "en": "🔍 Stock Selection"
+  },
+  "保留当前结果区中的评分视角，便于补充价格图之外的解释。": {
+    "key": "results.keepScoreView",
+    "zh": "保留当前结果区中的评分视角，便于补充价格图之外的解释。",
+    "en": "Retain the scoring perspective in the results area to facilitate explanations beyond price charts."
+  },
+  "<p class=\"selection-note\">\n  当前待分析数量：<strong>": {
+    "key": "selection.currentCount",
+    "zh": "<p class=\"selection-note\">\n  当前待分析数量：<strong>",
+    "en": "Current items pending analysis: <strong>"
+  },
+  "渲染支持 keyup 的搜索输入框；缺少组件时回退到原生输入框。": {
+    "key": "ui.searchInputFallback",
+    "zh": "渲染支持 keyup 的搜索输入框；缺少组件时回退到原生输入框。",
+    "en": "Render a search input box supporting keyup events; fallback to native input if component missing."
+  },
+  "选择股票": {
+    "key": "action.selectStocks",
+    "zh": "选择股票",
+    "en": "Select Stocks"
+  },
+  "权重": {
+    "key": "common.weight",
+    "zh": "权重",
+    "en": "Weight"
+  },
+  "输入股票名称或代码": {
+    "key": "placeholder.stockInput",
+    "zh": "输入股票名称或代码",
+    "en": "Enter stock name or code"
+  },
+  "当前成功加载的有效标的": {
+    "key": "status.loadedValidSecurities",
+    "zh": "当前成功加载的有效标的",
+    "en": "Currently loaded valid securities"
+  },
+  "课程基线策略": {
+    "key": "strategy.courseBaseline",
+    "zh": "课程基线策略",
+    "en": "Course Baseline Strategy"
+  },
+  "MACD 权重": {
+    "key": "parameter.macdWeight",
+    "zh": "MACD 权重",
+    "en": "MACD Weight"
+  },
+  "股票（期间收益）": {
+    "key": "stock.periodReturn",
+    "zh": "股票（期间收益）",
+    "en": "Stock (Period Return)"
+  },
+  ": 已更新至": {
+    "key": "status.updatedTo",
+    "zh": ": 已更新至",
+    "en": "Updated to: "
+  },
+  "1. 📊 因子评分过低\n2. 📉 趋势反转（EMA快<慢）\n3. ⚠️ RSI超出合理区间\n4. 📉 MACD跌破信号线": {
+    "key": "alert.riskFactors",
+    "zh": "1. 📊 因子评分过低\n2. 📉 趋势反转（EMA快<慢）\n3. ⚠️ RSI超出合理区间\n4. 📉 MACD跌破信号线",
+    "en": "1. 📊 Factor score too low\n2. 📉 Trend reversal (EMA fast < slow)\n3. ⚠️ RSI out of range\n4. 📉 MACD below signal line"
+  },
+  "当前没有可保存的策略。": {
+    "key": "strategy.noSavable",
+    "zh": "当前没有可保存的策略。",
+    "en": "No strategies available to save."
+  },
+  "加入": {
+    "key": "action.add",
+    "zh": "加入",
+    "en": "Add"
+  },
+  "近 60 日波动": {
+    "key": "metric.volatility60d",
+    "zh": "近 60 日波动",
+    "en": "60D Volatility"
+  },
+  "测试窗口（交易日）": {
+    "key": "backtest.window",
+    "zh": "测试窗口（交易日）",
+    "en": "Test Window (Trading Days)"
+  },
+  "量能回落": {
+    "key": "indicator.volumePullback",
+    "zh": "量能回落",
+    "en": "Volume Pullback"
+  },
+  "月度收益率热图": {
+    "key": "chart.monthlyReturnHeatmap",
+    "zh": "月度收益率热图",
+    "en": "Monthly Return Heatmap"
+  },
+  "未启用": {
+    "key": "state.disabled",
+    "zh": "未启用",
+    "en": "Disabled"
+  },
+  "请先在上方选择 Baseline、Search 或 Regime，再展开具体配置。": {
+    "key": "instruction.selectModeFirst",
+    "zh": "请先在上方选择 Baseline、Search 或 Regime，再展开具体配置。",
+    "en": "Please select Baseline, Search, or Regime above before configuring."
+  },
+  "当前结果仍是上次成功提交的 artifact；草稿修改后需要重新点击“生成策略”才会生效。": {
+    "key": "status.draftPending",
+    "zh": "当前结果仍是上次成功提交的 artifact；草稿修改后需要重新点击“生成策略”才会生效。",
+    "en": "Current results are from the last successful submission. Draft changes require re-running \"Generate Strategy\"."
+  },
+  "最终提交到 current_artifact": {
+    "key": "workflow.submitToArtifact",
+    "zh": "最终提交到 current_artifact",
+    "en": "Final submission to current_artifact"
+  },
+  "搜索、上传和推荐入口都保持在同一条页面语法里，不把用户推回后台式操作区。": {
+    "key": "ui.unifiedWorkflow",
+    "zh": "搜索、上传和推荐入口都保持在同一条页面语法里，不把用户推回后台式操作区。",
+    "en": "Search, upload, and recommendation are unified in one page flow—no back‑office navigation."
+  },
+  "下载 HTML 报告": {
+    "key": "action.downloadHtmlReport",
+    "zh": "下载 HTML 报告",
+    "en": "Download HTML Report"
+  },
+  "✅ HTML报告已生成！点击上方按钮下载": {
+    "key": "report.ready",
+    "zh": "✅ HTML报告已生成！点击上方按钮下载",
+    "en": "✅ HTML report is ready! Click above to download."
+  },
+  "净值曲线": {
+    "key": "chart.netValueCurve",
+    "zh": "净值曲线",
+    "en": "Net Value Curve"
+  },
+  "起始价格": {
+    "key": "metric.startPrice",
+    "zh": "起始价格",
+    "en": "Start Price"
+  },
+  "当前策略摘要": {
+    "key": "strategy.summary",
+    "zh": "当前策略摘要",
+    "en": "Strategy Summary"
+  },
+  "时间周期": {
+    "key": "parameter.timePeriod",
+    "zh": "时间周期",
+    "en": "Time Period"
+  },
+  "热图和买卖点细看都跟随当前主策略": {
+    "key": "chart.followsMainStrategy",
+    "zh": "热图和买卖点细看都跟随当前主策略",
+    "en": "Heatmaps and trade details follow the active strategy."
+  },
+  "选择一个可读 run 后，这里会展示当前最佳模型和评分规则。": {
+    "key": "instruction.selectRunForModel",
+    "zh": "选择一个可读 run 后，这里会展示当前最佳模型和评分规则。",
+    "en": "Select a readable run to view the best model and scoring rules."
+  },
+  "ADX 周期": {
+    "key": "parameter.adxPeriod",
+    "zh": "ADX 周期",
+    "en": "ADX Period"
+  },
+  "</span>\n  <span class=\"analysis-chart-chip\">EMA 快线": {
+    "key": "indicator.emaFast",
+    "zh": "</span>\n  <span class=\"analysis-chart-chip\">EMA 快线",
+    "en": "EMA Fast"
+  },
+  "描述": {
+    "key": "field.description",
+    "zh": "描述",
+    "en": "Description"
+  },
+  "生成时间": {
+    "key": "meta.generatedTime",
+    "zh": "生成时间",
+    "en": "Generated"
+  },
+  "与分位数走势。": {
+    "key": "chart.withQuantileTrend",
+    "zh": "与分位数走势。",
+    "en": "with quantile trend."
+  },
+  "匹配结果": {
+    "key": "search.matches",
+    "zh": "匹配结果",
+    "en": "Matches"
+  },
+  "当前日期筛选后的有效样本": {
+    "key": "data.filteredSamples",
+    "zh": "当前日期筛选后的有效样本",
+    "en": "Valid samples after date filter"
+  },
+  "可读 run": {
+    "key": "run.readable",
+    "zh": "可读 run",
+    "en": "Readable Run"
+  },
+  "当前结果不足以生成策略周期热图。": {
+    "key": "chart.insufficientDataForHeatmap",
+    "zh": "当前结果不足以生成策略周期热图。",
+    "en": "Insufficient data for strategy period heatmap."
+  },
+  "数据不足以计算风险收益图。": {
+    "key": "chart.insufficientDataForRiskReturn",
+    "zh": "数据不足以计算风险收益图。",
+    "en": "Insufficient data for risk‑return chart."
+  },
+  "Step 1 选择 Family": {
+    "key": "workflow.step1SelectFamily",
+    "zh": "Step 1 选择 Family",
+    "en": "Step 1: Select Family"
+  },
+  "条。": {
+    "key": "unit.items",
+    "zh": "条。",
+    "en": "items."
+  },
+  "趋势 EMA 快线需要小于慢线。": {
+    "key": "rule.emaFastBelowSlow",
+    "zh": "趋势 EMA 快线需要小于慢线。",
+    "en": "EMA fast line must be below slow line."
+  },
+  "股票代码": {
+    "key": "field.symbol",
+    "zh": "股票代码",
+    "en": "Symbol"
+  },
+  "Baseline 路径只生成单步基线策略，不进入参数搜索或 ML 过滤。": {
+    "key": "mode.baselineDescription",
+    "zh": "Baseline 路径只生成单步基线策略，不进入参数搜索或 ML 过滤。",
+    "en": "Baseline path generates a single‑step baseline strategy—no parameter search or ML filtering."
+  },
+  "策略比对模式": {
+    "key": "mode.strategyCompare",
+    "zh": "策略比对模式",
+    "en": "Strategy Compare Mode"
+  },
+  "如果你已经准备好标准化数据文件，可以直接用上传结果进入分析。": {
+    "key": "instruction.uploadReadyData",
+    "zh": "如果你已经准备好标准化数据文件，可以直接用上传结果进入分析。",
+    "en": "If you have standardized data files, upload them to start analysis directly."
+  },
+  "右侧只保留一个大的展示区，用来支撑进入分析前的判断，不再把说明拆成多张卡片。": {
+    "key": "ui.unifiedPreviewArea",
+    "zh": "右侧只保留一个大的展示区，用来支撑进入分析前的判断，不再把说明拆成多张卡片。",
+    "en": "Right panel is a single large preview area for pre‑analysis judgment—no split‑up cards."
+  },
+  "首页": {
+    "key": "nav.home",
+    "zh": "首页",
+    "en": "Home"
+  },
+  "当前还没有已保存策略。保存当前策略后，这里会形成本次会话的策略库。": {
+    "key": "strategy.noSavedYet",
+    "zh": "当前还没有已保存策略。保存当前策略后，这里会形成本次会话的策略库。",
+    "en": "No saved strategies yet. Save current strategy to build a session library."
+  },
+  "开始单股分析": {
+    "key": "action.startSingleStockAnalysis",
+    "zh": "开始单股分析",
+    "en": "Start Single‑Stock Analysis"
+  },
+  "Baseline 路径必须选择 Naive / Mean / Drift": {
+    "key": "rule.baselineFamilyRequired",
+    "zh": "Baseline 路径必须选择 Naive / Mean / Drift",
+    "en": "Baseline path requires Naive, Mean, or Drift family."
+  },
+  "全部": {
+    "key": "filter.all",
+    "zh": "全部",
+    "en": "All"
+  },
+  "夏普：": {
+    "key": "metric.sharpe",
+    "zh": "夏普：",
+    "en": "Sharpe: "
+  },
+  "当前展示的是上次成功生成的 lineage；新草稿尚未提交。": {
+    "key": "status.showingLastLineage",
+    "zh": "当前展示的是上次成功生成的 lineage；新草稿尚未提交。",
+    "en": "Showing last successful lineage; new draft not yet submitted."
+  },
+  "请选择模型家族": {
+    "key": "validation.selectModelFamily",
+    "zh": "请选择模型家族",
+    "en": "Please select a model family."
+  },
+  "无法读取报告文件：": {
+    "key": "error.cannotReadReport",
+    "zh": "无法读取报告文件：",
+    "en": "Cannot read report file: "
+  },
+  "开盘 / 最高": {
+    "key": "price.openHigh",
+    "zh": "开盘 / 最高",
+    "en": "Open / High"
+  },
+  "出场需满足以下信号中的至少 N 个：": {
+    "key": "exit.condition.signalCount",
+    "zh": "出场需满足以下信号中的至少 N 个：",
+    "en": "Exit requires at least N of the following signals:"
+  },
+  "最新建议": {
+    "key": "latest.suggestion",
+    "zh": "最新建议",
+    "en": "Latest Suggestion"
+  },
+  "1. 📊 因子评分达标\n2. 📈 趋势向上（EMA快>慢）\n3. 💪 趋势强度足够（ADX）\n4. 🎯 RSI在合理区间\n5. 📉 MACD在信号线上方": {
+    "key": "signal.condition.list",
+    "zh": "1. 📊 因子评分达标\n2. 📈 趋势向上（EMA快>慢）\n3. 💪 趋势强度足够（ADX）\n4. 🎯 RSI在合理区间\n5. 📉 MACD在信号线上方",
+    "en": "1. 📊 Factor score meets threshold\n2. 📈 Uptrend (Fast EMA > Slow EMA)\n3. 💪 Sufficient trend strength (ADX)\n4. 🎯 RSI within reasonable range\n5. 📉 MACD above signal line"
+  },
+  "构建评分 + 分位数图。": {
+    "key": "chart.build.scoreQuantile",
+    "zh": "构建评分 + 分位数图。",
+    "en": "Build score + quantile chart."
+  },
+  "当前策略已在策略库中。": {
+    "key": "strategy.status.inLibrary",
+    "zh": "当前策略已在策略库中。",
+    "en": "Current strategy is already in the library."
+  },
+  "当前草稿已经准备好，点击“生成策略”后右侧会提交新的 current_artifact。": {
+    "key": "draft.ready.generate",
+    "zh": "当前草稿已经准备好，点击“生成策略”后右侧会提交新的 current_artifact。",
+    "en": "Draft is ready. Click 'Generate Strategy' to submit a new current_artifact on the right."
+  },
+  "</span>\n  <span>最新更新时间": {
+    "key": "timestamp.lastUpdated",
+    "zh": "</span>\n  <span>最新更新时间",
+    "en": "Last Updated: "
+  },
+  "ML 模型": {
+    "key": "model.ml",
+    "zh": "ML 模型",
+    "en": "ML Model"
+  },
+  "Regime 路径不允许携带搜索或 ML 模型配置": {
+    "key": "regime.path.restriction.noSearchML",
+    "zh": "Regime 路径不允许携带搜索或 ML 模型配置",
+    "en": "Regime path does not allow search or ML model configurations."
+  },
+  "多股入口页\n==========": {
+    "key": "page.title.multiStockEntry",
+    "zh": "多股入口页\n==========",
+    "en": "Multi-Stock Entry"
+  },
+  "ATR 周期": {
+    "key": "parameter.atr.period",
+    "zh": "ATR 周期",
+    "en": "ATR Period"
+  },
+  "出场评分阈值": {
+    "key": "threshold.exitScore",
+    "zh": "出场评分阈值",
+    "en": "Exit Score Threshold"
+  },
+  "模型族": {
+    "key": "model.family",
+    "zh": "模型族",
+    "en": "Model Family"
+  },
+  "把 report.json 归一成页面消费结构，并兜住旧 run 的缺字段情况。": {
+    "key": "task.normalizeReportJson",
+    "zh": "把 report.json 归一成页面消费结构，并兜住旧 run 的缺字段情况。",
+    "en": "Normalize report.json into page-consumable structure, handling missing fields from old runs."
+  },
+  "先用摘要数字回答股票池规模、样本窗口和结果结构，再进入明细表与图表区。": {
+    "key": "analysis.flow.summaryFirst",
+    "zh": "先用摘要数字回答股票池规模、样本窗口和结果结构，再进入明细表与图表区。",
+    "en": "First present summary numbers for pool size, sample window, and result structure, then proceed to detailed tables and charts."
+  },
+  "请描述你遇到的问题或建议...": {
+    "key": "feedback.placeholder",
+    "zh": "请描述你遇到的问题或建议...",
+    "en": "Describe your issue or suggestion..."
+  },
+  "开始多股分析": {
+    "key": "action.startMultiStockAnalysis",
+    "zh": "开始多股分析",
+    "en": "Start Multi-Stock Analysis"
+  },
+  "Step 2 · Regime 路径": {
+    "key": "step.regimePath",
+    "zh": "Step 2 · Regime 路径",
+    "en": "Step 2 · Regime Path"
+  },
+  "当前股票池仅剩 2 个标的；先在右侧添加新股票，再执行移除。": {
+    "key": "stockPool.warning.removeAfterAdd",
+    "zh": "当前股票池仅剩 2 个标的；先在右侧添加新股票，再执行移除。",
+    "en": "Only 2 symbols remain in the pool. Add new stocks on the right before removing."
+  },
+  "FSM 路径会先在训练集拟合 FA，再进入 FSM 基础策略。": {
+    "key": "fsm.path.description",
+    "zh": "FSM 路径会先在训练集拟合 FA，再进入 FSM 基础策略。",
+    "en": "FSM path first fits FA on the training set, then proceeds to the base FSM strategy."
+  },
+  "组合总收益": {
+    "key": "portfolio.totalReturn",
+    "zh": "组合总收益",
+    "en": "Portfolio Total Return"
+  },
+  "请先生成当前策略，再执行 Walk-Forward。": {
+    "key": "workflow.generateBeforeWalkForward",
+    "zh": "请先生成当前策略，再执行 Walk-Forward。",
+    "en": "Please generate the current strategy first, then run Walk-Forward."
+  },
+  "最佳表现股票": {
+    "key": "performance.topPerformer",
+    "zh": "最佳表现股票",
+    "en": "Top Performer"
+  },
+  "RSI 状态": {
+    "key": "indicator.rsi.status",
+    "zh": "RSI 状态",
+    "en": "RSI Status"
+  },
+  "未找到名称索引匹配，将直接按该代码尝试下载。": {
+    "key": "data.download.fallbackByCode",
+    "zh": "未找到名称索引匹配，将直接按该代码尝试下载。",
+    "en": "No name index match found. Will attempt download by code directly."
+  },
+  "结果主图在投资组合模拟和周期收益率热图之间切换；投资组合模拟现复用单股结果区的共享净值/回撤组件，组合 KPI 摘要和个股表现表保持固定。": {
+    "key": "result.mainChart.description",
+    "zh": "结果主图在投资组合模拟和周期收益率热图之间切换；投资组合模拟现复用单股结果区的共享净值/回撤组件，组合 KPI 摘要和个股表现表保持固定。",
+    "en": "Main result chart toggles between portfolio simulation and period return heatmap. Portfolio simulation reuses shared equity/drawdown components from single-stock results. Portfolio KPI summary and individual performance table remain fixed."
+  },
+  "买卖点查看": {
+    "key": "action.viewTradePoints",
+    "zh": "买卖点查看",
+    "en": "View Trade Points"
+  },
+  "HTML 报告已生成。": {
+    "key": "report.html.generated",
+    "zh": "HTML 报告已生成。",
+    "en": "HTML report generated."
+  },
+  "夏普": {
+    "key": "kpi.sharpe",
+    "zh": "夏普",
+    "en": "Sharpe"
+  },
+  "测试集交易信号": {
+    "key": "testSet.tradingSignals",
+    "zh": "测试集交易信号",
+    "en": "Test Set Trading Signals"
+  },
+  "这里保留待比较股票的轻量行列表。上传文件会在开始分析时一起并入结果。": {
+    "key": "comparison.stockList.description",
+    "zh": "这里保留待比较股票的轻量行列表。上传文件会在开始分析时一起并入结果。",
+    "en": "Lightweight list of stocks for comparison. Uploaded files will be merged into results when analysis starts."
+  },
+  "每个 CSV 会被视为一个独立标的，文件名会自动转换成导入标识。": {
+    "key": "import.csv.description",
+    "zh": "每个 CSV 会被视为一个独立标的，文件名会自动转换成导入标识。",
+    "en": "Each CSV is treated as an independent symbol. Filename will be auto-converted to import identifier."
+  },
+  "评分": {
+    "key": "score",
+    "zh": "评分",
+    "en": "Score"
+  },
+  "当前策略路径没有可展示的 ML 过滤质量指标。": {
+    "key": "ml.filter.quality.noData",
+    "zh": "当前策略路径没有可展示的 ML 过滤质量指标。",
+    "en": "No ML filter quality metrics available for the current strategy path."
+  },
+  "累计收益：": {
+    "key": "kpi.cumulativeReturn",
+    "zh": "累计收益：",
+    "en": "Cumulative Return:"
+  },
+  "评估区 KPI 展示：kind = pct | sharpe | ratio | days": {
+    "key": "evaluation.kpi.displayOptions",
+    "zh": "评估区 KPI 展示：kind = pct | sharpe | ratio | days",
+    "en": "Evaluation KPI display: kind = pct | sharpe | ratio | days"
+  },
+  "已关闭 Walk-Forward 回测。": {
+    "key": "walkForward.closed",
+    "zh": "已关闭 Walk-Forward 回测。",
+    "en": "Walk-Forward backtest closed."
+  },
+  "Regime 路径不允许启用 Baseline / Search / ML 选项": {
+    "key": "regime.path.restriction.noBaselineSearchML",
+    "zh": "Regime 路径不允许启用 Baseline / Search / ML 选项",
+    "en": "Regime path does not allow enabling Baseline / Search / ML options."
+  },
+  "<p class='analysis-section-copy'>v1 只展示条目摘要并提供文件下载，不在应用内嵌入整页 HTML。</p>": {
+    "key": "report.v1.limitedEmbed",
+    "zh": "<p class='analysis-section-copy'>v1 只展示条目摘要并提供文件下载，不在应用内嵌入整页 HTML。</p>",
+    "en": "<p class='analysis-section-copy'>v1 only shows entry summaries and provides file downloads, without embedding full HTML pages in-app.</p>"
+  },
+  "数据...": {
+    "key": "data.loading",
+    "zh": "数据...",
+    "en": "Data..."
+  },
+  "最新涨跌": {
+    "key": "latest.change",
+    "zh": "最新涨跌",
+    "en": "Latest Change"
+  },
+  "最新信号偏多，目标仓位": {
+    "key": "signal.bullish.targetPosition",
+    "zh": "最新信号偏多，目标仓位",
+    "en": "Latest signal bullish, target position"
+  },
+  "靠近区间低位": {
+    "key": "range.nearLow",
+    "zh": "靠近区间低位",
+    "en": "Near range low"
+  },
+  "训练集截止": {
+    "key": "trainingSet.end",
+    "zh": "训练集截止",
+    "en": "Training Set End"
+  },
+  "风险收益散点图": {
+    "key": "chart.riskReturnScatter",
+    "zh": "风险收益散点图",
+    "en": "Risk-Return Scatter Plot"
+  },
+  "通过率": {
+    "key": "passRate",
+    "zh": "通过率",
+    "en": "Pass Rate"
+  },
+  "**因子评分参数**": {
+    "key": "section.factorScoreParameters",
+    "zh": "**因子评分参数**",
+    "en": "**Factor Score Parameters**"
+  },
+  "1周": {
+    "key": "duration.1week",
+    "zh": "1周",
+    "en": "1 Week"
+  },
+  "已选择文件：": {
+    "key": "file.selected",
+    "zh": "已选择文件：",
+    "en": "Selected file:"
+  },
+  "处于区间中段": {
+    "key": "range.mid",
+    "zh": "处于区间中段",
+    "en": "Mid-range"
+  },
+  "相关系数": {
+    "key": "metrics.correlationCoefficient",
+    "zh": "相关系数",
+    "en": "Correlation Coefficient"
+  },
+  "基础信息": {
+    "key": "panel.basicInfo",
+    "zh": "基础信息",
+    "en": "Basic Info"
+  },
+  "最佳模型": {
+    "key": "model.bestModel",
+    "zh": "最佳模型",
+    "en": "Best Model"
+  },
+  "异常样本": {
+    "key": "data.abnormalSamples",
+    "zh": "异常样本",
+    "en": "Anomalous Samples"
+  },
+  "Adaptive 路径会先预测离散 state，再按 state 在 baseline / SM / FSM 候选中动态切换。": {
+    "key": "algorithm.adaptivePathDescription",
+    "zh": "Adaptive 路径会先预测离散 state，再按 state 在 baseline / SM / FSM 候选中动态切换。",
+    "en": "The Adaptive path first predicts discrete states, then dynamically switches between baseline/SM/FSM candidates based on the state."
+  },
+  "添加股票": {
+    "key": "action.addStock",
+    "zh": "添加股票",
+    "en": "Add Stock"
+  },
+  "最佳分数": {
+    "key": "metrics.bestScore",
+    "zh": "最佳分数",
+    "en": "Best Score"
+  },
+  "??????": {
+    "key": "modelEvaluation.section.searchMethodSummary",
+    "en": "Search Method Summary"
+  },
+  "?????????????????": {
+    "key": "home.hero.title",
+    "zh": "?????????????????",
+    "en": "Turn the stock strategy entry into a real product homepage."
+  },
+  "?????????????????????????????????????????????????????????????????": {
+    "key": "home.hero.copy",
+    "zh": "?????????????????????????????????????????????????????????????????",
+    "en": "Start with market context and clear entry actions, then hand off to the existing single-stock or multi-stock analysis flow. The goal is not more panels, but a research path that is readable at a glance."
+  },
+  "???????????????": {
+    "key": "entry.multi.title",
+    "en": "Assemble the stock pool first, then enter multi-stock analysis."
+  },
+  "????????????????????????????????????????????????": {
+    "key": "single.strategy.entryCopy",
+    "en": "Decide whether you are on the course baseline path, search path, or regime path before filling in the remaining configuration below. The page no longer precomputes every model result by default."
+  },
+  "??????????????????????????????": {
+    "key": "home.hero.note.1",
+    "zh": "??????????????????????????????",
+    "en": "Read market context first, then decide which stock or stock group this research should start from."
+  },
+  "????????????????????????????????????": {
+    "key": "home.hero.note.2",
+    "zh": "????????????????????????????????????",
+    "en": "Search, upload, and recommendation stay in one page grammar instead of pushing the user back into an admin-style control area."
+  },
+  "???????????????????????????": {
+    "key": "home.hero.note.3",
+    "zh": "???????????????????????????",
+    "en": "The core analysis logic stays the same. What changes is the entry rhythm, visual hierarchy, and site feel."
+  },
+  "?????": {
+    "key": "modelEvaluation.section.robustnessSummary",
+    "en": "Robustness Summary"
+  },
+  "??????????????????????????????????????": {
+    "key": "home.market.copy",
+    "zh": "??????????????????????????????????????",
+    "en": "Index snapshots and recommendation entry stay fixed on the right so research starts from context judgment before moving into specific actions."
+  },
+  "?? / ?? / ??": {
+    "key": "home.market.us",
+    "zh": "?? / ?? / ??",
+    "en": "Nasdaq / S&P 500 / Dow"
+  },
+  "?? / ?? / ???": {
+    "key": "home.market.cn",
+    "zh": "?? / ?? / ???",
+    "en": "SSE / SZSE / ChiNext"
+  },
+  "????": {
+    "key": "modelEvaluation.section.familySummary",
+    "en": "Family Summary"
+  },
+  "???????????????????? artifact ????????": {
+    "key": "home.workflow.copy",
+    "zh": "???????????????????? artifact ????????",
+    "en": "The entry page only sets context. Parameters, workflow, and artifacts continue on the analysis page."
+  },
+  "????????????????????????????????": {
+    "key": "home.progress.copy",
+    "zh": "????????????????????????????????",
+    "en": "The site now has real single-stock and multi-stock routes, with entry pages aligned to the main analysis sequence."
+  },
+  "????? ? ???? ? ????": {
+    "key": "home.board.title",
+    "zh": "????? ? ???? ? ????",
+    "en": "Market Context ? Entry Actions ? Analysis"
+  },
+  "???????? CTA??????????????????????????????????????????????????????": {
+    "key": "home.board.copy",
+    "zh": "???????? CTA??????????????????????????????????????????????????????",
+    "en": "The left side carries narrative and the main CTA. The right side uses one large board to explain how the tool is used. Single-stock and multi-stock share the same route shell so the page reads like a product, not a pile of panels."
+  },
+  "??????????????????????????": {
+    "key": "home.board.footnote",
+    "zh": "??????????????????????????",
+    "en": "Recommendation entry is already merged into the main flow rather than growing into a separate floating panel."
+  },
+  "?????????????????????????????": {
+    "key": "home.support.multi.copy",
+    "zh": "?????????????????????????????",
+    "en": "Best for organizing a stock pool first, then moving into lateral comparison, portfolio simulation, and strategy-level summaries."
+  },
+  "????????????????????????????????????????": {
+    "key": "home.support.unified.copy",
+    "zh": "????????????????????????????????????????",
+    "en": "Home and entry pages establish research context first, while analysis pages continue the existing workflow without introducing a second logic system."
+  },
+  "ML Precision?": {
+    "key": "metric.mlPrecision",
+    "zh": "ML Precision?",
+    "en": "ML Precision: "
+  },
+  "Precision": {
+    "key": "metric.precision",
+    "zh": "Precision",
+    "en": "Precision"
+  },
+  "Recall": {
+    "key": "metric.recall",
+    "zh": "Recall",
+    "en": "Recall"
+  },
+  "F1": {
+    "key": "metric.f1",
+    "zh": "F1",
+    "en": "F1"
+  },
+  "PR-AUC": {
+    "key": "metric.prAuc",
+    "zh": "PR-AUC",
+    "en": "PR-AUC"
+  },
+  "Walk-Forward ?????{strategy_return} | ????????{buy_hold_return}": {
+    "key": "walkForward.summary",
+    "zh": "Walk-Forward ?????{strategy_return} | ????????{buy_hold_return}",
+    "en": "Walk-Forward return: {strategy_return} | Buy-and-hold return: {buy_hold_return}"
+  },
+  "???": {
+    "key": "surface.resultBoard",
+    "zh": "???",
+    "en": "Result Board"
+  },
+  "??": {
+    "key": "signal.sellLabel",
+    "zh": "??",
+    "en": "Sell"
+  },
+  "??????????????????????W5 ???? request?lineage?artifact??????????????????????????????": {
+    "key": "single.strategy.workspaceCopy",
+    "zh": "??????????????????????W5 ???? request?lineage?artifact??????????????????????????????",
+    "en": "The left side stays as the model console and the right side stays as the result board. The W5-frozen request, lineage, artifact, backtest, and export chain remains in use; this round only restructures the interaction shell and result organization."
+  },
+  "????????????????????????????????????????workspace ??????????": {
+    "key": "single.strategy.controlCopy",
+    "zh": "????????????????????????????????????????workspace ??????????",
+    "en": "The training window, model path, generate action, and strategy library are all grouped in one control surface. When the stock or train ratio changes, the workspace is rebuilt from context."
+  },
+  "???????? <code>current_artifact</code>????????????????????????????": {
+    "key": "single.strategy.libraryCopy",
+    "zh": "???????? <code>current_artifact</code>????????????????????????????",
+    "en": "Generate only submits a new <code>current_artifact</code>. It enters the in-session strategy library only after saving, so the result board can compare multiple strategies."
+  },
+  "???????????????????????? / ?? / ?????????Walk-Forward ????????": {
+    "key": "single.strategy.resultPlaceholderCopy",
+    "zh": "???????????????????????? / ?? / ?????????Walk-Forward ????????",
+    "en": "Once the model path is completed on the left, this area takes over the current strategy summary, equity/drawdown, monthly returns, trade points, Walk-Forward, and comparison views."
+  },
+  "???? W5 ??????????????????? baseline?search?regime ? ML ?????????": {
+    "key": "single.strategy.workflowCopy",
+    "zh": "???? W5 ??????????????????? baseline?search?regime ? ML ?????????",
+    "en": "W5 staged artifact semantics are kept so it stays clear whether the current result comes from baseline, search, regime, or the final ML-filtered submission."
+  },
+  "??????????{label}?{action}": {
+    "key": "single.strategy.currentArtifactCopy",
+    "zh": "??????????{label}?{action}",
+    "en": "Current submitted strategy result: {label}. {action}"
+  },
+  "?????????{error}": {
+    "key": "entry.marketSnapshotFailed",
+    "en": "Failed to load the market snapshot: {error}"
+  },
+  "????????????????": {
+    "key": "entry.single.title",
+    "en": "Lock in one target before entering single-stock analysis."
+  },
+  "?????????????????????????????????????????????????": {
+    "key": "entry.single.copy",
+    "en": "This entry page only sets up the research context. Use the left side for market switching, search, and uploads, while the right side keeps the current market snapshot and recommendation entry visible."
+  },
+  "?????????????????????????????????????????????????????": {
+    "key": "entry.single.helper",
+    "en": "The entry page only organizes the research target and market context. After you enter the main analysis page, the existing strategy workflow, saved artifacts, and downstream analysis stay intact."
+  },
+  "??????????????????????????????????????????????????????????": {
+    "key": "entry.multi.copy",
+    "en": "Use the left side to organize the stocks to compare, while the right side keeps the market snapshot and recommendation add-ons visible. Search, uploads, and recommendations all flow into the same analysis list."
+  },
+  "??????????????????????????????????????????????": {
+    "key": "entry.multi.helper",
+    "en": "The entry page only organizes the stock pool. After you enter the main analysis page, the current multi-stock charts, portfolio simulation, and follow-up analysis logic continue unchanged."
+  },
+  "? W5 ????????????????????????????????????????????????": {
+    "key": "single.strategy.configCopy",
+    "en": "Continue configuring the baseline, simplified state machine, full state machine, search, and regime paths under the frozen W5 semantics. Do not change the underlying parameter contract here."
+  },
+  "?????????{name}": {
+    "key": "message.currentUploadedData",
+    "en": "Using uploaded data: {name}"
+  },
+  "???? {symbol} ????????????": {
+    "key": "message.dataFetchFailed",
+    "en": "Unable to fetch data for {symbol}. Please check the network connection."
+  },
+  "???? {name} ?????{error}": {
+    "key": "message.uploadReadFailed",
+    "en": "Failed to read uploaded file {name}: {error}"
+  },
+  "{count} ?????": {
+    "key": "modelEvaluation.quantstatsCount",
+    "en": "{count} tear sheets"
+  },
+  "?????????????": {
+    "key": "modelEvaluation.title",
+    "en": "Browse existing model research results in read-only mode."
+  },
+  "????????? <code>model-test/outputs</code> ?????????????????????????????????????????????": {
+    "key": "modelEvaluation.copy",
+    "en": "This page only reads existing research artifacts under local <code>model-test/outputs</code> and does not trigger any research execution. It shows the latest readable run by default and lets you switch between runs."
+  },
+  "???????": {
+    "key": "modelEvaluation.section.failures",
+    "en": "Failures / Degraded Samples"
+  },
+  "report.json / mlflow_run.json": {
+    "key": "modelEvaluation.dataSourceMeta",
+    "en": "report.json / mlflow_run.json"
+  },
+  "?????{path}": {
+    "key": "modelEvaluation.reportFile",
+    "en": "Report file: {path}"
+  },
+  "?????? {time}": {
+    "key": "modelEvaluation.lastUpdated",
+    "en": "Last updated {time}"
+  },
+  "QuantStats / MLflow": {
+    "key": "modelEvaluation.tab.observability",
+    "en": "QuantStats / MLflow"
+  },
+  "???? {count}": {
+    "key": "modelEvaluation.quantstatsPooledRun",
+    "en": "Pooled run {count}"
+  },
+  "??ID {value}": {
+    "key": "model.idLabel",
+    "en": "Model ID {value}"
+  },
+  "?? {value}": {
+    "key": "score.label",
+    "en": "Score {value}"
+  },
+  "?? ID": {
+    "key": "mlflow.runId",
+    "en": "Run ID"
+  },
+  "?? URI": {
+    "key": "mlflow.artifactUri",
+    "en": "Artifact URI"
+  },
+  "???{run_id}": {
+    "key": "modelEvaluation.runMeta",
+    "en": "Run: {run_id}"
+  }
+}

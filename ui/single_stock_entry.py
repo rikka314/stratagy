@@ -10,6 +10,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+from ui.i18n import tr
 
 from core.data import search_stock_candidates
 from core.market_context import get_market_context_snapshot
@@ -43,7 +44,7 @@ def _render_section_header(title: str, copy: str) -> None:
 
 def _render_snapshot(indices: list[dict[str, Any]]) -> None:
     if not indices:
-        render_status_note("正在加载最新市场数据。", tone="info")
+        render_status_note(tr("data.market.loading"), tone="info")
         return
 
     blocks = []
@@ -67,7 +68,7 @@ def _render_snapshot(indices: list[dict[str, Any]]) -> None:
 
 def _render_recommendation_rows(recommendations: list[dict[str, Any]], market: str) -> dict[str, Any] | None:
     if not recommendations:
-        render_status_note("暂时无法获取推荐股票。", tone="warning")
+        render_status_note(tr("recommendation.unavailable"), tone="warning")
         return None
 
     clicked_action: dict[str, Any] | None = None
@@ -83,7 +84,7 @@ def _render_recommendation_rows(recommendations: list[dict[str, Any]], market: s
                 ),
                 unsafe_allow_html=True,
             )
-            if action_col.button("分析", key=f"single_entry_rec_{item['symbol']}"):
+            if action_col.button(tr("button.analyze"), key=f"single_entry_rec_{item['symbol']}"):
                 clicked_action = {
                     "kind": "symbol",
                     "market": market,
@@ -94,7 +95,7 @@ def _render_recommendation_rows(recommendations: list[dict[str, Any]], market: s
 
 
 def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any] | None:
-    """渲染单股入口页，并在用户发起分析时返回动作。"""
+    """ui.singleStockEntry.description"""
     render_market = "A" if str(initial_market).upper() in {"A", "CN", "CN_A"} else "US"
     if SINGLE_ENTRY_MARKET_KEY not in st.session_state:
         st.session_state[SINGLE_ENTRY_MARKET_KEY] = render_market
@@ -102,13 +103,11 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
         st.session_state[SINGLE_ENTRY_LAST_MARKET_KEY] = st.session_state[SINGLE_ENTRY_MARKET_KEY]
 
     render_html(
-        """
+        f"""
 <section class="entry-intro">
-  <div class="page-kicker">Single Stock Route</div>
-  <h1 class="entry-title">先确定一个标的，再进入单股分析。</h1>
-  <p class="entry-copy">
-    这个入口页只负责建立研究上下文。左侧完成市场切换、搜索和上传，右侧持续展示当前市场快照与推荐入口。
-  </p>
+  <div class="page-kicker">{tr("entry.single.routeKicker")}</div>
+  <h1 class="entry-title">{tr("entry.single.title")}</h1>
+  <p class="entry-copy">{tr("entry.single.copy")}</p>
 </section>
         """
     )
@@ -119,15 +118,15 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
     with left_col:
         with st.container(key="single-action-card"):
             _render_surface_header(
-                "Action Card",
-                "从一个清楚的入口动作开始",
-                "市场切换、搜索确认、开始分析和本地上传都放在同一张主操作卡里。",
+                tr("surface.actionCard"),
+                tr("onboarding.clearEntry"),
+                tr("ui.main_card_design"),
             )
 
             market = st.segmented_control(
-                "研究市场",
+                tr("action.research_market"),
                 options=["US", "A"],
-                format_func=lambda value: "美股" if value == "US" else "A 股",
+                format_func=lambda value: tr("market.us_stocks") if value == "US" else tr("market.cn_stock"),
                 key=SINGLE_ENTRY_MARKET_KEY,
                 width="stretch",
             )
@@ -139,13 +138,13 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
 
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
             _render_section_header(
-                "搜索并确认标的",
-                "支持名称或代码检索。没有索引命中时，也会按代码直接进入分析。",
+                tr("action.searchConfirmTarget"),
+                tr("search.fallbackToCode"),
             )
 
             search_query = st.text_input(
-                "输入股票名称或代码",
-                placeholder="例如：AAPL / Apple / 贵州茅台 / 600519",
+                tr("placeholder.stockInput"),
+                placeholder=tr("placeholder.stock_example"),
                 key=SINGLE_ENTRY_QUERY_KEY,
             ).strip()
 
@@ -154,13 +153,13 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
                     matched = search_stock_candidates(search_query, market=market, limit=8)
                 except Exception as exc:
                     matched = pd.DataFrame(columns=["symbol", "name", "label"])
-                    render_status_note(f"搜索索引加载失败：{exc}", tone="warning")
+                    render_status_note(tr("entry.searchIndexFailed", error=str(exc)), tone="warning")
 
                 if not matched.empty:
                     candidate_options = matched["symbol"].tolist()
                     candidate_map = {row.symbol: row.label for row in matched.itertuples(index=False)}
                     st.radio(
-                        "匹配结果",
+                        tr("search.matches"),
                         options=candidate_options,
                         format_func=lambda symbol: candidate_map.get(symbol, symbol),
                         key=SINGLE_ENTRY_SELECTED_SYMBOL_KEY,
@@ -168,14 +167,14 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
                     )
                 elif market == "A" and search_query.isdigit():
                     st.session_state[SINGLE_ENTRY_SELECTED_SYMBOL_KEY] = search_query.zfill(6)[-6:]
-                    render_status_note("未找到索引匹配，将按该 A 股代码直接尝试分析。", tone="info")
+                    render_status_note(tr("analysis.fallback.noIndexMatch"), tone="info")
                 elif market == "US":
                     st.session_state[SINGLE_ENTRY_SELECTED_SYMBOL_KEY] = search_query.upper()
-                    render_status_note("未找到索引匹配，将按该美股代码直接尝试分析。", tone="info")
+                    render_status_note(tr("warning.no_index_match_fallback"), tone="info")
                 else:
-                    render_status_note("没有找到匹配股票。", tone="warning")
+                    render_status_note(tr("search.noMatchingStocks"), tone="warning")
             else:
-                st.caption("输入股票名称或代码后，这里会出现可直接进入分析的候选项。")
+                st.caption(tr("ui.stockSearchHint"))
 
             selected_symbol = st.session_state.get(SINGLE_ENTRY_SELECTED_SYMBOL_KEY)
             if selected_symbol:
@@ -184,9 +183,9 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
                     unsafe_allow_html=True,
                 )
 
-            if st.button("开始单股分析", type="primary", use_container_width=True):
+            if st.button(tr("action.startSingleStockAnalysis"), type="primary", use_container_width=True):
                 if not selected_symbol:
-                    render_status_note("请先从搜索结果中选择一只股票。", tone="warning")
+                    render_status_note(tr("stock_selection.required"), tone="warning")
                 else:
                     selected_action = {
                         "kind": "symbol",
@@ -197,22 +196,22 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
 
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
             _render_section_header(
-                "上传本地单股 CSV",
-                "如果你已经准备好标准化数据文件，可以直接用上传结果进入分析。",
+                tr("action.upload_local_csv"),
+                tr("instruction.uploadReadyData"),
             )
 
             uploaded_file = st.file_uploader(
-                "上传单只股票 CSV",
+                tr("action.upload_single_stock_csv"),
                 type=["csv"],
                 key="single_entry_upload_file",
-                help="列名需兼容 date/open/high/low/close/volume 标准。",
+                help=tr("data.columnName.standard"),
             )
             if uploaded_file is not None:
                 st.markdown(
                     f"<p class='selection-note'>已选择文件：<strong>{html.escape(uploaded_file.name)}</strong></p>",
                     unsafe_allow_html=True,
                 )
-                if st.button("用上传数据开始分析", use_container_width=True, key="single_entry_upload_btn"):
+                if st.button(tr("analysis.startWithUploadedData"), use_container_width=True, key="single_entry_upload_btn"):
                     selected_action = {
                         "kind": "upload",
                         "market": market,
@@ -221,13 +220,11 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
                         "source": "upload",
                     }
             else:
-                st.caption("还没有选择上传文件。")
+                st.caption(tr("upload.noFileSelected"))
 
             render_html(
-                """
-<p class="plain-helper">
-  入口页只负责把研究对象和市场背景整理清楚。进入主分析页后，原有策略工作流、artifact 和下游分析继续保持不变。
-</p>
+                f"""
+<p class="plain-helper">{tr("entry.single.helper")}</p>
                 """
             )
 
@@ -237,20 +234,20 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
     with right_col:
         with st.container(key="single-showcase-board"):
             _render_surface_header(
-                "Showcase Board",
-                "当前市场的快照和推荐入口",
-                "右侧只保留一个大的展示区，用来支撑进入分析前的判断，不再把说明拆成多张卡片。",
+                tr("surface.showcaseBoard"),
+                tr("section.market_snapshot_and_entry"),
+                tr("ui.unifiedPreviewArea"),
             )
 
             market_col, refresh_col = st.columns([1.0, 0.34], gap="small")
             with market_col:
                 _render_section_header(
-                    "市场快照",
-                    "先看大盘快照，再往下进入推荐股票和分析入口。",
+                    tr("section.title.marketSnapshot"),
+                    tr("onboarding.market_overview_flow"),
                 )
             with refresh_col:
                 refresh_context = st.button(
-                    "刷新市场快照",
+                    tr("action.refreshMarketSnapshot"),
                     key="single_entry_refresh_market_context",
                     use_container_width=False,
                 )
@@ -260,10 +257,10 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
             except Exception as exc:
                 context = {
                     "indices": [],
-                    "recommendation_source": "市场快照暂不可用",
+                    "recommendation_source": tr("status.marketSnapshotUnavailable"),
                     "recommendations": [],
                 }
-                render_status_note(f"市场快照加载失败：{exc}", tone="warning")
+                render_status_note(tr("entry.marketSnapshotFailed", error=str(exc)), tone="warning")
 
             _render_snapshot(context["indices"])
             st.markdown(
@@ -273,8 +270,8 @@ def render_single_stock_entry_page(initial_market: str = "US") -> dict[str, Any]
 
             with st.container(key="single-recommend-sheet"):
                 _render_section_header(
-                    "推荐股票",
-                    "推荐列表放在同一个轻量 sheet 里，点击右侧小按钮即可直接进入分析。",
+                    tr("recommendation.stocks"),
+                    tr("ui.recommendationSheet"),
                 )
                 recommendation_action = _render_recommendation_rows(context["recommendations"], market=market)
                 if recommendation_action is not None:

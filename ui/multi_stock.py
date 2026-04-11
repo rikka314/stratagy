@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from ui.i18n import tr
 
 from core.data import get_stock_label_map, search_stock_candidates
 from core.market_context import get_market_indices
@@ -45,7 +46,7 @@ MULTI_ANALYSIS_CACHE_KEY = "multi_stock_analysis_cache"
 
 
 def _prepare_multi_stock_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """为多股票页统一清洗日期和价格列，避免静默缺图。"""
+    """data.multiStockCleaning"""
     if df is None or df.empty:
         return pd.DataFrame()
 
@@ -174,7 +175,7 @@ def _resolve_symbol_meta(
     upload_symbols: set[str],
 ) -> dict[str, dict[str, str]]:
     market_key = _normalize_market_key(market)
-    market_label = "A 股" if market_key == "A" else "美股"
+    market_label = tr("market.cn_stock") if market_key == "A" else tr("market.us_stocks")
     lookup_symbols = [symbol for symbol in symbols if symbol not in upload_symbols]
 
     try:
@@ -188,7 +189,7 @@ def _resolve_symbol_meta(
             symbol_meta[symbol] = {
                 "display_name": symbol,
                 "display_label": f"{symbol} · {market_label} · 上传数据",
-                "source_label": "上传数据",
+                "source_label": tr("action.uploadData"),
             }
             continue
 
@@ -200,7 +201,7 @@ def _resolve_symbol_meta(
         symbol_meta[symbol] = {
             "display_name": display_name,
             "display_label": full_label,
-            "source_label": "市场数据",
+            "source_label": tr("data.marketData"),
         }
     return symbol_meta
 
@@ -236,7 +237,7 @@ def _build_comparison_stats(
 
         high_series = pd.to_numeric(df.get("high", close), errors="coerce")
         low_series = pd.to_numeric(df.get("low", close), errors="coerce")
-        meta = symbol_meta.get(symbol, {"display_name": symbol, "display_label": symbol, "source_label": "市场数据"})
+        meta = symbol_meta.get(symbol, {"display_name": symbol, "display_label": symbol, "source_label": tr("data.marketData")})
 
         comparison_stats.append(
             {
@@ -281,7 +282,7 @@ def _render_multi_stock_header(
     selected_range: object,
 ) -> None:
     market_key = _normalize_market_key(market)
-    market_label = "A 股" if market_key == "A" else "美股"
+    market_label = tr("market.cn_stock") if market_key == "A" else tr("market.us_stocks")
     loaded_count = len(comparison_stats)
     uploaded_count = len([item for item in comparison_stats if item["symbol"] in upload_symbols])
     avg_days = int(np.mean([item["data_days"] for item in comparison_stats])) if comparison_stats else 0
@@ -291,23 +292,23 @@ def _render_multi_stock_header(
 
     display_names = [item["display_name"] for item in comparison_stats]
     if len(display_names) <= 4:
-        title_suffix = " · ".join(display_names) if display_names else "当前没有可展示标的"
+        title_suffix = " · ".join(display_names) if display_names else tr("instruments.noneAvailable")
     else:
         title_suffix = " · ".join(display_names[:4]) + f" +{len(display_names) - 4}"
 
     quick_items = [
         {
-            "label": "参与标的",
+            "label": tr("portfolio.involved_symbols"),
             "value": str(loaded_count),
             "meta": f"{uploaded_count} 个上传源，{loaded_count - uploaded_count} 个市场标的",
         },
         {
-            "label": "平均数据天数",
+            "label": tr("data.averageDays"),
             "value": f"{avg_days}",
-            "meta": "当前日期筛选后的有效样本",
+            "meta": tr("data.filteredSamples"),
         },
         {
-            "label": "最佳表现",
+            "label": tr("performance.best"),
             "value": best_entry["symbol"] if best_entry is not None else "N/A",
             "meta": _format_signed_pct((best_entry["total_return"] or 0.0) * 100.0 if best_entry is not None else None),
         },
@@ -332,7 +333,7 @@ def _render_multi_stock_header(
         index_cards.append(
             f"""
 <div class="analysis-market-card">
-  <span class="analysis-market-label">{html.escape(str(item.get('label') or '市场指数'))}</span>
+  <span class="analysis-market-label">{html.escape(str(item.get('label') or tr("market.index")))}</span>
   <span class="analysis-market-value">{html.escape(_format_decimal(item.get('close')))}</span>
   <span class="analysis-market-delta {_delta_class_from_pct(item.get('pct_change'))}">{html.escape(_format_signed_pct(item.get('pct_change')))}</span>
 </div>
@@ -353,7 +354,7 @@ def _render_multi_stock_header(
         render_html(
             f"""
 <div class="analysis-hero-topline">
-  <span class="analysis-pill accent">Multi Stock Analysis</span>
+  <span class="analysis-pill accent">{tr("analysis.multiStock")}</span>
   <span class="analysis-pill">{html.escape(market_label)}</span>
   <span class="analysis-pill">{loaded_count} 个对比标的</span>
   <span class="analysis-pill">{uploaded_count} 个上传数据源</span>
@@ -375,7 +376,7 @@ def _render_multi_stock_header(
             render_analysis_date_range_control(
                 current_range=selected_range,
                 key_prefix="multi_stock",
-                label="时间范围",
+                label=tr("time.range"),
                 in_hero=True,
             )
         with quick_col:
@@ -649,7 +650,7 @@ def _get_multi_strategy_heatmap_figure(
     heatmap_returns: dict[str, pd.Series] = {}
     portfolio_returns = portfolio_result.get("portfolio_strat_ret")
     if isinstance(portfolio_returns, pd.Series) and not portfolio_returns.empty:
-        heatmap_returns["组合策略"] = portfolio_returns
+        heatmap_returns[tr("strategy.portfolioStrategy")] = portfolio_returns
     for symbol, result in (portfolio_result.get("individual_results") or {}).items():
         strategy_return = result.get("strategy_return")
         if isinstance(strategy_return, pd.Series) and not strategy_return.empty:
@@ -673,11 +674,11 @@ def _render_multi_stock_remove_popover(comparison_stats: list[dict[str, Any]]) -
     total_count = len(state.get("symbols", [])) + len(uploads_by_symbol)
 
     if not comparison_stats:
-        render_status_note("当前没有可移除的股票。", tone="warning")
+        render_status_note(tr("message.no_stocks_to_remove"), tone="warning")
         return
 
     if total_count <= 2:
-        render_status_note("当前股票池仅剩 2 个标的；先在右侧添加新股票，再执行移除。", tone="warning")
+        render_status_note(tr("stockPool.warning.removeAfterAdd"), tone="warning")
 
     with st.container(key="multi-stock-remove-list"):
         for item in comparison_stats:
@@ -689,7 +690,7 @@ def _render_multi_stock_remove_popover(comparison_stats: list[dict[str, Any]]) -
                 unsafe_allow_html=True,
             )
             if action_col.button(
-                "移除",
+                tr("common.remove"),
                 key=f"multi_stock_remove_{source_key}_{symbol}",
                 use_container_width=True,
                 disabled=total_count <= 2,
@@ -709,14 +710,14 @@ def _render_multi_stock_add_popover(*, market: str) -> None:
     }
 
     query = st.text_input(
-        "搜索股票名称或代码",
+        tr("placeholder.search_stock"),
         value=st.session_state.get("multi_stock_edit_query", ""),
-        placeholder="例如：AAPL / NVDA / 贵州茅台 / 600519",
+        placeholder=tr("input.stock.example"),
         key="multi_stock_edit_query",
     ).strip()
 
     if not query:
-        render_status_note("输入名称或代码后，可把新标的直接加入当前股票池。", tone="info")
+        render_status_note(tr("stock.pool.addInstruction"), tone="info")
         return
 
     try:
@@ -728,10 +729,10 @@ def _render_multi_stock_add_popover(*, market: str) -> None:
     if matched.empty:
         fallback_symbol = query.zfill(6)[-6:] if _normalize_market_key(market) == "A" and query.isdigit() else query.upper()
         if fallback_symbol in existing_symbols:
-            render_status_note("该股票已经在当前股票池里。", tone="warning")
+            render_status_note(tr("stockPool.duplicateWarning"), tone="warning")
         else:
-            render_status_note("没有找到索引匹配，将按当前输入直接加入。", tone="warning")
-            if st.button("按当前输入加入", key="multi_stock_add_direct", use_container_width=True):
+            render_status_note(tr("index.mismatch.addDirectly"), tone="warning")
+            if st.button(tr("action.add_with_current_input"), key="multi_stock_add_direct", use_container_width=True):
                 _add_multi_route_symbol(fallback_symbol, market=market)
         return
 
@@ -744,7 +745,7 @@ def _render_multi_stock_add_popover(*, market: str) -> None:
                 unsafe_allow_html=True,
             )
             if action_col.button(
-                "加入",
+                tr("action.add"),
                 key=f"multi_stock_add_{symbol}",
                 use_container_width=True,
                 disabled=symbol in existing_symbols,
@@ -756,26 +757,26 @@ def _render_multi_stock_section_nav(comparison_stats: list[dict[str, Any]], *, m
     nav_col, action_col = st.columns([1.4, 1.1], gap="small")
     section_default = _ensure_segmented_value(MULTI_ANALYSIS_SECTION_KEY, ["basics", "strategy"], "basics")
     with nav_col:
-        st.caption("分析区切换")
+        st.caption(tr("analysis.areaSwitch"))
         section_view = st.segmented_control(
-            "分析区切换",
+            tr("analysis.areaSwitch"),
             options=["basics", "strategy"],
-            format_func=lambda value: "基础信息" if value == "basics" else "策略",
+            format_func=lambda value: tr("panel.basicInfo") if value == "basics" else tr("common.strategy"),
             default=section_default,
             key=MULTI_ANALYSIS_SECTION_KEY,
             width="stretch",
             label_visibility="collapsed",
         ) or section_default
     with action_col:
-        st.caption("股票池操作")
+        st.caption(tr("stock_pool.operations"))
         remove_col, add_col = st.columns(2, gap="small")
         with remove_col:
             with st.container(key="multi-stock-remove-popover"):
-                with st.popover("移除股票", use_container_width=True):
+                with st.popover(tr("portfolio.removeStock"), use_container_width=True):
                     _render_multi_stock_remove_popover(comparison_stats)
         with add_col:
             with st.container(key="multi-stock-add-popover"):
-                with st.popover("添加股票", use_container_width=True):
+                with st.popover(tr("action.addStock"), use_container_width=True):
                     _render_multi_stock_add_popover(market=market)
     return section_view
 
@@ -802,14 +803,14 @@ def _render_multi_stock_basic_section(
 </div>
         """
         for label, value, meta in [
-            ("对比股票数量", str(len(comparison_stats)), "当前成功加载的有效标的"),
-            ("平均数据天数", f"{avg_days}", "按当前日期范围统计"),
+            (tr("comparison.stockCount"), str(len(comparison_stats)), tr("status.loadedValidSecurities")),
+            (tr("data.averageDays"), f"{avg_days}", tr("statistics.dateRange.current")),
             (
-                "最佳表现股票",
+                tr("performance.topPerformer"),
                 best_entry["symbol"] if best_entry is not None else "N/A",
                 _format_signed_pct((best_entry["total_return"] or 0.0) * 100.0 if best_entry is not None else None),
             ),
-            ("覆盖区间", f"{_format_date_text(global_start)} → {_format_date_text(global_end)}", "多股基础信息与右侧图表共用同一筛选结果"),
+            (tr("data.coverageRange"), f"{_format_date_text(global_start)} → {_format_date_text(global_end)}", tr("multiStock.sharedFilter")),
         ]
     )
 
@@ -818,7 +819,7 @@ def _render_multi_stock_basic_section(
             """
 <div id="multi-stock-basics"></div>
 <div class="analysis-section-header">
-  <div class="surface-kicker">Basic Information</div>
+  <div class="surface-kicker">{tr("panel.basicInfo")}</div>
   <h2 class="analysis-section-title">多股基础信息区</h2>
   <p class="analysis-section-copy">顶部先给出股票池摘要和明细表，右侧主图在价格对比、相对强弱、风险收益、最新因子评分和相关性之间切换，不再顺序堆叠成长页面。</p>
 </div>
@@ -827,40 +828,40 @@ def _render_multi_stock_basic_section(
         summary_col, chart_col, switch_col = st.columns([0.8, 1.46, 0.42], gap="large")
 
         with switch_col:
-            st.caption("图表切换")
+            st.caption(tr("chart.switch"))
             selected_chart = st.radio(
-                "查看图表",
+                tr("chart.view"),
                 options=list(chart_configs.keys()),
                 format_func=lambda key: chart_configs[key]["label"],
                 key="multi_stock_basic_chart_view",
                 label_visibility="collapsed",
             )
-            render_status_note("周期收益率热图已移动到策略区，基础信息区只保留图四对应的多股对比图表。", tone="info")
+            render_status_note(tr("note.chart_relocation"), tone="info")
 
         with summary_col:
             render_html(f"<div class='analysis-kv-grid'>{metrics_markup}</div>")
-            render_status_note("字段缺失会回退为 N/A，不会阻断页面其余部分。", tone="info")
+            render_status_note(tr("data.missingFieldFallback"), tone="info")
 
             detail_rows = [
                 {
-                    "股票代码": item["symbol"],
-                    "名称": item["display_name"],
-                    "来源": item["source_label"],
-                    "起始价格": _format_decimal(item["start_price"]),
-                    "最新价格": _format_decimal(item["latest_price"]),
-                    "总收益率": _format_signed_pct((item["total_return"] or 0.0) * 100.0 if item["total_return"] is not None else None),
-                    "年化收益率": _format_signed_pct((item["annualized_return"] or 0.0) * 100.0 if item["annualized_return"] is not None else None),
-                    "最高价": _format_decimal(item["high_price"]),
-                    "最低价": _format_decimal(item["low_price"]),
-                    "数据天数": item["data_days"],
+                    tr("field.symbol"): item["symbol"],
+                    tr("common.name"): item["display_name"],
+                    tr("common.source"): item["source_label"],
+                    tr("metric.startPrice"): _format_decimal(item["start_price"]),
+                    tr("price.latest"): _format_decimal(item["latest_price"]),
+                    tr("metric.totalReturn"): _format_signed_pct((item["total_return"] or 0.0) * 100.0 if item["total_return"] is not None else None),
+                    tr("metrics.annualizedReturn"): _format_signed_pct((item["annualized_return"] or 0.0) * 100.0 if item["annualized_return"] is not None else None),
+                    tr("price.highest"): _format_decimal(item["high_price"]),
+                    tr("price.low"): _format_decimal(item["low_price"]),
+                    tr("data.days"): item["data_days"],
                 }
                 for item in comparison_stats
             ]
-            with st.expander("详细对比表", expanded=False):
+            with st.expander(tr("table.detailedComparison"), expanded=False):
                 if detail_rows:
                     st.dataframe(pd.DataFrame(detail_rows), width="stretch", hide_index=True)
                 else:
-                    render_status_note("暂无可展示结果。", tone="warning")
+                    render_status_note(tr("results.notAvailable"), tone="warning")
 
         chart_meta = chart_configs[selected_chart]
         with chart_col:
@@ -869,9 +870,9 @@ def _render_multi_stock_basic_section(
                 if selected_chart == "relative_strength" and len(stock_data_dict) >= 2:
                     benchmark_options = ["equal_weight"] + list(stock_data_dict.keys())
                     benchmark_choice = st.selectbox(
-                        "相对强弱基准",
+                        tr("analysis.relativeStrengthBaseline"),
                         options=benchmark_options,
-                        format_func=lambda value: "等权平均" if value == "equal_weight" else value,
+                        format_func=lambda value: tr("method.equalWeightedAvg") if value == "equal_weight" else value,
                         key="multi_stock_rs_benchmark",
                     )
                     figure = _get_multi_chart_figure(
@@ -899,7 +900,7 @@ def _render_multi_stock_basic_section(
                     """
                 )
                 if figure is None:
-                    render_status_note(chart_meta.get("empty_text", "暂无可展示结果。"), tone="warning")
+                    render_status_note(chart_meta.get("empty_text", tr("results.notAvailable")), tone="warning")
                 else:
                     st.plotly_chart(figure, width="stretch")
                     render_status_note(chart_meta["note"], tone="info")
@@ -918,7 +919,7 @@ def _render_multi_stock_strategy_section(
             """
 <div id="multi-stock-strategy"></div>
 <div class="analysis-section-header">
-  <div class="surface-kicker">Strategy</div>
+  <div class="surface-kicker">{tr("common.strategy")}</div>
   <h2 class="analysis-section-title">多股策略区</h2>
   <p class="analysis-section-copy">左侧固定为模型控制台与组合搜索，右侧固定为结果图区、组合 KPI 摘要和个股表现表，对齐第七周第 8 项的“左控台 / 右结果区”结构。</p>
 </div>
@@ -930,14 +931,14 @@ def _render_multi_stock_strategy_section(
         with control_col:
             with st.container(key="multi-stock-strategy-panel-control"):
                 _render_surface_header(
-                    "Control Panel",
-                    "多股组合控制台",
-                    "组合权重、生成动作和参数搜索收敛到同一侧；策略参数仍统一复用左侧边栏，不再派生第二套配置来源。",
+                    tr("surface.control"),
+                    tr("console.multiStockTitle"),
+                    tr("layout.unifiedConfiguration"),
                 )
-                render_status_note("至少需要 2 个有效标的；如股票池、权重或边栏参数变化，结果区会要求重新生成。", tone="info")
+                render_status_note(tr("validation.minimumTwoValidInstruments"), tone="info")
 
                 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
-                st.markdown("**组合权重配置**")
+                st.markdown(tr("portfolio.weight.configuration"))
                 weight_cols = st.columns(2, gap="small")
                 portfolio_weights: dict[str, float] = {}
                 for index, symbol in enumerate(stock_data_dict.keys()):
@@ -953,40 +954,40 @@ def _render_multi_stock_strategy_section(
 
                 strategy_signature = _build_multi_strategy_signature(stock_data_dict, params, portfolio_weights)
                 if workspace.get("portfolio_result") is not None and workspace.get("signature") != strategy_signature:
-                    render_status_note("检测到股票池、权重或边栏参数变化，请重新生成组合策略。", tone="warning")
+                    render_status_note(tr("warning.rebuildStrategy"), tone="warning")
 
                 if st.button(
-                    "生成组合策略",
+                    tr("strategy.generatePortfolio"),
                     type="primary",
                     use_container_width=True,
                     key="multi_stock_generate_strategy",
                 ):
                     if sum(portfolio_weights.values()) <= 0:
-                        st.error("组合权重之和必须大于 0。")
+                        st.error(tr("validation.portfolio_weight_sum"))
                     else:
-                        with st.spinner("正在运行多股组合策略模拟..."):
+                        with st.spinner(tr("strategy.running_multi_stock_simulation")):
                             portfolio_params = _strategy_params(params)
                             portfolio_params["weights"] = portfolio_weights
                             generated_result = run_portfolio_simulation(stock_data_dict, **portfolio_params)
                         workspace["signature"] = strategy_signature
                         workspace["portfolio_result"] = generated_result
                         if generated_result is not None:
-                            st.success("组合策略已生成，右侧结果区已更新。")
+                            st.success(tr("portfolio.generation_complete"))
                         else:
-                            st.error("当前数据不足以生成组合策略，请检查股票池长度和时间范围。")
+                            st.error(tr("portfolio.insufficientData"))
 
                 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
-                st.markdown("**组合参数搜索**")
+                st.markdown(tr("section.title.comboParamSearch"))
                 portfolio_n_trials = st.slider(
-                    "优化试验次数",
+                    tr("param.optimization_trials"),
                     10,
                     100,
                     30,
                     step=10,
                     key="portfolio_n_trials",
-                    help="试验次数越多越精确，但耗时更长。建议先用 30 次验证路径。",
+                    help=tr("optimization.trialCount.tip"),
                 )
-                if st.button("开始组合搜索", use_container_width=True, key="btn_optimize_portfolio"):
+                if st.button(tr("action.startComboSearch"), use_container_width=True, key="btn_optimize_portfolio"):
                     with st.spinner(f"贝叶斯优化中（{portfolio_n_trials} 次试验）..."):
                         opt_fixed = _strategy_params(params)
                         opt_fixed.pop("weights", None)
@@ -1018,27 +1019,27 @@ def _render_multi_stock_strategy_section(
                     for column, (label, value) in zip(
                         opt_cols,
                         [
-                            ("优化后夏普", f"{optimization_result['sharpe']:.2f}"),
-                            ("优化后收益", f"{optimization_result['return']:.2%}"),
-                            ("优化后回撤", f"{optimization_result['max_drawdown']:.2%}"),
+                            (tr("metric.optimized_sharpe"), f"{optimization_result['sharpe']:.2f}"),
+                            (tr("backtest.optimizedReturn"), f"{optimization_result['return']:.2%}"),
+                            (tr("metric.optimizedDrawdown"), f"{optimization_result['max_drawdown']:.2%}"),
                         ],
                     ):
                         column.metric(label, value)
-                    with st.expander("查看最优参数", expanded=False):
+                    with st.expander(tr("action.viewOptimalParams"), expanded=False):
                         opt_params_display = {
-                            "入场阈值": f"{optimization_result['entry_threshold']:.2f}",
-                            "出场阈值": f"{optimization_result['exit_threshold']:.2f}",
-                            "ADX阈值": f"{optimization_result['adx_threshold']:.1f}",
-                            "止损倍数": f"{optimization_result['stop_loss_mult']:.2f}",
-                            "止盈倍数": f"{optimization_result['take_profit_mult']:.2f}",
-                            "布林带权重": f"{optimization_result['weight_bb']:.2f}",
-                            "OBV权重": f"{optimization_result['weight_obv']:.2f}",
-                            "成交量权重": f"{optimization_result['weight_volume']:.2f}",
-                            "价格位置权重": f"{optimization_result['weight_price']:.2f}",
-                            "回撤惩罚权重": f"{optimization_result['weight_drawdown']:.2f}",
+                            tr("strategy.entryThreshold"): f"{optimization_result['entry_threshold']:.2f}",
+                            tr("strategy.exitThreshold"): f"{optimization_result['exit_threshold']:.2f}",
+                            tr("indicators.adx.threshold"): f"{optimization_result['adx_threshold']:.1f}",
+                            tr("strategy.stopLossMultiplier"): f"{optimization_result['stop_loss_mult']:.2f}",
+                            tr("strategy.takeProfitMultiplier"): f"{optimization_result['take_profit_mult']:.2f}",
+                            tr("param.bollingerWeight"): f"{optimization_result['weight_bb']:.2f}",
+                            tr("param.obv_weight"): f"{optimization_result['weight_obv']:.2f}",
+                            tr("weight.volume"): f"{optimization_result['weight_volume']:.2f}",
+                            tr("strategy.pricePositionWeight"): f"{optimization_result['weight_price']:.2f}",
+                            tr("parameter.drawdownPenaltyWeight"): f"{optimization_result['weight_drawdown']:.2f}",
                         }
                         st.dataframe(
-                            pd.DataFrame(list(opt_params_display.items()), columns=["参数", "最优值"]),
+                            pd.DataFrame(list(opt_params_display.items()), columns=[tr("section.parameters"), tr("performance.optimalValue")]),
                             width="stretch",
                             hide_index=True,
                         )
@@ -1048,26 +1049,26 @@ def _render_multi_stock_strategy_section(
         with result_col:
             with st.container(key="multi-stock-strategy-panel-result"):
                 _render_surface_header(
-                    "Result Surface",
-                    "组合结果区",
-                    "结果主图在投资组合模拟和周期收益率热图之间切换；投资组合模拟现复用单股结果区的共享净值/回撤组件，组合 KPI 摘要和个股表现表保持固定。",
+                    tr("surface.result"),
+                    tr("results.portfolio_section"),
+                    tr("result.mainChart.description"),
                 )
                 if portfolio_result is None:
-                    render_status_note("模型还没准备好。先在左侧确认权重，再点击“生成组合策略”。", tone="info")
+                    render_status_note(tr("model.not_ready"), tone="info")
                 else:
                     result_view = st.segmented_control(
-                        "策略结果视图",
-                        options=["投资组合模拟", "周期收益率热图"],
-                        default="投资组合模拟",
+                        tr("strategy.result_view"),
+                        options=[tr("simulation.portfolio"), tr("chart.periodReturnHeatmap")],
+                        default=tr("simulation.portfolio"),
                         key="multi_stock_strategy_view",
                         width="stretch",
                     )
 
-                    if result_view == "周期收益率热图":
+                    if result_view == tr("chart.periodReturnHeatmap"):
                         heatmap_period = st.selectbox(
-                            "热图周期",
+                            tr("chart.heatmap.period"),
                             options=["M", "Q", "YE"],
-                            format_func=lambda value: {"M": "月度", "Q": "季度", "YE": "年度"}.get(value, value),
+                            format_func=lambda value: {"M": tr("period.monthly"), "Q": tr("period.quarter"), "YE": tr("time.annual")}.get(value, value),
                             index=0,
                             key="multi_stock_strategy_heatmap_period",
                         )
@@ -1080,45 +1081,45 @@ def _render_multi_stock_strategy_section(
                         if periodic_heatmap_fig is not None:
                             st.plotly_chart(periodic_heatmap_fig, width="stretch")
                         else:
-                            render_status_note("当前结果不足以生成策略周期热图。", tone="warning")
+                            render_status_note(tr("chart.insufficientDataForHeatmap"), tone="warning")
                     else:
                         portfolio_fig = _style_display_figure(portfolio_result.get("fig"), height=520)
                         if portfolio_fig is not None:
                             st.plotly_chart(portfolio_fig, width="stretch")
-                            render_status_note("当前主图与单股结果区共用同一套“净值上 / 回撤下”的结果图组件。", tone="info")
+                            render_status_note(tr("chart.shared_net_drawdown_component"), tone="info")
                         else:
-                            render_status_note("当前结果缺少可展示的组合净值图。", tone="warning")
+                            render_status_note(tr("chart.portfolioNetValue.missing"), tone="warning")
 
                     kpi_cols = st.columns(3, gap="small")
                     kpi_items = [
-                        ("组合总收益", f"{portfolio_result['port_total_return']:.2%}", "策略组合"),
-                        ("组合夏普", f"{portfolio_result['port_sharpe']:.2f}", "策略组合"),
-                        ("组合最大回撤", f"{portfolio_result['port_max_dd']:.2%}", "策略组合"),
-                        ("买入持有收益", f"{portfolio_result['bh_total_return']:.2%}", "等权基准"),
-                        ("买入持有夏普", f"{portfolio_result['bh_sharpe']:.2f}", "等权基准"),
-                        ("买入持有回撤", f"{portfolio_result['bh_max_dd']:.2%}", "等权基准"),
+                        (tr("portfolio.totalReturn"), f"{portfolio_result['port_total_return']:.2%}", tr("nav.strategy_portfolio")),
+                        (tr("metric.portfolioSharpe"), f"{portfolio_result['port_sharpe']:.2f}", tr("nav.strategy_portfolio")),
+                        (tr("metric.portfolio_max_drawdown"), f"{portfolio_result['port_max_dd']:.2%}", tr("nav.strategy_portfolio")),
+                        (tr("metric.buyAndHoldReturn"), f"{portfolio_result['bh_total_return']:.2%}", tr("benchmark.equalWeight")),
+                        (tr("metric.buy_hold_sharpe"), f"{portfolio_result['bh_sharpe']:.2f}", tr("benchmark.equalWeight")),
+                        (tr("metrics.buy_hold_drawdown"), f"{portfolio_result['bh_max_dd']:.2%}", tr("benchmark.equalWeight")),
                     ]
                     for column, (label, value, _help_text) in zip(kpi_cols * 2, kpi_items):
                         column.metric(label, value)
 
-                    with st.expander("各股票独立策略表现", expanded=False):
+                    with st.expander(tr("performance.individual_stock_strategy"), expanded=False):
                         indiv_stats = []
                         for sym, res in portfolio_result["individual_results"].items():
                             indiv_stats.append(
                                 {
-                                    "股票": sym,
-                                    "权重": f"{portfolio_result['weights'].get(sym, 0):.1%}",
-                                    "策略收益": f"{res['total_return']:.2%}",
-                                    "夏普比率": f"{res['sharpe']:.2f}",
-                                    "最大回撤": f"{res['max_dd']:.2%}",
+                                    tr("instrument.type.stock"): sym,
+                                    tr("common.weight"): f"{portfolio_result['weights'].get(sym, 0):.1%}",
+                                    tr("metric.strategyReturn"): f"{res['total_return']:.2%}",
+                                    tr("metric.sharpe_ratio"): f"{res['sharpe']:.2f}",
+                                    tr("metrics.max_drawdown"): f"{res['max_dd']:.2%}",
                                 }
                             )
                         if indiv_stats:
                             st.dataframe(pd.DataFrame(indiv_stats), width="stretch", hide_index=True)
                         else:
-                            render_status_note("当前没有可展示的个股独立策略表现。", tone="warning")
+                            render_status_note(tr("info.no_individual_strategy_performance"), tone="warning")
 
-                    render_status_note("图五要求的“组合 KPI 摘要 + 个股表现表”已固定在同一结果区，切换主图不会打散下方信息。", tone="positive")
+                    render_status_note(tr("layout.combinedKPIAndStockTable"), tone="positive")
 
     return portfolio_result, periodic_heatmap_fig
 
@@ -1159,7 +1160,7 @@ def render_multi_stock_page(
     )
 
     if analysis_cache.get("data_signature") != data_signature:
-        with st.spinner("加载对比股票数据..."):
+        with st.spinner(tr("data.loadingComparison")):
             stock_data_dict: dict[str, pd.DataFrame] = {}
             factor_stock_data_dict: dict[str, pd.DataFrame] = {}
             for stock_symbol, prefetched_df in (prefetched_stock_data or {}).items():
@@ -1233,46 +1234,46 @@ def render_multi_stock_page(
     comparison_stats = analysis_cache.get("comparison_stats", [])
 
     if len(stock_data_dict) == 0:
-        st.warning("没有加载到有效的股票数据。")
+        st.warning(tr("data.stocks.invalid"))
         return
 
     portfolio_result = None
 
     chart_configs = {
         "comparison": {
-            "label": "价格对比",
-            "title": "多股票价格对比分析图",
-            "copy": "把所有股票起点统一到同一基准，先判断谁在当前观察区间内跑得更快。",
-            "note": "所有曲线都以同一基准起点归一化，适合先看整体强弱排序。",
-            "empty_text": "当前没有足够数据生成价格对比图。",
+            "label": tr("priceComparison.title"),
+            "title": tr("chart.multiStockComparison"),
+            "copy": tr("strategy.unified_start_comparison"),
+            "note": tr("chart.normalizedCurvesNote"),
+            "empty_text": tr("chart.priceComparison.insufficientData"),
         },
         "relative_strength": {
-            "label": "相对强弱",
-            "title": "相对强弱对比图",
-            "copy": "默认相对基准使用等权平均，判断每只股票是持续跑赢还是持续跑输股票池。",
-            "note": "RS 曲线上升代表相对强势，下降代表相对弱势。",
-            "empty_text": "数据不足以计算相对强弱（至少需要 2 只有效股票）。",
+            "label": tr("indicator.relative_strength"),
+            "title": tr("chart.relativeStrength"),
+            "copy": tr("analysis.benchmark_equal_weight_description"),
+            "note": tr("relativeStrength.legend"),
+            "empty_text": tr("error.insufficientDataForRelativeStrength"),
         },
         "risk_return": {
-            "label": "风险收益",
-            "title": "风险收益散点图",
-            "copy": "在一个平面里同时看年化收益、波动率和夏普，适合快速识别风险收益结构。",
-            "note": "越靠左上通常代表越高收益、越低风险；颜色映射到夏普水平。",
-            "empty_text": "数据不足以计算风险收益图。",
+            "label": tr("metric.riskReturn"),
+            "title": tr("chart.riskReturnScatter"),
+            "copy": tr("chart.riskReturn.description"),
+            "note": tr("chart.scatter_plot_legend"),
+            "empty_text": tr("chart.insufficientDataForRiskReturn"),
         },
         "factor_score": {
-            "label": "因子评分",
-            "title": "最新因子评分对比图",
-            "copy": "对每只股票独立计算最新一日综合因子评分，直接回答当前更值得关注谁。",
-            "note": "柱子越高，说明当前综合因子评分越强；颜色对应建议仓位。",
-            "empty_text": "当前历史窗口不足，无法稳定计算最新因子评分。",
+            "label": tr("factor.score"),
+            "title": tr("visualization.latest_factor_score_comparison"),
+            "copy": tr("analysis.dailyFactorRanking"),
+            "note": tr("chart.factorScore.tooltip"),
+            "empty_text": tr("error.insufficientHistory"),
         },
         "correlation": {
-            "label": "相关性",
-            "title": "股票相关性热图",
-            "copy": "用共同交易日收益率构造相关性矩阵，帮助判断股票池是否过于同质化。",
-            "note": "接近 1 代表正相关，接近 -1 代表负相关，接近 0 代表相关性弱。",
-            "empty_text": "数据不足以计算相关性热图（需要至少 5 个共同交易日）。",
+            "label": tr("metrics.correlation"),
+            "title": tr("analysis.correlationHeatmap"),
+            "copy": tr("analysis.correlation_matrix_description"),
+            "note": tr("correlation.legend"),
+            "empty_text": tr("chart.correlationHeatmap.insufficientData"),
         },
     }
 
@@ -1314,7 +1315,7 @@ def render_multi_stock_page(
 
 
 def _strategy_params(params: dict) -> dict:
-    """从完整 params 中提取策略相关参数子集（去除 UI 状态键）。"""
+    """function.extractStrategyParams.description"""
     _ui_keys = {
         "market",
         "compare_stocks",
@@ -1335,24 +1336,24 @@ def _render_multi_stock_export(
     params,
     portfolio_result,
 ):
-    """在页面底部渲染 HTML 导出区域。"""
+    """export.htmlZone"""
     st.markdown("---")
-    st.markdown("### 导出分析报告")
+    st.markdown(tr("export.report_title"))
 
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
         export_title = st.text_input(
-            "报告标题",
+            tr("report.title"),
             value=f"多股票对比分析 - {', '.join(compare_stocks)}",
             key="export_title",
         )
     with col2:
-        include_date = st.checkbox("包含生成日期", value=True, key="include_date")
+        include_date = st.checkbox(tr("report.include_generation_date"), value=True, key="include_date")
 
-    if not st.button("生成并下载 HTML 报告", type="primary", width="stretch"):
+    if not st.button(tr("report.generate_download_html"), type="primary", width="stretch"):
         return
 
-    with st.spinner("正在生成 HTML 报告..."):
+    with st.spinner(tr("report.generatingHtml")):
         comparison_fig = _get_multi_chart_figure(
             "comparison",
             stock_data_dict=stock_data_dict,
@@ -1414,11 +1415,11 @@ def _render_multi_stock_export(
         )
 
         st.download_button(
-            label="下载 HTML 报告",
+            label=tr("action.downloadHtmlReport"),
             data=full_html,
             file_name=f"stock_comparison_report_{generated_at.strftime('%Y%m%d_%H%M%S')}.html",
             mime="text/html",
             type="primary",
             width="stretch",
         )
-        st.success("HTML 报告已生成。")
+        st.success(tr("report.html.generated"))

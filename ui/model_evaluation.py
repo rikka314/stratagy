@@ -15,6 +15,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+from ui.i18n import tr
 
 from ui.theme import render_html, render_route_nav, render_status_note
 
@@ -22,7 +23,7 @@ from ui.theme import render_html, render_route_nav, render_status_note
 MODEL_EVALUATION_ROUTE = "model-evaluation"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUTS_ROOT = REPO_ROOT / "model-test" / "outputs"
-TEXT_EMPTY = "暂无数据"
+TEXT_EMPTY = tr("common.noData")
 TEXT_NA = "N/A"
 
 
@@ -35,7 +36,7 @@ class ModelEvaluationRun:
 
 
 def discover_model_evaluation_runs(outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -> list[ModelEvaluationRun]:
-    """扫描可读 run，忽略内部目录、无报告目录和读取失败目录。"""
+    """run.scan.description"""
     try:
         entries = list(outputs_root.iterdir())
     except OSError:
@@ -67,7 +68,7 @@ def discover_model_evaluation_runs(outputs_root: Path = DEFAULT_OUTPUTS_ROOT) ->
 
 
 def load_model_evaluation_payload(run: ModelEvaluationRun) -> dict[str, Any]:
-    """读取选中 run 的 report 与可选 MLflow manifest。"""
+    """action.loadRunReport"""
     report_payload = _load_json_mapping(run.report_path)
     if report_payload is None:
         raise ValueError(f"无法读取报告文件：{run.report_path}")
@@ -85,7 +86,7 @@ def normalize_model_evaluation_payload(
     report_payload: dict[str, Any],
     mlflow_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """把 report.json 归一成页面消费结构，并兜住旧 run 的缺字段情况。"""
+    """task.normalizeReportJson"""
     config = _ensure_mapping(report_payload.get("config"))
     pool = _ensure_mapping(report_payload.get("pool"))
     score_policy = _ensure_mapping(report_payload.get("score_policy"))
@@ -114,16 +115,16 @@ def normalize_model_evaluation_payload(
     if robustness_enabled and robustness_weight is not None and 0 < robustness_weight < 1:
         score_policy_text = f"{1 - robustness_weight:.0%} 主窗口 + {robustness_weight:.0%} 稳健性"
     elif robustness_enabled:
-        score_policy_text = "主窗口 + 稳健性综合评分"
+        score_policy_text = tr("scoring.mainAndRobustness")
     else:
-        score_policy_text = "仅主窗口总分"
+        score_policy_text = tr("scoring.main_window_only")
 
     quantstats_enabled = bool(config.get("enable_quantstats")) or bool(quantstats)
-    quantstats_label = "未生成"
+    quantstats_label = tr("status.notGenerated")
     if quantstats:
-        quantstats_label = f"{len(quantstats)} 份 tear sheet"
+        quantstats_label = tr("modelEvaluation.quantstatsCount", count=len(quantstats))
     elif quantstats_enabled:
-        quantstats_label = "已启用，暂未生成"
+        quantstats_label = tr("status.enabled_not_generated")
 
     normalized = {
         "run_id": run.run_id,
@@ -154,16 +155,16 @@ def normalize_model_evaluation_payload(
         "pool_size_label": _format_count_label(pool.get("stock_count")),
         "score_policy_text": score_policy_text,
         "feature_labels": {
-            "robustness": "已启用" if robustness_enabled else "未启用",
+            "robustness": tr("status.enabled") if robustness_enabled else tr("state.disabled"),
             "quantstats": quantstats_label,
-            "mlflow": "已记录 MLflow" if mlflow_payload else "未记录 MLflow",
+            "mlflow": tr("mlflow.recorded") if mlflow_payload else tr("mlflow.notRecorded"),
         },
     }
     return normalized
 
 
 def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -> None:
-    """渲染 `/strategy/model-evaluation`。"""
+    """route.rendering"""
     render_route_nav(MODEL_EVALUATION_ROUTE)
 
     runs = discover_model_evaluation_runs(outputs_root)
@@ -175,33 +176,30 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
 <section class="analysis-page-shell">
   <div class="analysis-hero">
     <div class="analysis-hero-topline">
-      <span class="analysis-pill accent">Model Evaluation</span>
-      <span class="analysis-pill">{len(runs)} 个可读 run</span>
+      <span class="analysis-pill accent">{tr("modelEvaluation.heroPill")}</span>
+      <span class="analysis-pill">{tr("modelEvaluation.readableRuns", count=len(runs))}</span>
       <span class="analysis-pill">{html.escape(str(outputs_root.name))}</span>
     </div>
     <div class="analysis-hero-main">
       <div>
-        <h1 class="analysis-title">只读浏览已有模型研究结果。</h1>
-        <p class="analysis-subtitle">
-          这个页面只读取本地 <code>model-test/outputs</code> 下的现有研究产物，不触发任何研究执行。
-          默认展示最新可读 run，并允许在不同 run 之间切换浏览。
-        </p>
+        <h1 class="analysis-title">{tr("modelEvaluation.title")}</h1>
+        <p class="analysis-subtitle">{tr("modelEvaluation.copy")}</p>
       </div>
       <div class="analysis-quick-grid">
         <div class="analysis-quick-item">
-          <span class="analysis-quick-label">公开路径</span>
+          <span class="analysis-quick-label">{tr("modelEvaluation.publicPath")}</span>
           <span class="analysis-quick-value">/strategy/model-evaluation</span>
-          <span class="analysis-quick-meta">只读结果浏览页</span>
+          <span class="analysis-quick-meta">{tr("modelEvaluation.publicPathMeta")}</span>
         </div>
         <div class="analysis-quick-item">
-          <span class="analysis-quick-label">最新可读 run</span>
+          <span class="analysis-quick-label">{tr("modelEvaluation.latestRun")}</span>
           <span class="analysis-quick-value">{html.escape(latest_run_label)}</span>
           <span class="analysis-quick-meta">{html.escape(latest_time_label)}</span>
         </div>
         <div class="analysis-quick-item">
-          <span class="analysis-quick-label">数据来源</span>
+          <span class="analysis-quick-label">{tr("modelEvaluation.dataSource")}</span>
           <span class="analysis-quick-value">{html.escape(str(outputs_root))}</span>
-          <span class="analysis-quick-meta">report.json / mlflow_run.json</span>
+          <span class="analysis-quick-meta">{tr("modelEvaluation.dataSourceMeta")}</span>
         </div>
       </div>
     </div>
@@ -217,19 +215,19 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
 
     with control_col:
         with st.container(key="model-evaluation-control-card"):
-            st.markdown("<div class='surface-kicker'>Run Browser</div>", unsafe_allow_html=True)
-            st.markdown("<h3 class='surface-title'>浏览已有研究 run</h3>", unsafe_allow_html=True)
+            st.markdown(f"<div class='surface-kicker'>{html.escape(tr('modelEvaluation.runBrowserKicker'))}</div>", unsafe_allow_html=True)
+            st.markdown(tr("section.browseExistingRuns"), unsafe_allow_html=True)
             st.markdown(
-                "<p class='surface-copy'>页面只消费 report.json 已汇总的结果和可选的 QuantStats / MLflow 元信息。</p>",
+                tr("page.description.consumesReportOnly"),
                 unsafe_allow_html=True,
             )
 
             if not runs:
-                render_status_note("当前没有可读取的研究 run。", tone="warning")
+                render_status_note(tr("research.run.empty"), tone="warning")
                 st.caption(f"扫描目录：{outputs_root}")
             else:
                 selected_run_id = st.selectbox(
-                    "选择 run",
+                    tr("action.selectRun"),
                     options=[run.run_id for run in runs],
                     index=0,
                     key="model-evaluation-run-select",
@@ -239,15 +237,15 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
                     selected_payload = load_model_evaluation_payload(selected_run)
                 except Exception as exc:
                     load_error = str(exc)
-                    render_status_note("选中的 run 读取失败。", tone="error")
+                    render_status_note(tr("run.selectionFailed"), tone="error")
                     st.caption(load_error)
                 else:
                     _render_kv_grid(
                         [
-                            ("生成时间", selected_payload["generated_label"], selected_payload["last_modified_label"]),
-                            ("配置名称", selected_payload["config_name_label"], f"run: {selected_payload['run_id']}"),
-                            ("市场", selected_payload["market_label"], f"股票池 {selected_payload['stock_count_label']}"),
-                            ("模型数量", selected_payload["model_count_label"], selected_payload["score_policy_text"]),
+                            (tr("meta.generatedTime"), selected_payload["generated_label"], selected_payload["last_modified_label"]),
+                            (tr("configuration.name"), selected_payload["config_name_label"], tr("modelEvaluation.runMeta", run_id=selected_payload["run_id"])),
+                            (tr("market.name"), selected_payload["market_label"], f"股票池 {selected_payload['stock_count_label']}"),
+                            (tr("model.count"), selected_payload["model_count_label"], selected_payload["score_policy_text"]),
                         ]
                     )
                     render_html(
@@ -259,24 +257,24 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
                             ]
                         )
                     )
-                    st.caption(f"报告文件：{selected_payload['report_path']}")
+                    st.caption(tr("modelEvaluation.reportFile", path=selected_payload["report_path"]))
 
     with summary_col:
         with st.container(key="model-evaluation-summary-board"):
-            st.markdown("<div class='surface-kicker'>Showcase</div>", unsafe_allow_html=True)
-            st.markdown("<h3 class='surface-title'>当前 run 摘要</h3>", unsafe_allow_html=True)
+            st.markdown(f"<div class='surface-kicker'>{html.escape(tr('modelEvaluation.showcaseKicker'))}</div>", unsafe_allow_html=True)
+            st.markdown(tr("run.currentSummary"), unsafe_allow_html=True)
 
             if selected_payload is None:
-                message = load_error or "选择一个可读 run 后，这里会展示当前最佳模型和评分规则。"
+                message = load_error or tr("instruction.selectRunForModel")
                 render_status_note(message, tone="warning" if load_error is None else "error")
             else:
                 top_model = selected_payload["top_model"]
                 _render_kv_grid(
                     [
-                        ("Top 1 模型", _display_text(top_model.get("display_name")), _display_text(top_model.get("family_group"))),
-                        ("总分", _format_number_text(top_model.get("total_score")), selected_payload["score_policy_text"]),
-                        ("中位夏普", _format_number_text(top_model.get("median_sharpe")), f"阶段 {_display_text(top_model.get('stage'), empty=TEXT_NA, na=TEXT_NA)}"),
-                        ("中位超额收益", _format_pct_text(top_model.get("median_excess_return")), f"股票池 {selected_payload['pool_size_label']}"),
+                        (tr("model.top1"), _display_text(top_model.get("display_name")), _display_text(top_model.get("family_group"))),
+                        (tr("score.total"), _format_number_text(top_model.get("total_score")), selected_payload["score_policy_text"]),
+                        (tr("performance.medianSharpe"), _format_number_text(top_model.get("median_sharpe")), f"阶段 {_display_text(top_model.get('stage'), empty=TEXT_NA, na=TEXT_NA)}"),
+                        (tr("performance.medianExcessReturn"), _format_pct_text(top_model.get("median_excess_return")), f"股票池 {selected_payload['pool_size_label']}"),
                     ]
                 )
                 render_html(_top_rank_list_markup(selected_payload["top_models"]))
@@ -286,36 +284,36 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
   <span>{html.escape(selected_payload['score_policy_text'])}</span>
   <span>{html.escape(selected_payload['feature_labels']['quantstats'])}</span>
   <span>{html.escape(selected_payload['feature_labels']['mlflow'])}</span>
-  <span>最新更新时间 {html.escape(selected_payload['generated_label'])}</span>
+  <span>{html.escape(tr("modelEvaluation.lastUpdated", time=selected_payload["generated_label"]))}</span>
 </div>
                     """
                 )
 
     with st.container(key="model-evaluation-tabs-shell"):
-        tab_overview, tab_obs, tab_failures = st.tabs(["总览", "QuantStats / MLflow", "异常样本"])
+        tab_overview, tab_obs, tab_failures = st.tabs([tr("section.overview"), tr("modelEvaluation.tab.observability"), tr("data.abnormalSamples")])
 
         with tab_overview:
             with st.container(key="model-evaluation-detail-section-overview"):
                 _render_data_section(
-                    title="Top Models",
-                    copy="主榜单固定读取 report.json 中的汇总结果，不在页面内重扫 artifacts。",
+                    title=tr("modelEvaluation.section.topModels"),
+                    copy=tr("note.main_leaderboard_source"),
                     frame=_top_models_frame(selected_payload),
                 )
                 _render_data_section(
-                    title="Family Summary",
-                    copy="按 baseline / sm / fsm 族查看平均得分与最佳模型。",
+                    title=tr("modelEvaluation.section.familySummary"),
+                    copy=tr("model.family.scoreOverview"),
                     frame=_family_summary_frame(selected_payload),
                 )
                 _render_data_section(
-                    title="Search Method Summary",
-                    copy="横向比较 random / bayesian / genetic 的平均表现与胜出模型。",
+                    title=tr("modelEvaluation.section.searchMethodSummary"),
+                    copy=tr("model.comparisonDescription"),
                     frame=_search_method_frame(selected_payload),
                 )
                 _render_data_section(
-                    title="Robustness Summary",
-                    copy="若 run 启用了 rolling robustness，这里显示稳健性汇总；否则只展示空态。",
+                    title=tr("modelEvaluation.section.robustnessSummary"),
+                    copy=tr("results.rolling_robustness_summary"),
                     frame=_robustness_frame(selected_payload),
-                    empty_message="当前 run 没有 robustness 汇总。",
+                    empty_message=tr("run.noRobustnessSummary"),
                 )
 
         with tab_obs:
@@ -327,27 +325,27 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
         with tab_failures:
             with st.container(key="model-evaluation-detail-section-failures"):
                 _render_data_section(
-                    title="Failures / Degraded Samples",
-                    copy="这里只展示 report.json 里已汇总的异常样本，不重新追踪底层任务日志。",
+                    title=tr("modelEvaluation.section.failures"),
+                    copy=tr("anomaly.summaryOnly"),
                     frame=_failures_frame(selected_payload),
-                    empty_message="当前 run 没有异常样本。",
+                    empty_message=tr("run.no_anomalous_samples"),
                 )
 
 
 def _render_quantstats_section(payload: dict[str, Any] | None) -> None:
     st.markdown("<div class='surface-kicker'>QuantStats</div>", unsafe_allow_html=True)
-    st.markdown("<h4 class='analysis-section-title'>Tear Sheet 列表</h4>", unsafe_allow_html=True)
+    st.markdown(tr("tearSheet.list.title"), unsafe_allow_html=True)
     st.markdown(
-        "<p class='analysis-section-copy'>v1 只展示条目摘要并提供文件下载，不在应用内嵌入整页 HTML。</p>",
+        tr("report.v1.limitedEmbed"),
         unsafe_allow_html=True,
     )
     if payload is None:
-        render_status_note("当前没有可展示的 QuantStats 信息。")
+        render_status_note(tr("quantstats.no_data"))
         return
 
     quantstats = payload.get("quantstats", [])
     if not quantstats:
-        render_status_note("当前 run 未生成 QuantStats tear sheet。")
+        render_status_note(tr("quantstats.tearSheet.notGenerated"))
         return
 
     for index, row in enumerate(quantstats, start=1):
@@ -360,18 +358,18 @@ def _render_quantstats_section(payload: dict[str, Any] | None) -> None:
             st.caption(
                 " / ".join(
                     [
-                        f"模型ID {_display_text(row.get('model_id'), empty=TEXT_NA, na=TEXT_NA)}",
-                        f"pooled run {_format_count_label(row.get('selected_record_count'))}",
-                        f"分数 {_format_number_text(row.get('total_score'))}",
+                        tr("model.idLabel", value=_display_text(row.get("model_id"), empty=TEXT_NA, na=TEXT_NA)),
+                        tr("modelEvaluation.quantstatsPooledRun", count=_format_count_label(row.get("selected_record_count"))),
+                        tr("score.label", value=_format_number_text(row.get("total_score"))),
                     ]
                 )
             )
             if file_path is None or not file_path.is_file():
-                render_status_note("tearsheet.html 文件不存在，当前只保留元数据。", tone="warning")
+                render_status_note(tr("file.tearsheet_missing"), tone="warning")
         with action_col:
             if file_path is not None and file_path.is_file():
                 st.download_button(
-                    "下载 tear sheet",
+                    tr("action.downloadTearSheet"),
                     data=file_path.read_bytes(),
                     file_name=file_path.name,
                     mime="text/html",
@@ -381,26 +379,26 @@ def _render_quantstats_section(payload: dict[str, Any] | None) -> None:
 
 def _render_mlflow_section(payload: dict[str, Any] | None) -> None:
     st.markdown("<div class='surface-kicker'>MLflow</div>", unsafe_allow_html=True)
-    st.markdown("<h4 class='analysis-section-title'>Run 元信息</h4>", unsafe_allow_html=True)
+    st.markdown(tr("section.run_metadata"), unsafe_allow_html=True)
     st.markdown(
-        "<p class='analysis-section-copy'>页面只显示 mlflow_run.json 元数据，不尝试启动或嵌入 MLflow UI。</p>",
+        tr("mlflow.uiScopeNote"),
         unsafe_allow_html=True,
     )
     if payload is None:
-        render_status_note("当前没有可展示的 MLflow 信息。")
+        render_status_note(tr("mlflow.info.empty"))
         return
 
     if not payload.get("mlflow_recorded"):
-        render_status_note("未记录 MLflow。")
+        render_status_note(tr("state.mlflowNotRecorded"))
         return
 
     mlflow_payload = payload.get("mlflow", {})
     _render_kv_grid(
         [
-            ("实验名", _display_text(mlflow_payload.get("experiment_name")), "experiment_name"),
-            ("Run ID", _display_text(mlflow_payload.get("run_id"), empty=TEXT_NA, na=TEXT_NA), "run_id"),
-            ("Tracking URI", _display_text(mlflow_payload.get("tracking_uri"), empty=TEXT_NA, na=TEXT_NA), "tracking_uri"),
-            ("Artifact URI", _display_text(mlflow_payload.get("artifact_uri"), empty=TEXT_NA, na=TEXT_NA), "artifact_uri"),
+            (tr("experiment.name"), _display_text(mlflow_payload.get("experiment_name")), "experiment_name"),
+            (tr("mlflow.runId"), _display_text(mlflow_payload.get("run_id"), empty=TEXT_NA, na=TEXT_NA), "run_id"),
+            (tr("mlflow.trackingUri"), _display_text(mlflow_payload.get("tracking_uri"), empty=TEXT_NA, na=TEXT_NA), "tracking_uri"),
+            (tr("mlflow.artifactUri"), _display_text(mlflow_payload.get("artifact_uri"), empty=TEXT_NA, na=TEXT_NA), "artifact_uri"),
         ]
     )
 
@@ -410,7 +408,7 @@ def _render_data_section(
     title: str,
     copy: str,
     frame: pd.DataFrame,
-    empty_message: str = "暂无可展示结果。",
+    empty_message: str = tr("results.notAvailable"),
 ) -> None:
     st.markdown(f"<div class='surface-kicker'>{html.escape(title)}</div>", unsafe_allow_html=True)
     st.markdown(f"<h4 class='analysis-section-title'>{html.escape(title)}</h4>", unsafe_allow_html=True)
@@ -425,15 +423,15 @@ def _top_models_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
     return _records_to_frame(
         (payload.get("model_summary") or payload.get("top_models")) if payload else [],
         [
-            ("排名", lambda row: _display_text(row.get("rank"), empty=TEXT_NA, na=TEXT_NA)),
-            ("模型", lambda row: _display_text(row.get("display_name"))),
-            ("族", lambda row: _display_text(row.get("family_group"), empty=TEXT_NA, na=TEXT_NA)),
-            ("阶段", lambda row: _display_text(row.get("stage"), empty=TEXT_NA, na=TEXT_NA)),
-            ("总分", lambda row: _format_number_text(row.get("total_score"))),
-            ("主窗口分", lambda row: _format_number_text(row.get("main_total_score"))),
-            ("稳健性分", lambda row: _format_number_text(row.get("robustness_total_score"))),
-            ("中位夏普", lambda row: _format_number_text(row.get("median_sharpe"))),
-            ("中位超额收益", lambda row: _format_pct_text(row.get("median_excess_return"))),
+            (tr("field.rank"), lambda row: _display_text(row.get("rank"), empty=TEXT_NA, na=TEXT_NA)),
+            (tr("common.model"), lambda row: _display_text(row.get("display_name"))),
+            (tr("category.family"), lambda row: _display_text(row.get("family_group"), empty=TEXT_NA, na=TEXT_NA)),
+            (tr("common.phase"), lambda row: _display_text(row.get("stage"), empty=TEXT_NA, na=TEXT_NA)),
+            (tr("score.total"), lambda row: _format_number_text(row.get("total_score"))),
+            (tr("metric.mainWindowScore"), lambda row: _format_number_text(row.get("main_total_score"))),
+            (tr("metric.robustnessScore"), lambda row: _format_number_text(row.get("robustness_total_score"))),
+            (tr("performance.medianSharpe"), lambda row: _format_number_text(row.get("median_sharpe"))),
+            (tr("performance.medianExcessReturn"), lambda row: _format_pct_text(row.get("median_excess_return"))),
         ],
     )
 
@@ -442,11 +440,11 @@ def _family_summary_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
     return _records_to_frame(
         payload.get("family_summary") if payload else [],
         [
-            ("模型族", lambda row: _display_text(row.get("family_group"))),
-            ("模型数", lambda row: _format_count_label(row.get("model_count"))),
-            ("平均总分", lambda row: _format_number_text(row.get("avg_total_score"))),
-            ("最佳模型", lambda row: _display_text(row.get("top_display_name"))),
-            ("最佳分数", lambda row: _format_number_text(row.get("top_total_score"))),
+            (tr("model.family"), lambda row: _display_text(row.get("family_group"))),
+            (tr("model.count"), lambda row: _format_count_label(row.get("model_count"))),
+            (tr("metric.averageTotalScore"), lambda row: _format_number_text(row.get("avg_total_score"))),
+            (tr("model.bestModel"), lambda row: _display_text(row.get("top_display_name"))),
+            (tr("metrics.bestScore"), lambda row: _format_number_text(row.get("top_total_score"))),
         ],
     )
 
@@ -455,11 +453,11 @@ def _search_method_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
     return _records_to_frame(
         payload.get("search_method_summary") if payload else [],
         [
-            ("方法", lambda row: _display_text(row.get("method"))),
-            ("模型数", lambda row: _format_count_label(row.get("model_count"))),
-            ("平均总分", lambda row: _format_number_text(row.get("avg_total_score"))),
-            ("最佳模型", lambda row: _display_text(row.get("top_display_name"))),
-            ("最佳分数", lambda row: _format_number_text(row.get("top_total_score"))),
+            (tr("common.method"), lambda row: _display_text(row.get("method"))),
+            (tr("model.count"), lambda row: _format_count_label(row.get("model_count"))),
+            (tr("metric.averageTotalScore"), lambda row: _format_number_text(row.get("avg_total_score"))),
+            (tr("model.bestModel"), lambda row: _display_text(row.get("top_display_name"))),
+            (tr("metrics.bestScore"), lambda row: _format_number_text(row.get("top_total_score"))),
         ],
     )
 
@@ -468,13 +466,13 @@ def _robustness_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
     return _records_to_frame(
         payload.get("robustness_summary") if payload else [],
         [
-            ("模型", lambda row: _display_text(row.get("display_name"))),
-            ("族", lambda row: _display_text(row.get("family_group"), empty=TEXT_NA, na=TEXT_NA)),
-            ("阶段", lambda row: _display_text(row.get("stage"), empty=TEXT_NA, na=TEXT_NA)),
-            ("稳健性总分", lambda row: _format_number_text(row.get("robustness_total_score"))),
-            ("成功率", lambda row: _format_pct_text(row.get("success_rate"))),
-            ("中位夏普", lambda row: _format_number_text(row.get("median_sharpe"))),
-            ("中位超额收益", lambda row: _format_pct_text(row.get("median_excess_return"))),
+            (tr("common.model"), lambda row: _display_text(row.get("display_name"))),
+            (tr("category.family"), lambda row: _display_text(row.get("family_group"), empty=TEXT_NA, na=TEXT_NA)),
+            (tr("common.phase"), lambda row: _display_text(row.get("stage"), empty=TEXT_NA, na=TEXT_NA)),
+            (tr("score.robustness_total"), lambda row: _format_number_text(row.get("robustness_total_score"))),
+            (tr("metric.success_rate"), lambda row: _format_pct_text(row.get("success_rate"))),
+            (tr("performance.medianSharpe"), lambda row: _format_number_text(row.get("median_sharpe"))),
+            (tr("performance.medianExcessReturn"), lambda row: _format_pct_text(row.get("median_excess_return"))),
         ],
     )
 
@@ -483,11 +481,11 @@ def _failures_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
     return _records_to_frame(
         payload.get("failures") if payload else [],
         [
-            ("股票", lambda row: _display_text(row.get("symbol"))),
-            ("模型", lambda row: _display_text(row.get("display_name") or row.get("model_id"))),
-            ("窗口", lambda row: _display_text(row.get("window_id"), empty=TEXT_NA, na=TEXT_NA)),
-            ("状态", lambda row: _display_text(row.get("status"), empty=TEXT_NA, na=TEXT_NA)),
-            ("说明", lambda row: _failure_message(row)),
+            (tr("instrument.type.stock"), lambda row: _display_text(row.get("symbol"))),
+            (tr("common.model"), lambda row: _display_text(row.get("display_name") or row.get("model_id"))),
+            (tr("common.window"), lambda row: _display_text(row.get("window_id"), empty=TEXT_NA, na=TEXT_NA)),
+            (tr("label.status"), lambda row: _display_text(row.get("status"), empty=TEXT_NA, na=TEXT_NA)),
+            (tr("button.explanation"), lambda row: _failure_message(row)),
         ],
     )
 
@@ -511,7 +509,7 @@ def _pill_row_markup(items: list[str]) -> str:
 
 def _top_rank_list_markup(rows: list[dict[str, Any]]) -> str:
     if not rows:
-        return "<div class='model-eval-rank-empty'>暂无可展示结果。</div>"
+        return tr("message.no_results_to_display")
     items = []
     for row in rows[:5]:
         items.append(

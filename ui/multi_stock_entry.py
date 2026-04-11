@@ -11,6 +11,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+from ui.i18n import tr
 
 from core.data import search_stock_candidates
 from core.market_context import get_market_context_snapshot
@@ -73,7 +74,7 @@ def _render_section_header(title: str, copy: str) -> None:
 
 def _render_snapshot(indices: list[dict[str, Any]]) -> None:
     if not indices:
-        render_status_note("正在加载最新市场数据。", tone="info")
+        render_status_note(tr("data.market.loading"), tone="info")
         return
 
     blocks = []
@@ -97,7 +98,7 @@ def _render_snapshot(indices: list[dict[str, Any]]) -> None:
 
 def _render_recommendation_rows(recommendations: list[dict[str, Any]]) -> None:
     if not recommendations:
-        render_status_note("暂时无法获取推荐股票。", tone="warning")
+        render_status_note(tr("recommendation.unavailable"), tone="warning")
         return
 
     with st.container(key="multi-recommend-scroll"):
@@ -107,14 +108,14 @@ def _render_recommendation_rows(recommendations: list[dict[str, Any]]) -> None:
                 f"<div class='recommend-row'><div class='recommend-row-title'>{html.escape(item['symbol'])} · {html.escape(item['name'])}</div><div class='recommend-row-meta'>现价 {html.escape(item['price_text'])} · 涨跌 {html.escape(item['pct_text'])}</div></div>",
                 unsafe_allow_html=True,
             )
-            if action_col.button("加入", key=f"multi_entry_rec_{item['symbol']}"):
+            if action_col.button(tr("action.add"), key=f"multi_entry_rec_{item['symbol']}"):
                 _add_symbol_to_selection(item["symbol"])
                 st.rerun()
 
 
 def _render_uploaded_file_rows(uploaded_files) -> None:
     if not uploaded_files:
-        st.caption("还没有选择上传文件。")
+        st.caption(tr("upload.noFileSelected"))
         return
 
     with st.container(key="multi-upload-list"):
@@ -128,7 +129,7 @@ def _render_uploaded_file_rows(uploaded_files) -> None:
 
 def _render_selected_symbol_rows(selected_symbols: list[str]) -> None:
     if not selected_symbols:
-        st.caption("当前还没有已选股票。至少准备 2 个标的后再进入多股分析。")
+        st.caption(tr("stock.selection.insufficientForMulti"))
         return
 
     with st.container(key="multi-selected-symbols"):
@@ -138,13 +139,13 @@ def _render_selected_symbol_rows(selected_symbols: list[str]) -> None:
                 f"<div class='selection-row'><div class='selection-row-title'>{html.escape(symbol)}</div><div class='selection-row-meta'>来源：搜索或推荐加入</div></div>",
                 unsafe_allow_html=True,
             )
-            if action_col.button("移除", key=f"multi_entry_remove_{symbol}"):
+            if action_col.button(tr("common.remove"), key=f"multi_entry_remove_{symbol}"):
                 _remove_symbols_from_selection([symbol])
                 st.rerun()
 
 
 def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] | None:
-    """渲染多股入口页，并在用户发起分析时返回动作。"""
+    """ui.multiStockEntry.render"""
     render_market = "A" if str(initial_market).upper() in {"A", "CN", "CN_A"} else "US"
     if MULTI_ENTRY_MARKET_KEY not in st.session_state:
         st.session_state[MULTI_ENTRY_MARKET_KEY] = render_market
@@ -154,14 +155,11 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
         st.session_state[MULTI_ENTRY_LAST_MARKET_KEY] = st.session_state[MULTI_ENTRY_MARKET_KEY]
 
     render_html(
-        """
+        f"""
 <section class="entry-intro">
-  <div class="page-kicker">Multi Stock Route</div>
-  <h1 class="entry-title">先组好股票池，再进入多股分析。</h1>
-  <p class="entry-copy">
-    左侧负责把待比较股票整理清楚，右侧持续提供当前市场快照和推荐补充入口。
-    搜索、上传和推荐最终都会汇到同一个待分析列表。
-  </p>
+  <div class="page-kicker">{tr("entry.multi.routeKicker")}</div>
+  <h1 class="entry-title">{tr("entry.multi.title")}</h1>
+  <p class="entry-copy">{tr("entry.multi.copy")}</p>
 </section>
         """
     )
@@ -172,15 +170,15 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
     with left_col:
         with st.container(key="multi-action-card"):
             _render_surface_header(
-                "Action Card",
-                "先把股票池整理清楚",
-                "市场切换、搜索加入、上传文件和已选股票管理都收进同一张主操作卡，不再拆成多组厚重表单。",
+                tr("surface.actionCard"),
+                tr("action.organizeStockPool"),
+                tr("ui.mainOperationCard.desc"),
             )
 
             market = st.segmented_control(
-                "研究市场",
+                tr("action.research_market"),
                 options=["US", "A"],
-                format_func=lambda value: "美股" if value == "US" else "A 股",
+                format_func=lambda value: tr("market.us_stocks") if value == "US" else tr("market.cn_stock"),
                 key=MULTI_ENTRY_MARKET_KEY,
                 width="stretch",
             )
@@ -193,13 +191,13 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
 
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
             _render_section_header(
-                "搜索并加入股票",
-                "支持名称或代码检索。命中索引后加入股票池；没有索引时也支持按代码直接加入。",
+                tr("action.search_and_add_stocks"),
+                tr("search.instructions"),
             )
 
             search_query = st.text_input(
-                "输入股票名称或代码",
-                placeholder="例如：AAPL / NVDA / 贵州茅台 / 600519",
+                tr("placeholder.stockInput"),
+                placeholder=tr("input.stock.example"),
                 key=MULTI_ENTRY_QUERY_KEY,
             ).strip()
 
@@ -208,13 +206,13 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
                     matched = search_stock_candidates(search_query, market=market, limit=8)
                 except Exception as exc:
                     matched = pd.DataFrame(columns=["symbol", "name", "label"])
-                    render_status_note(f"搜索索引加载失败：{exc}", tone="warning")
+                    render_status_note(tr("entry.searchIndexFailed", error=str(exc)), tone="warning")
 
                 if not matched.empty:
                     candidate_options = matched["symbol"].tolist()
                     candidate_map = {row.symbol: row.label for row in matched.itertuples(index=False)}
                     st.radio(
-                        "匹配结果",
+                        tr("search.matches"),
                         options=candidate_options,
                         format_func=lambda symbol: candidate_map.get(symbol, symbol),
                         key=MULTI_ENTRY_SELECTED_SYMBOL_KEY,
@@ -222,42 +220,42 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
                     )
                 elif market == "A" and search_query.isdigit():
                     st.session_state[MULTI_ENTRY_SELECTED_SYMBOL_KEY] = search_query.zfill(6)[-6:]
-                    render_status_note("未找到索引匹配，将按该 A 股代码加入股票池。", tone="info")
+                    render_status_note(tr("stock_pool.add_by_a_share_code"), tone="info")
                 elif market == "US":
                     st.session_state[MULTI_ENTRY_SELECTED_SYMBOL_KEY] = search_query.upper()
-                    render_status_note("未找到索引匹配，将按该美股代码加入股票池。", tone="info")
+                    render_status_note(tr("stockPool.addByTicker"), tone="info")
                 else:
-                    render_status_note("没有找到匹配股票。", tone="warning")
+                    render_status_note(tr("search.noMatchingStocks"), tone="warning")
             else:
-                st.caption("输入名称或代码后，这里会出现可加入股票池的候选项。")
+                st.caption(tr("stock_pool.candidates_hint"))
 
-            if st.button("加入股票池", use_container_width=True):
+            if st.button(tr("stockPool.addAction"), use_container_width=True):
                 selected_symbol = st.session_state.get(MULTI_ENTRY_SELECTED_SYMBOL_KEY)
                 if not selected_symbol:
-                    render_status_note("请先从搜索结果中选择股票。", tone="warning")
+                    render_status_note(tr("stock.selectionFromSearchPrompt"), tone="warning")
                 else:
                     _add_symbol_to_selection(selected_symbol)
                     st.rerun()
 
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
             _render_section_header(
-                "上传多个本地 CSV",
-                "每个 CSV 会被视为一个独立标的，文件名会自动转换成导入标识。",
+                tr("data.upload.multipleCSV"),
+                tr("import.csv.description"),
             )
 
             uploaded_files = st.file_uploader(
-                "上传多个单股 CSV",
+                tr("upload.multi_csv_title"),
                 type=["csv"],
                 accept_multiple_files=True,
                 key="multi_entry_upload_files",
-                help="每个 CSV 视为一只股票，列名需兼容 date/open/high/low/close/volume 标准。",
+                help=tr("data.csvFormat"),
             )
             _render_uploaded_file_rows(uploaded_files)
 
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
             _render_section_header(
-                "当前已选股票",
-                "这里保留待比较股票的轻量行列表。上传文件会在开始分析时一起并入结果。",
+                tr("section.currentSelectedStocks"),
+                tr("comparison.stockList.description"),
             )
 
             selected_symbols = _ensure_selected_list()
@@ -274,7 +272,7 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
                 """
             )
 
-            if st.button("开始多股分析", type="primary", use_container_width=True):
+            if st.button(tr("action.startMultiStockAnalysis"), type="primary", use_container_width=True):
                 uploads = []
                 for index, uploaded_file in enumerate(uploaded_files or [], start=1):
                     uploads.append(
@@ -287,7 +285,7 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
 
                 total_count = len(selected_symbols) + len(uploads)
                 if total_count < 2:
-                    render_status_note("多股分析至少需要 2 个标的。可以组合搜索结果与上传文件。", tone="warning")
+                    render_status_note(tr("multi_stock.minimum_requirement"), tone="warning")
                 else:
                     selected_action = {
                         "kind": "analyze",
@@ -297,10 +295,8 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
                     }
 
             render_html(
-                """
-<p class="plain-helper">
-  入口页只负责把股票池整理清楚。进入主分析页后，现有多股图表、组合模拟和后续分析逻辑继续沿用。
-</p>
+                f"""
+<p class="plain-helper">{tr("entry.multi.helper")}</p>
                 """
             )
 
@@ -310,19 +306,19 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
     with right_col:
         with st.container(key="multi-showcase-board"):
             _render_surface_header(
-                "Showcase Board",
-                "当前市场的快照与推荐补充",
-                "右侧保持一个大的上下文展示区，帮助你从搜索之外补充新的比较对象。",
+                tr("surface.showcaseBoard"),
+                tr("market.snapshotTitle"),
+                tr("ui.context_display_area"),
             )
             market_col, refresh_col = st.columns([1.0, 0.34], gap="small")
             with market_col:
                 _render_section_header(
-                    "市场快照",
-                    "先看大盘快照，再往下进入推荐股票和补充股票池。",
+                    tr("section.title.marketSnapshot"),
+                    tr("workflow.marketSnapshotFirst"),
                 )
             with refresh_col:
                 refresh_context = st.button(
-                    "刷新市场快照",
+                    tr("action.refreshMarketSnapshot"),
                     key="multi_entry_refresh_market_context",
                     use_container_width=False,
                 )
@@ -332,10 +328,10 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
             except Exception as exc:
                 context = {
                     "indices": [],
-                    "recommendation_source": "市场快照暂不可用",
+                    "recommendation_source": tr("status.marketSnapshotUnavailable"),
                     "recommendations": [],
                 }
-                render_status_note(f"市场快照加载失败：{exc}", tone="warning")
+                render_status_note(tr("entry.marketSnapshotFailed", error=str(exc)), tone="warning")
 
             _render_snapshot(context["indices"])
             st.markdown(
@@ -345,8 +341,8 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
 
             with st.container(key="multi-recommend-sheet"):
                 _render_section_header(
-                    "推荐股票",
-                    "推荐区域保持为单个白色 sheet，内部是轻量行列表和小型加入按钮。",
+                    tr("recommendation.stocks"),
+                    tr("ui.recommendationArea.spec"),
                 )
                 _render_recommendation_rows(context["recommendations"])
 

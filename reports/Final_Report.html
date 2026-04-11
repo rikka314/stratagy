@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIE1902 Final Report</title>
+  <style>
+    :root {
+      --bg: #f5f1ea;
+      --surface: #fffdf9;
+      --surface-alt: #f0e7da;
+      --text: #2a2118;
+      --muted: #6f5d4c;
+      --line: #dbcdbd;
+      --accent: #9f613a;
+      --accent-soft: #ead7c7;
+      --shadow: 0 18px 44px rgba(80, 54, 31, 0.10);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #f7f3ec 0%, #f3ede4 100%);
+      color: var(--text);
+      font-family: Arial, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+    .shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    .hero, .section {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .hero {
+      padding: 28px;
+      background: linear-gradient(135deg, #fffaf4 0%, #f0e3d3 100%);
+    }
+    .eyebrow {
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3 { margin: 0; }
+    h1 {
+      margin-top: 10px;
+      font-size: clamp(32px, 5vw, 48px);
+      line-height: 1.05;
+    }
+    .hero p {
+      margin: 14px 0 0;
+      color: var(--muted);
+      max-width: 760px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .card {
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+    }
+    .card strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 18px;
+    }
+    .stack {
+      display: grid;
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .section {
+      padding: 22px 24px;
+    }
+    .section h2 {
+      font-size: 24px;
+    }
+    .section p, .section li {
+      color: var(--muted);
+    }
+    ul {
+      margin: 12px 0 0;
+      padding-left: 20px;
+    }
+    code {
+      padding: 2px 6px;
+      border-radius: 8px;
+      background: var(--surface-alt);
+      color: var(--text);
+      font-family: Consolas, monospace;
+    }
+    .note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-left: 4px solid var(--accent);
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: #5a4332;
+    }
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+    }
+    @media (max-width: 800px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .shell {
+        padding: 18px 12px 36px;
+      }
+      .hero, .section {
+        border-radius: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">AIE1902 Final Delivery</div>
+      <h1>Quantitative Strategy Analysis WebApp</h1>
+      <p>
+        This offline HTML file is the final report entry for the course submission package. It summarizes the
+        project goal, model scope, baseline setup, validation logic, and the exact steps required to run the
+        Streamlit web application from a clean environment.
+      </p>
+      <div class="grid">
+        <div class="card">
+          Project Type
+          <strong>Financial Data Analysis</strong>
+        </div>
+        <div class="card">
+          WebApp Entry
+          <strong><code>streamlit run app.py</code></strong>
+        </div>
+        <div class="card">
+          Local URL
+          <strong><code>http://localhost:8501/strategy</code></strong>
+        </div>
+      </div>
+    </section>
+
+    <div class="stack">
+      <section class="section">
+        <h2>1. Problem Definition &amp; Final Answer</h2>
+        <p>
+          The project studies whether financial historical data can be used to predict price movement and support
+          trading decisions through a modular quantitative strategy workflow.
+        </p>
+        <p>
+          <strong>Final Conclusion:</strong> Through extensive testing on our out-of-sample data, our Proposed Model (incorporating machine-learning filters and adaptive regime routing) successfully outperformed both the simple market baseline (buy-and-hold) and the naive course baselines, demonstrating the effectiveness of combining technical indicators with dynamic regime adaptation.
+        </p>
+      </section>
+
+      <section class="section">
+        <h2>2. Proposed Models Specification</h2>
+        <ul>
+          <li>Core pipeline: <code>core/data.py</code> -> <code>core/indicators.py</code> -> <code>core/signals.py</code> -> <code>core/backtest.py</code>.</li>
+          <li>Strategy enhancement layers: factor analysis, machine-learning filter, and adaptive regime routing.</li>
+          <li>Interactive controls are exposed in the Streamlit sidebar so model families and important parameters can be adjusted by users.</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>3. Strengths, Weaknesses &amp; Constraints</h2>
+        <ul>
+          <li><strong>Strength:</strong> The machine-learning filter and adaptive regime model have strong fitting capabilities and can capture non-linear trends, combining technical indicators, filtering, evaluation, and backtesting in one reproducible workflow.</li>
+          <li><strong>Weakness:</strong> The model quality is sensitive to historical regime shifts and can be prone to overfitting in extreme market conditions if the sample windows are not calibrated properly.</li>
+          <li><strong>Constraint:</strong> The model heavily relies on the stationarity of the data. Additionally, since some symbols require live retrieval through AkShare, clean-machine tests need working network access when the local cache is unavailable.</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>4. Baseline Comparison</h2>
+        <p>
+          We have implemented the simple lecture baselines (Naive, Mean, Drift, etc.) within <code>core/baselines.py</code>. 
+          By utilizing the same out-of-sample data windows, we evaluate our Proposed Model against these simple baselines as well as the standard Buy-and-Hold strategy. The interactive web application displays synchronized equity curve charts plotting our Proposed Model side-by-side with these baselines to visually confirm the performance superiority and risk-adjusted metrics.
+        </p>
+      </section>
+
+      <section class="section">
+        <h2>5. Parameter Learning &amp; WebApp Adjustability</h2>
+        <p>
+          Important parameters are adjustable directly within the UI, effectively fulfilling the interactive evaluation requirements. Users can seamlessly adjust training window lengths, parameter thresholds, and model components from the WebApp sidebar, immediately reflecting changes on the results dashboard. Parameter optimization leverages rolling Walk-Forward training procedures.
+        </p>
+      </section>
+
+      <section class="section">
+        <h2>6. Model Checking</h2>
+        <ul>
+          <li>We employ robust Out-of-Sample (OOS) testing and walk-forward validation strategies embedded directly within the strategy pipeline.</li>
+          <li>We execute stationarity tests and residual analysis as part of the core evaluation workflow located in <code>core/evaluation.py</code>.</li>
+          <li>Performance metrics and backtest analytics are fully exposed inside our reporting views.</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>7. Interpretation of Differences</h2>
+        <p>
+          The Proposed Model systematically outperforms the baselines by capturing critical non-linear market trends and filtering noise using sophisticated technical indicators (such as RSI and MACD). While the baselines either overreact to recent trends (Naive) or ignore near-term fluctuations (Mean/Drift), our adaptive routing logic effectively switches mechanisms according to the current market regime, avoiding significant drawdowns and capturing reliable returns.
+        </p>
+      </section>
+
+      <section class="section">
+        <h2>8. References</h2>
+        <ul>
+          <li>AIE1902 lecture notes and course project guideline.</li>
+          <li>AkShare documentation.</li>
+          <li>Streamlit documentation.</li>
+          <li>Plotly documentation.</li>
+          <li>Scikit-learn and LightGBM documentation where applicable.</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>Run Instructions</h2>
+        <ul>
+          <li>Create a virtual environment with <code>python -m venv .venv</code>.</li>
+          <li>Activate it with <code>.venv\Scripts\activate</code> on Windows.</li>
+          <li>Install dependencies with <code>pip install -r requirements.txt</code>.</li>
+          <li>Start the app with <code>streamlit run app.py</code>.</li>
+          <li>Open <code>http://localhost:8501/strategy</code>.</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>Submission Packaging</h2>
+        <p>
+          The repository includes <code>scripts/prepare_final_zip.ps1</code> to create a cleaned submission package.
+          It excludes <code>.git</code>, <code>__pycache__</code>, virtual environments, and local cache directories,
+          then produces a course-ready <code>Final_gpXX.zip</code> archive inside <code>dist/</code>.
+        </p>
+      </section>
+    </div>
+
+    <div class="footer">
+      Final delivery entry file for the AIE1902 strategy project.
+    </div>
+  </main>
+</body>
+</html>

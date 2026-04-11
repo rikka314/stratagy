@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from ui.i18n import tr
 from plotly.subplots import make_subplots
 
 from core.backtest import max_drawdown, sharpe_ratio, walk_forward_backtest
@@ -210,47 +211,47 @@ def _render_single_stock_snapshot_panel(
     elif latest_rsi <= rsi_lower:
         rsi_text = f"{latest_rsi:.1f} · 偏冷"
     else:
-        rsi_text = f"{latest_rsi:.1f} · {'中性偏强' if latest_rsi >= 50 else '中性偏弱'}"
+        rsi_text = f"{latest_rsi:.1f} · {tr("sentiment.neutralBullish") if latest_rsi >= 50 else tr("sentiment.neutral_weak")}"
 
     if latest_hist is None:
         macd_text = "N/A"
     else:
-        macd_text = f"{latest_hist:+.2f} · {'多头动能' if latest_hist > 0 else '空头动能' if latest_hist < 0 else '动能中性'}"
+        macd_text = f"{latest_hist:+.2f} · {tr("metric.longMomentum") if latest_hist > 0 else tr("indicators.bearishMomentum") if latest_hist < 0 else tr("state.momentum.neutral")}"
 
     if latest_volume is None or rolling_volume in {None, 0}:
         volume_text = "N/A"
     else:
         volume_ratio = latest_volume / rolling_volume
-        volume_text = f"{volume_ratio:.2f}x · {'量能放大' if volume_ratio >= 1.15 else '量能回落' if volume_ratio <= 0.85 else '量能平稳'}"
+        volume_text = f"{volume_ratio:.2f}x · {tr("indicator.volume.amplification") if volume_ratio >= 1.15 else tr("indicator.volumePullback") if volume_ratio <= 0.85 else tr("status.volume_stable")}"
 
     if latest_close is None or range_high in {None} or range_low in {None} or range_high <= range_low:
         range_text = "N/A"
     else:
         range_position = max(0.0, min(1.0, (latest_close - range_low) / (range_high - range_low)))
-        range_text = f"{range_position:.0%} · {'靠近区间高位' if range_position >= 0.67 else '处于区间中段' if range_position >= 0.33 else '靠近区间低位'}"
+        range_text = f"{range_position:.0%} · {tr("position.near_high") if range_position >= 0.67 else tr("range.mid") if range_position >= 0.33 else tr("range.nearLow")}"
 
     returns_window = pd.to_numeric(df_indicators.get("close"), errors="coerce").pct_change().dropna().tail(60)
     if returns_window.empty:
         volatility_text = "N/A"
     else:
         annualized_vol = float(returns_window.std() * np.sqrt(252) * 100.0)
-        volatility_text = f"{annualized_vol:.1f}% · {'波动偏高' if annualized_vol >= 40 else '波动适中' if annualized_vol >= 20 else '波动偏稳'}"
+        volatility_text = f"{annualized_vol:.1f}% · {tr("volatility.relatively_high") if annualized_vol >= 40 else tr("status.volatility_moderate") if annualized_vol >= 20 else tr("characteristic.low_volatility")}"
 
     if latest_close in {None, 0} or ema_fast_value is None or ema_slow_value is None:
         ema_text = "N/A"
     else:
         ema_spread_pct = ((ema_fast_value - ema_slow_value) / latest_close) * 100.0
-        ema_text = f"{ema_spread_pct:+.2f}% · {'快线在上' if ema_spread_pct > 0 else '快线在下' if ema_spread_pct < 0 else '双线贴合'}"
+        ema_text = f"{ema_spread_pct:+.2f}% · {tr("indicator.fast_above") if ema_spread_pct > 0 else tr("indicators.fastLineBelow") if ema_spread_pct < 0 else tr("chart.dualLineConvergence")}"
 
     snapshot_markup = "".join(
         f"<div class='board-micro-item'><span>{html.escape(label)}</span><strong>{html.escape(value)}</strong></div>"
         for label, value in [
-            ("RSI 状态", rsi_text),
-            ("MACD 柱体", macd_text),
-            ("量能相对值", volume_text),
-            ("区间位置", range_text),
-            ("近 60 日波动", volatility_text),
-            ("EMA 价差", ema_text),
+            (tr("indicator.rsi.status"), rsi_text),
+            (tr("indicator.macd_histogram"), macd_text),
+            (tr("indicator.volume_relative"), volume_text),
+            (tr("range.position"), range_text),
+            (tr("metric.volatility60d"), volatility_text),
+            (tr("indicator.ema_spread"), ema_text),
         ]
     )
     render_html(
@@ -267,7 +268,7 @@ def _render_single_stock_snapshot_panel(
 def _resolve_symbol_identity(symbol: str, market: str) -> dict[str, str]:
     route_state = st.session_state.get(SINGLE_ROUTE_STATE_KEY, {})
     market_key = _normalize_market_key(market)
-    market_label = "A 股" if market_key == "A" else "美股"
+    market_label = tr("market.cn_stock") if market_key == "A" else tr("market.us_stocks")
     route_source = str(route_state.get("source") or "").strip().lower()
 
     if route_source == "upload" and route_state.get("uploaded_name"):
@@ -279,7 +280,7 @@ def _resolve_symbol_identity(symbol: str, market: str) -> dict[str, str]:
             "display_name": display_name or symbol,
             "display_label": subtitle,
             "market_label": market_label,
-            "source_label": "上传数据",
+            "source_label": tr("action.uploadData"),
         }
 
     label_map = get_stock_label_map([symbol], market=market_key)
@@ -293,7 +294,7 @@ def _resolve_symbol_identity(symbol: str, market: str) -> dict[str, str]:
         "display_name": display_name,
         "display_label": full_label,
         "market_label": market_label,
-        "source_label": "市场数据",
+        "source_label": tr("data.marketData"),
     }
 
 
@@ -320,17 +321,17 @@ def _render_single_stock_header(
 
     quick_items = [
         {
-            "label": "最新收盘",
+            "label": tr("price.latest_close"),
             "value": _format_decimal(latest_close),
             "meta": f"{_format_signed_change(change_value)} / {_format_signed_pct(change_pct)}",
         },
         {
-            "label": "训练 / 测试",
+            "label": tr("phase.train_test"),
             "value": f"{split_idx} / {test_count}",
             "meta": f"训练比例 {train_ratio:.0%}",
         },
         {
-            "label": "数据区间",
+            "label": tr("data.range"),
             "value": f"{len(df_indicators)} 天",
             "meta": f"{date_min} 到 {date_max}",
         },
@@ -351,7 +352,7 @@ def _render_single_stock_header(
         index_cards.append(
             f"""
 <div class="analysis-market-card">
-  <span class="analysis-market-label">{html.escape(str(item.get('label') or '市场指数'))}</span>
+  <span class="analysis-market-label">{html.escape(str(item.get('label') or tr("market.index")))}</span>
   <span class="analysis-market-value">{html.escape(_format_decimal(item.get('close')))}</span>
   <span class="analysis-market-delta {_delta_class_from_pct(item.get('pct_change'))}">{html.escape(_format_signed_pct(item.get('pct_change')))}</span>
 </div>
@@ -372,7 +373,7 @@ def _render_single_stock_header(
         render_html(
             f"""
 <div class="analysis-hero-topline">
-  <span class="analysis-pill accent">Single Stock Analysis</span>
+  <span class="analysis-pill accent">{tr("analysis.singleInstrument")}</span>
   <span class="analysis-pill">{html.escape(identity['market_label'])}</span>
   <span class="analysis-pill">{html.escape(identity['source_label'])}</span>
   <span class="analysis-pill {('positive' if (_safe_float(change_pct) or 0) > 0 else 'negative' if (_safe_float(change_pct) or 0) < 0 else '')}">{html.escape(_format_signed_pct(change_pct))}</span>
@@ -394,7 +395,7 @@ def _render_single_stock_header(
             render_analysis_date_range_control(
                 current_range=selected_range,
                 key_prefix="single_stock",
-                label="时间范围",
+                label=tr("time.range"),
                 in_hero=True,
             )
         with quick_col:
@@ -406,20 +407,20 @@ def _render_single_stock_section_nav(*, symbol: str, market: str) -> str:
     nav_col, switch_col = st.columns([1.85, 1.0], gap="small")
     section_default = _ensure_segmented_value(ANALYSIS_SECTION_KEY, ["basics", "strategy"], "basics")
     with nav_col:
-        st.caption("分析区切换")
+        st.caption(tr("analysis.areaSwitch"))
         section_view = st.segmented_control(
-            "分析区切换",
+            tr("analysis.areaSwitch"),
             options=["basics", "strategy"],
-            format_func=lambda value: "基础信息" if value == "basics" else "策略",
+            format_func=lambda value: tr("panel.basicInfo") if value == "basics" else tr("common.strategy"),
             default=section_default,
             key=ANALYSIS_SECTION_KEY,
             width="stretch",
             label_visibility="collapsed",
         ) or section_default
     with switch_col:
-        st.caption("切换股票")
+        st.caption(tr("stock.switch"))
         with st.container(key="single-stock-switch-popover"):
-            with st.popover("切换股票", use_container_width=True):
+            with st.popover(tr("stock.switch"), use_container_width=True):
                 _render_switch_stock_popover(symbol=symbol, market=market)
     return section_view
 
@@ -428,14 +429,14 @@ def _render_switch_stock_popover(*, symbol: str, market: str) -> None:
     market_key = _normalize_market_key(market)
     st.caption(f"当前标的：{symbol}")
     query = st.text_input(
-        "搜索股票名称或代码",
+        tr("placeholder.search_stock"),
         value="",
-        placeholder="例如：AAPL / Apple / 600519",
+        placeholder=tr("search.stockExample"),
         key=SWITCH_STOCK_QUERY_KEY,
     ).strip()
 
     if not query:
-        render_status_note("输入新股票后即可直接切换，当前页面的工作流会跟随新标的重新建立。", tone="info")
+        render_status_note(tr("workflow.dynamicSwitch"), tone="info")
         return
 
     try:
@@ -446,8 +447,8 @@ def _render_switch_stock_popover(*, symbol: str, market: str) -> None:
 
     if matched.empty:
         fallback_symbol = query.zfill(6)[-6:] if market_key == "A" and query.isdigit() else query.upper()
-        render_status_note("没有找到索引匹配，将按当前输入直接切换。", tone="warning")
-        if st.button("按当前输入切换", key="single_stock_switch_direct", use_container_width=True):
+        render_status_note(tr("navigation.no_index_match"), tone="warning")
+        if st.button(tr("action.switch_by_input"), key="single_stock_switch_direct", use_container_width=True):
             _switch_single_stock_symbol(fallback_symbol, market_key)
         return
 
@@ -457,7 +458,7 @@ def _render_switch_stock_popover(*, symbol: str, market: str) -> None:
             f"<div class='recommend-row'><div class='recommend-row-title'>{html.escape(str(row.symbol))}</div><div class='recommend-row-meta'>{html.escape(str(row.label))}</div></div>",
             unsafe_allow_html=True,
         )
-        if action_col.button("切换", key=f"single_stock_switch_{row.symbol}"):
+        if action_col.button(tr("action.switch"), key=f"single_stock_switch_{row.symbol}"):
             _switch_single_stock_symbol(str(row.symbol), market_key)
 
 
@@ -503,14 +504,14 @@ def _render_basic_info_section(
     rolling_volume = pd.to_numeric(df_indicators.get("volume"), errors="coerce").tail(20).mean() if "volume" in df_indicators.columns else None
 
     metrics = [
-        ("当前价格", _format_decimal(latest_close), f"最新交易日 {_format_date_text(latest.get('date'))}"),
-        ("最新涨跌", _format_signed_pct(change_pct), f"较前一日 {_format_signed_change(None if latest_close is None or previous_close is None else latest_close - previous_close)}"),
-        ("开盘 / 最高", f"{_format_decimal(latest_open)} / {_format_decimal(latest_high)}", "当日开高"),
-        ("最低 / 成交量", f"{_format_decimal(latest_low)} / {_format_compact_number(latest_volume)}", "当日低点与成交量"),
-        ("区间收益", _format_signed_pct(range_return), f"{_format_date_text(df_indicators['date'].min())} 到 {_format_date_text(df_indicators['date'].max())}"),
-        ("20 日均量", _format_compact_number(rolling_volume), "不足 20 日时按现有窗口计算"),
-        ("训练集截止", _format_date_text(split_date), f"测试起点 {_format_date_text(test_start)}"),
-        ("数据行数", f"{len(df_indicators)}", f"{identity['market_label']} · {identity['source_label']}"),
+        (tr("market.currentPrice"), _format_decimal(latest_close), f"最新交易日 {_format_date_text(latest.get('date'))}"),
+        (tr("latest.change"), _format_signed_pct(change_pct), f"较前一日 {_format_signed_change(None if latest_close is None or previous_close is None else latest_close - previous_close)}"),
+        (tr("price.openHigh"), f"{_format_decimal(latest_open)} / {_format_decimal(latest_high)}", tr("price.openHigh.today")),
+        (tr("chart.lowVolume"), f"{_format_decimal(latest_low)} / {_format_compact_number(latest_volume)}", tr("chart.lowAndVolume")),
+        (tr("metric.period_return"), _format_signed_pct(range_return), f"{_format_date_text(df_indicators['date'].min())} 到 {_format_date_text(df_indicators['date'].max())}"),
+        (tr("indicator.volume20d"), _format_compact_number(rolling_volume), tr("calculation.insufficient_days")),
+        (tr("trainingSet.end"), _format_date_text(split_date), f"测试起点 {_format_date_text(test_start)}"),
+        (tr("data.rowCount"), f"{len(df_indicators)}", f"{identity['market_label']} · {identity['source_label']}"),
     ]
     metrics_markup = "".join(
         f"""
@@ -528,7 +529,7 @@ def _render_basic_info_section(
             f"""
 <div id="single-stock-basics"></div>
 <div class="analysis-section-header">
-  <div class="surface-kicker">Basic Information</div>
+  <div class="surface-kicker">{tr("panel.basicInfo")}</div>
   <h2 class="analysis-section-title">单股基础信息区</h2>
   <p class="analysis-section-copy">左侧用文字快速交代当前标的状态，右侧保留高密度 K 线主图和指标小图，训练/测试边界在行情图里保持可见。</p>
 </div>
@@ -554,7 +555,7 @@ def _render_basic_info_section(
                 rsi_upper=rsi_upper,
                 rsi_lower=rsi_lower,
             )
-            render_status_note("缺失字段会回退为 N/A，不会阻断图表和后续策略工作流。", tone="info")
+            render_status_note(tr("info.missing_field_fallback"), tone="info")
 
         with chart_col:
             candle, ind_fig, score_fig, indicator_title = _build_market_visualizations(
@@ -613,7 +614,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
         train_ratio = 0.7
         st.session_state[TRAIN_RATIO_KEY] = train_ratio
     if len(df_indicators) <= 1:
-        st.warning("数据量不足，无法进行策略工作流分析。")
+        st.warning(tr("error.insufficientData"))
         return
 
     split_idx = min(max(1, int(len(df_indicators) * train_ratio)), len(df_indicators) - 1)
@@ -680,7 +681,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
     active_artifacts: list[str] = []
     export_payload: dict[str, dict] = {}
     export_active_models: list[str] = []
-    suggestion = "未生成策略"
+    suggestion = tr("strategy.notGenerated")
     equity_fig = go.Figure()
     signal_fig = go.Figure()
 
@@ -691,9 +692,9 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
         render_html(
             """
 <div class="analysis-section-header">
-  <div class="surface-kicker">Strategy Workspace</div>
+  <div class="surface-kicker">{tr("single.strategy.workspaceKicker")}</div>
   <h2 class="analysis-section-title">策略区</h2>
-  <p class="analysis-section-copy">左侧固定为模型控制台，右侧固定为结果展示板。W5 已冻结的 request、lineage、artifact、回测和导出链路继续复用，本轮只重构交互壳层与结果组织方式。</p>
+  <p class="analysis-section-copy">{tr("single.strategy.workspaceCopy")}</p>
 </div>
             """
         )
@@ -704,9 +705,9 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                 render_html(
                     f"""
 <div class="analysis-section-header">
-  <div class="surface-kicker">Control Desk</div>
+  <div class="surface-kicker">{tr("single.strategy.controlKicker")}</div>
   <h3 class="analysis-section-title">模型控制台</h3>
-  <p class="analysis-section-copy">训练区间、模型路径、生成按钮和策略库都收拢在同一控制面里；切换股票或训练比例时，workspace 会按上下文重新建立。</p>
+  <p class="analysis-section-copy">{tr("single.strategy.controlCopy")}</p>
 </div>
 <div class="analysis-chart-meta">
   <span class="analysis-chart-chip">训练 {split_idx} 行</span>
@@ -716,15 +717,15 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                     """
                 )
                 st.slider(
-                    "训练集比例",
+                    tr("data.training_set_ratio"),
                     min_value=0.6,
                     max_value=0.9,
                     value=float(train_ratio),
                     step=0.05,
                     key=TRAIN_RATIO_KEY,
-                    help="按时间顺序切分训练/测试集。",
+                    help=tr("data.split_chronological"),
                 )
-                render_status_note("修改训练比例后，训练/测试边界、workspace 上下文和右侧结果板会一起刷新。", tone="info")
+                render_status_note(tr("note.train_ratio_change_impact"), tone="info")
 
                 st.divider()
                 entry_status_slot = st.empty()
@@ -732,7 +733,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                     """
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">工作台入口</h4>
-  <p class="analysis-callout-copy">先确定是课程基线、Search 还是 Regime 路径，再继续补齐下方配置。页面不再默认预计算所有模型结果。</p>
+  <p class="analysis-callout-copy">{tr("single.strategy.entryCopy")}</p>
 </div>
                     """
                 )
@@ -748,7 +749,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                     """
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">模型配置</h4>
-  <p class="analysis-callout-copy">按 W5 冻结语义继续配置 Baseline / SM / FSM / Search / Regime，不在这里改底层参数合同。</p>
+  <p class="analysis-callout-copy">{tr("single.strategy.configCopy")}</p>
 </div>
                     """
                 )
@@ -772,26 +773,26 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                     """
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">生成与策略库</h4>
-  <p class="analysis-callout-copy">生成只会提交新的 <code>current_artifact</code>；保存后才会进入会话内策略库，供右侧结果板做多策略比对。</p>
+  <p class="analysis-callout-copy">{tr("single.strategy.libraryCopy")}</p>
 </div>
                     """
                 )
                 request_path = _describe_request_pipeline(request)
                 if request_path:
-                    render_status_note("当前路径：" + request_path, tone="info")
+                    render_status_note(tr("ui.label.currentPath") + request_path, tone="info")
 
                 generate_disabled = bool(missing_items) or (request.use_search and split_idx < 50)
                 if missing_items:
-                    render_status_note("待完成项：" + "；".join(missing_items), tone="warning")
+                    render_status_note(tr("todo.list") + "；".join(missing_items), tone="warning")
                 elif request.use_search and split_idx < 50:
-                    render_status_note("参数搜索至少需要 50 个训练样本；当前训练样本不足，已禁用“生成策略”。", tone="warning")
+                    render_status_note(tr("paramSearch.insufficientSamples"), tone="warning")
                 elif page_state == "REQUEST_DRAFT" and current_artifact is not None:
-                    render_status_note("当前结果仍是上次成功提交的 artifact；草稿修改后需要重新点击“生成策略”才会生效。", tone="warning")
+                    render_status_note(tr("status.draftPending"), tone="warning")
                 else:
-                    render_status_note("点击下方按钮后，系统会按当前请求生成新的 current_artifact。", tone="positive")
+                    render_status_note(tr("action.generateArtifact.note"), tone="positive")
 
-                if st.button("生成策略", type="primary", disabled=generate_disabled, key="single_stock_generate_strategy"):
-                    with st.spinner("正在生成策略工作流..."):
+                if st.button(tr("strategy.generate"), type="primary", disabled=generate_disabled, key="single_stock_generate_strategy"):
+                    with st.spinner(tr("strategy.workflowGenerating")):
                         pipeline_result = run_strategy_pipeline(
                             context_key=context_key,
                             request=request,
@@ -810,7 +811,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                             for warning_message in pipeline_result.warnings:
                                 render_status_note(warning_message, tone="warning")
                     else:
-                        render_status_note(pipeline_result.error_message or "策略生成失败。", tone="error")
+                        render_status_note(pipeline_result.error_message or tr("strategy.generation.failed"), tone="error")
 
                 workspace = get_strategy_workspace()
                 current_artifact = workspace.get("current_artifact")
@@ -837,7 +838,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                 render_html(
                     """
 <div class="analysis-section-header">
-  <div class="surface-kicker">Result Board</div>
+  <div class="surface-kicker">{tr("surface.resultBoard")}</div>
   <h3 class="analysis-section-title">策略结果区</h3>
   <p class="analysis-section-copy">右侧只保留一个稳定展示板。默认查看当前策略，切到“策略比对”后保持同一布局，只替换结果内容，不再把比较图表散落到页面底部。</p>
 </div>
@@ -867,9 +868,9 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                         "workspace",
                     )
                     result_mode = st.segmented_control(
-                        "结果模式",
+                        tr("view.result_mode"),
                         options=["workspace", "compare"],
-                        format_func=lambda value: "当前策略" if value == "workspace" else "策略比对",
+                        format_func=lambda value: tr("strategy.current") if value == "workspace" else tr("action.compareStrategies"),
                         default=result_mode_default,
                         key=STRATEGY_RESULT_MODE_KEY,
                         width="stretch",
@@ -1068,37 +1069,37 @@ def _render_strategy_library(
     unique_entries = _dedupe_artifact_entries(entries)
     _sync_downstream_display_state(current_artifact, unique_entries)
 
-    st.markdown("##### 策略库 / 多策略选择器")
+    st.markdown(tr("strategy_library.title"))
     action_col, info_col = st.columns([1.0, 2.0])
     with action_col:
-        if st.button("保存当前策略", key="single_stock_save_current_artifact", width="stretch"):
+        if st.button(tr("strategy.saveCurrent"), key="single_stock_save_current_artifact", width="stretch"):
             save_status, saved_artifact = save_current_artifact()
             if save_status == "saved" and saved_artifact is not None:
                 st.success(f"已保存：{saved_artifact.display_label}")
             elif save_status == "exists":
-                st.info("当前策略已在策略库中。")
+                st.info(tr("strategy.status.inLibrary"))
             else:
-                st.info("当前没有可保存的策略。")
+                st.info(tr("strategy.noSavable"))
             workspace = get_strategy_workspace()
             saved_artifacts = list(workspace.get("saved_artifacts", []))
             entries = _build_strategy_library_entries(current_artifact, saved_artifacts)
             unique_entries = _dedupe_artifact_entries(entries)
             _sync_downstream_display_state(current_artifact, unique_entries)
     with info_col:
-        st.caption("当前策略固定置顶；已保存策略按最近保存倒序展示。比较器按底层 artifact 去重，不重复画线。")
+        st.caption(tr("strategyList.displayRules"))
         st.caption(f"策略库规模：当前 1 条，已保存 {len(saved_artifacts)} 条。")
 
     if not saved_artifacts:
-        st.info("当前还没有已保存策略。保存当前策略后，这里会形成本次会话的策略库。")
+        st.info(tr("strategy.noSavedYet"))
 
     unique_labels = {entry.artifact_id: entry.selector_label for entry in unique_entries}
     selected_ids = st.multiselect(
-        "参与下游比较的策略",
+        tr("section.strategies_for_comparison"),
         options=[entry.artifact_id for entry in unique_entries],
         format_func=lambda artifact_id: unique_labels.get(artifact_id, artifact_id),
         key=SELECTED_ARTIFACT_IDS_KEY,
         on_change=_on_artifact_selection_change,
-        help="当前策略默认参与；已保存策略按需勾选加入多策略比较。",
+        help=tr("strategy.comparisonRule"),
     )
     selected_entries = [entry for entry in unique_entries if entry.artifact_id in selected_ids]
     if not selected_entries:
@@ -1106,16 +1107,16 @@ def _render_strategy_library(
         selected_entries = [entry for entry in unique_entries if entry.artifact_id in selected_ids]
 
     if len(selected_entries) < 2:
-        st.caption("当前仅有 1 条可比较策略。保存更多快照或额外勾选策略后，可进行多策略比较。")
+        st.caption(tr("comparison.insufficientStrategies"))
 
     selected_labels = {entry.artifact_id: entry.selector_label for entry in selected_entries}
     if selected_entries:
         if len(selected_entries) == 1:
             st.session_state[FOCUS_ARTIFACT_ID_KEY] = selected_entries[0].artifact_id
-            st.caption("主策略：" + selected_entries[0].selector_label)
+            st.caption(tr("strategy.primary") + selected_entries[0].selector_label)
         else:
             st.selectbox(
-                "主策略（供收益热图 / 买卖点细看）",
+                tr("strategy.main_for_details"),
                 options=[entry.artifact_id for entry in selected_entries],
                 format_func=lambda artifact_id: selected_labels.get(artifact_id, artifact_id),
                 key=FOCUS_ARTIFACT_ID_KEY,
@@ -1125,14 +1126,14 @@ def _render_strategy_library(
     split_col, library_col = st.columns([1.1, 1.9])
     with split_col:
         st.radio(
-            "买卖点查看数据集",
+            tr("dataset.trading_signals"),
             options=["test", "train"],
-            format_func=lambda value: "测试集" if value == "test" else "训练集",
+            format_func=lambda value: tr("backtest.testSet") if value == "test" else tr("dataset.training"),
             horizontal=True,
             key=SIGNAL_DATASET_SPLIT_KEY,
         )
     with library_col:
-        st.caption("策略库视图：")
+        st.caption(tr("view.strategy_library"))
         for entry in entries:
             st.write(entry.selector_label)
 
@@ -1163,12 +1164,12 @@ def _artifact_style(entry: ArtifactLibraryEntry, order_index: int) -> tuple[str,
 
 def _resolve_score_columns(df: pd.DataFrame | None) -> tuple[str | None, str | None, str]:
     if df is None or df.empty:
-        return None, None, "评分"
+        return None, None, tr("score")
     if {"factor_score", "factor_percentile"}.issubset(df.columns):
-        return "factor_score", "factor_percentile", "因子评分"
+        return "factor_score", "factor_percentile", tr("factor.score")
     if {"regime_score", "regime_score_percentile"}.issubset(df.columns):
-        return "regime_score", "regime_score_percentile", "Regime 评分"
-    return None, None, "评分"
+        return "regime_score", "regime_score_percentile", tr("score.regime")
+    return None, None, tr("score")
 
 
 def _build_score_chart_input(df: pd.DataFrame | None) -> tuple[pd.DataFrame | None, str]:
@@ -1223,12 +1224,12 @@ def _render_workbench_entry(
     df_indicators: pd.DataFrame,
     market: str,
 ) -> str | None:
-    st.caption("先选模型路径，再显式点击“生成策略”；页面不再默认预计算全模型结果。")
+    st.caption(tr("strategy.generation_flow"))
 
     if pd.api.types.is_datetime64_any_dtype(df_indicators["date"]):
         date_range = f"{df_indicators['date'].min().date()} 到 {df_indicators['date'].max().date()}"
     else:
-        date_range = "行索引"
+        date_range = tr("table.rowIndex")
 
     summary_col, family_col = st.columns([1.4, 1.0])
     with summary_col:
@@ -1237,17 +1238,17 @@ def _render_workbench_entry(
             f"日期范围：{date_range}"
         )
     with family_col:
-        st.caption("Step 1 选择 Family")
+        st.caption(tr("workflow.step1SelectFamily"))
         family_options = ["", "baseline", "search"]
         if _normalize_market_key(market) == "US":
             family_options.append("regime")
         if st.session_state.get("single_stock_workflow_family") not in family_options:
             st.session_state["single_stock_workflow_family"] = ""
         family = st.selectbox(
-            "模型家族",
+            tr("model.family"),
             options=family_options,
             format_func=lambda value: {
-                "": "请选择模型家族",
+                "": tr("validation.selectModelFamily"),
                 "baseline": "Baseline",
                 "search": "Search",
                 "regime": "Regime (Experimental)",
@@ -1255,7 +1256,7 @@ def _render_workbench_entry(
             key="single_stock_workflow_family",
         )
 
-    st.caption("Step 2 完成模型配置；Step 3 点击“生成策略”提交当前请求。")
+    st.caption(tr("strategy.workflowSteps"))
     return family or None
 
 
@@ -1273,13 +1274,13 @@ def _render_model_configuration_section(family: str | None) -> StrategyRequest:
 def _build_strategy_request(family: str) -> StrategyRequest:
     if family == "baseline":
         baseline_kind = st.selectbox(
-            "Step 2 · Baseline 路径",
+            tr("step.baseline_path"),
             options=["", "naive", "mean", "drift"],
             format_func=lambda value: {
-                "": "请选择 Baseline 类型",
-                "naive": "Naive（买入持有）",
-                "mean": "Mean（均值基线）",
-                "drift": "Drift（漂移基线）",
+                "": tr("baseline.type_prompt"),
+                "naive": tr("strategy.naiveBuyAndHold"),
+                "mean": tr("baseline.mean"),
+                "drift": tr("metric.driftBaseline"),
             }[value],
             key="single_stock_workflow_baseline_kind",
         )
@@ -1294,26 +1295,26 @@ def _build_strategy_request(family: str) -> StrategyRequest:
         }:
             st.session_state["single_stock_workflow_regime_kind"] = ADAPTIVE_REGIME_KIND
         regime_kind = st.selectbox(
-            "Step 2 · Regime 路径",
+            tr("step.regimePath"),
             options=[ADAPTIVE_REGIME_KIND, "dual_state_router", "no_market", "no_router"],
             format_func=lambda value: {
-                ADAPTIVE_REGIME_KIND: "Adaptive Router V1（推荐）",
+                ADAPTIVE_REGIME_KIND: tr("router.adaptive_v1_recommended"),
                 "dual_state_router": "Legacy Dual-State Router",
                 "no_market": "Legacy No-Market Ablation",
                 "no_router": "Legacy No-Router Ablation",
             }[value],
             key="single_stock_workflow_regime_kind",
         )
-        st.caption("Adaptive Router V1 会优先读取最近一次离线 `regime_artifacts/`；缺失时自动降级到 legacy dual-state router。")
+        st.caption(tr("router.adaptive_v1_fallback"))
         return StrategyRequest(family="regime", regime_kind=regime_kind or None)
 
     search_base = st.selectbox(
-        "Step 2 · Search 基础模型",
+        tr("step2.search_base_model"),
         options=["", "sm", "fsm"],
         format_func=lambda value: {
-            "": "请选择 Search 基础模型",
-            "sm": "SM（10因子）",
-            "fsm": "FSM（FA增强）",
+            "": tr("model.selectSearchBase"),
+            "sm": tr("strategy.sm10Factor"),
+            "fsm": tr("model.fsm_fa_enhanced"),
         }[value],
         key="single_stock_workflow_search_base",
     )
@@ -1328,17 +1329,17 @@ def _build_strategy_request(family: str) -> StrategyRequest:
 
     if search_base:
         if search_base == "fsm":
-            st.caption("FSM 路径会先在训练集拟合 FA，再进入 FSM 基础策略。")
+            st.caption(tr("fsm.path.description"))
 
-        use_search = st.checkbox("启用参数搜索", value=False, key="single_stock_workflow_use_search")
+        use_search = st.checkbox(tr("parameterSearch.enable"), value=False, key="single_stock_workflow_use_search")
         if use_search:
             search_method = st.selectbox(
-                "参数搜索方法",
+                tr("optimization.parameter_search_method"),
                 options=["bayesian", "genetic", "random"],
                 format_func=lambda value: {
-                    "bayesian": "贝叶斯优化",
-                    "genetic": "遗传算法",
-                    "random": "随机搜索",
+                    "bayesian": tr("optimization.bayesian"),
+                    "genetic": tr("algorithm.genetic"),
+                    "random": tr("optimization.randomSearch"),
                 }[value],
                 key="single_stock_workflow_search_method",
             )
@@ -1346,7 +1347,7 @@ def _build_strategy_request(family: str) -> StrategyRequest:
                 ga_col1, ga_col2 = st.columns(2)
                 with ga_col1:
                     ga_population_size = st.slider(
-                        "种群大小",
+                        tr("optimization.population_size"),
                         min_value=10,
                         max_value=60,
                         value=30,
@@ -1354,7 +1355,7 @@ def _build_strategy_request(family: str) -> StrategyRequest:
                     )
                 with ga_col2:
                     ga_generations = st.slider(
-                        "进化代数",
+                        tr("optimization.generation"),
                         min_value=5,
                         max_value=40,
                         value=20,
@@ -1362,17 +1363,17 @@ def _build_strategy_request(family: str) -> StrategyRequest:
                     )
             else:
                 search_trials = st.slider(
-                    "搜索次数",
+                    tr("search.count"),
                     min_value=20,
                     max_value=150,
                     value=60 if search_method == "bayesian" else 40,
                     key="single_stock_workflow_search_trials",
                 )
 
-        use_ml = st.checkbox("启用 ML 过滤", value=False, key="single_stock_workflow_use_ml")
+        use_ml = st.checkbox(tr("settings.enableMLFilter"), value=False, key="single_stock_workflow_use_ml")
         if use_ml:
             ml_model_type = st.radio(
-                "ML 模型",
+                tr("model.ml"),
                 options=["logistic", "lgbm"],
                 format_func=lambda value: "Logistic" if value == "logistic" else "LightGBM",
                 horizontal=True,
@@ -1394,33 +1395,33 @@ def _build_strategy_request(family: str) -> StrategyRequest:
 
 def _render_model_configuration_guidance(request: StrategyRequest) -> None:
     if request.family is None:
-        st.info("请先在上方选择 Baseline、Search 或 Regime，再展开具体配置。")
+        st.info(tr("instruction.selectModeFirst"))
         return
 
     if request.family == "baseline":
-        st.caption("Baseline 路径只生成单步基线策略，不进入参数搜索或 ML 过滤。")
+        st.caption(tr("mode.baselineDescription"))
         if request.baseline_kind is None:
-            st.info("请选择 Naive / Mean / Drift 之一。")
+            st.info(tr("validation.select_baseline_type"))
         return
 
     if request.family == "regime":
         if request.regime_kind == ADAPTIVE_REGIME_KIND:
-            st.caption("Adaptive 路径会先预测离散 state，再按 state 在 baseline / SM / FSM 候选中动态切换。")
-            st.write("当前版本只在美股展示，默认使用 SPY 作为市场代理；若 adaptive artifact 缺失或损坏，会降级到 legacy dual-state router。")
+            st.caption(tr("algorithm.adaptivePathDescription"))
+            st.write(tr("version.market_scope_note"))
         else:
-            st.caption("Legacy Regime 路径会固定执行双状态路由：股票状态 + 市场代理状态 -> trend / range / risk-off。")
-            st.write("当前版本只在美股展示，默认使用 SPY 作为市场代理；若代理不可用，会降级为 stock-only 路由。")
+            st.caption(tr("strategy.legacyRegime.description"))
+            st.write(tr("scope.usMarketNote"))
         return
 
     if request.search_base is None:
-        st.info("请先选择 SM 或 FSM，再决定是否追加参数搜索与 ML 过滤。")
+        st.info(tr("workflow.select_model_first"))
         return
 
-    st.caption("Search 路径的固定顺序是：基础策略 -> 可选参数搜索 -> 可选 ML 过滤。")
+    st.caption(tr("note.search_workflow"))
     if request.use_search:
-        st.write("已启用参数搜索：搜索结果只进入 lineage / artifact，不会自动回写侧边栏参数。")
+        st.write(tr("parameterSearch.enabledNote"))
     if request.use_ml:
-        st.write("已启用 ML 过滤：ML 始终消费最近一步成功的上游结果。")
+        st.write(tr("ml.filter.enabled"))
 
 
 def _derive_workbench_page_state(
@@ -1443,44 +1444,44 @@ def _render_workbench_status(
 ) -> None:
     with slot.container():
         if was_reset:
-            st.info("检测到股票/数据上下文变化，已清空上一个上下文中的策略结果。")
+            st.info(tr("context.change_detected"))
 
         if page_state == "EMPTY":
-            st.info("请选择模型路径并生成第一条策略。")
+            st.info(tr("strategy.firstStrategyPrompt"))
         elif page_state == "REQUEST_DRAFT" and current_artifact is None:
             if request_ready:
-                st.info("当前请求已完成配置，尚未生成结果。")
+                st.info(tr("status.configCompleteNoResult"))
             else:
-                st.info("当前正在配置策略请求；完成必要选择后即可生成。")
+                st.info(tr("status.configuringStrategy"))
         elif page_state == "REQUEST_DRAFT":
-            st.warning("当前展示的是上次成功生成的结果；重新生成后才会更新下游分析。")
+            st.warning(tr("display.cachedResultsNotice"))
         elif page_state == "CURRENT_AND_SAVED":
-            st.success("当前上下文中存在最新策略和已保存快照。")
+            st.success(tr("strategy.contextStatus"))
         else:
-            st.success("当前上下文中已有最新生成策略，可继续查看下游分析或再次生成。")
+            st.success(tr("status.strategyReady"))
 
 
 def _get_request_missing_items(request: StrategyRequest) -> list[str]:
     if request.family is None:
-        return ["请选择 Baseline、Search 或 Regime"]
+        return [tr("prompt.select_mode")]
 
     if request.family == "baseline":
         if request.baseline_kind is None:
-            return ["请选择 Naive / Mean / Drift"]
+            return [tr("strategy.selection.prompt")]
         return []
 
     if request.family == "regime":
         if request.regime_kind is None:
-            return ["Regime 配置缺失"]
+            return [tr("configuration.regime.missing")]
         return []
 
     missing_items: list[str] = []
     if request.search_base is None:
-        missing_items.append("请选择 SM 或 FSM")
+        missing_items.append(tr("strategy.selection_prompt"))
     if request.use_search and request.search_method is None:
-        missing_items.append("请选择参数搜索方法")
+        missing_items.append(tr("prompt.selectParamSearchMethod"))
     if request.use_ml and request.ml_model_type is None:
-        missing_items.append("请选择 ML 模型")
+        missing_items.append(tr("model.selection_prompt"))
     return missing_items
 
 
@@ -1495,24 +1496,24 @@ def _describe_request_pipeline(request: StrategyRequest) -> str | None:
             "drift": "Drift",
         }
         if request.baseline_kind is None:
-            return "Baseline -> 等待选择 Naive / Mean / Drift"
+            return tr("baseline.selection_prompt")
         return f"Baseline -> {label_map[request.baseline_kind]} -> 生成策略"
 
     if request.family == "regime":
         if request.regime_kind is None:
-            return "Regime -> 等待选择 adaptive / legacy 路径"
+            return tr("regime.path_pending")
         if request.regime_kind == ADAPTIVE_REGIME_KIND:
-            return "Regime -> Adaptive Router V1 -> 动态候选切换 -> 生成策略"
-        return "Regime -> Legacy 双状态路由 -> 生成策略"
+            return tr("strategy.generationFlow")
+        return tr("strategy.regime_legacy_dual_state_routing")
 
     if request.search_base is None:
-        return "Search -> 等待选择 SM / FSM"
+        return tr("search.await_sm_fsm_selection")
 
-    pipeline_parts = ["FA", "FSM基础"] if request.search_base == "fsm" else ["SM基础"]
+    pipeline_parts = ["FA", tr("model.fsmBase")] if request.search_base == "fsm" else [tr("model.sm_basic")]
     if request.use_search:
-        pipeline_parts.append("参数搜索")
+        pipeline_parts.append(tr("section.parameter_search"))
     if request.use_ml:
-        pipeline_parts.append("ML过滤")
+        pipeline_parts.append(tr("ml.filter"))
     return "Search -> " + " -> ".join(pipeline_parts) + " -> 生成策略"
 
 
@@ -1522,32 +1523,32 @@ def _render_current_workflow_lineage(
     is_stale_result: bool,
 ) -> None:
     if is_stale_result:
-        st.caption("当前展示的是上次成功生成的 lineage；新草稿尚未提交。")
+        st.caption(tr("status.showingLastLineage"))
 
-    st.caption("阶段链路：" + " -> ".join(stage.display_label for stage in artifact.pipeline_lineage))
+    st.caption(tr("workflow.stageLink") + " -> ".join(stage.display_label for stage in artifact.pipeline_lineage))
     stage_columns = st.columns(len(artifact.pipeline_lineage))
     for idx, stage in enumerate(artifact.pipeline_lineage):
         with stage_columns[idx]:
             st.markdown(f"**{stage.display_label}**")
             if idx == len(artifact.pipeline_lineage) - 1:
-                st.caption("最终提交到 current_artifact")
+                st.caption(tr("workflow.submitToArtifact"))
             else:
-                st.caption("中间阶段结果")
+                st.caption(tr("results.intermediate_stage"))
 
             st.write(f"累计收益：{format_pct(stage.eval.get('cumret', 0.0))}")
             st.write(f"最大回撤：{format_pct(stage.eval.get('maxdd', 0.0))}")
             st.write(f"夏普：{stage.eval.get('sharpe', 0.0):.2f}")
 
             if stage.metadata.get("search_method"):
-                st.caption("参数搜索：" + str(stage.metadata["search_method"]))
+                st.caption(tr("parameter.search") + str(stage.metadata["search_method"]))
             if stage.metadata.get("regime_summary"):
                 regime_summary = stage.metadata["regime_summary"]
-                st.caption("市场代理：" + str(regime_summary.get("market_proxy_symbol", "SPY")))
-                st.caption("最新 Regime：" + _format_execution_regime_label(regime_summary.get("latest_execution_regime")))
+                st.caption(tr("label.marketProxy") + str(regime_summary.get("market_proxy_symbol", "SPY")))
+                st.caption(tr("regime.latestLabel") + _format_execution_regime_label(regime_summary.get("latest_execution_regime")))
             if stage.ml_quality is not None:
                 precision = stage.ml_quality.get("precision")
                 if precision is not None:
-                    st.caption("ML Precision：" + format_pct(precision))
+                    st.caption(f"{tr('metric.mlPrecision')}{format_pct(precision)}")
 
 
 def _resolve_market_visualization_state(*, render_controls: bool) -> tuple[str, str, str]:
@@ -1559,33 +1560,33 @@ def _resolve_market_visualization_state(*, render_controls: bool) -> tuple[str, 
 
     period_col, scope_col, indicator_col = st.columns(3, gap="small")
     with period_col:
-        st.caption("股票周期")
+        st.caption(tr("stock.cycle"))
         period_key = st.segmented_control(
-            "股票周期",
+            tr("stock.cycle"),
             options=["D", "W", "M"],
-            format_func=lambda value: {"D": "日 K", "W": "周 K", "M": "月 K"}[value],
+            format_func=lambda value: {"D": tr("chart.daily_k"), "W": tr("chart.weekly_k"), "M": tr("chart.monthlyK")}[value],
             default=period_default,
             key="single_stock_chart_period",
             width="stretch",
             label_visibility="collapsed",
         ) or period_default
     with scope_col:
-        st.caption("数据集时间")
+        st.caption(tr("data.datasetTime"))
         chart_scope = st.segmented_control(
-            "数据集时间",
+            tr("data.datasetTime"),
             options=["dataset", "train"],
-            format_func=lambda value: "完整数据" if value == "dataset" else "训练集",
+            format_func=lambda value: tr("data.full") if value == "dataset" else tr("dataset.training"),
             default=scope_default,
             key="single_stock_market_scope",
             width="stretch",
             label_visibility="collapsed",
         ) or scope_default
     with indicator_col:
-        st.caption("指标小图")
+        st.caption(tr("chart.indicatorsMini"))
         indicator_view = st.segmented_control(
-            "指标小图",
+            tr("chart.indicatorsMini"),
             options=["MACD", "RSI", "VOL"],
-            format_func=lambda value: {"MACD": "MACD", "RSI": "RSI", "VOL": "成交量"}[value],
+            format_func=lambda value: {"MACD": "MACD", "RSI": "RSI", "VOL": tr("chart.volume")}[value],
             default=indicator_default,
             key="single_stock_indicator_view",
             width="stretch",
@@ -1611,7 +1612,7 @@ def _build_market_visualizations(
     if chart_scope == "train":
         filtered = chart_df[chart_df["date"] <= split_date].copy()
         if filtered.empty:
-            scope_note = "当前周期下训练窗口可用样本不足，已回退到完整数据区间。"
+            scope_note = tr("training.insufficient_samples_fallback")
         else:
             chart_df = filtered
 
@@ -1619,14 +1620,14 @@ def _build_market_visualizations(
     latest_close = _format_decimal(chart_df["close"].iloc[-1]) if not chart_df.empty else "N/A"
     ema_fast_value = _format_decimal(chart_df["ema_fast"].iloc[-1]) if "ema_fast" in chart_df.columns and not chart_df["ema_fast"].isna().all() else "N/A"
     ema_slow_value = _format_decimal(chart_df["ema_slow"].iloc[-1]) if "ema_slow" in chart_df.columns and not chart_df["ema_slow"].isna().all() else "N/A"
-    scope_label = "训练集" if chart_scope == "train" and not scope_note else "完整数据"
-    indicator_title = {"MACD": "MACD 指标", "RSI": "RSI 指标", "VOL": "成交量"}[indicator_view]
+    scope_label = tr("dataset.training") if chart_scope == "train" and not scope_note else tr("data.full")
+    indicator_title = {"MACD": tr("indicator.macd"), "RSI": tr("indicator.rsi"), "VOL": tr("chart.volume")}[indicator_view]
 
     candle = _build_candlestick_chart(
         chart_df=chart_df,
         symbol=symbol,
         period_key=period_key,
-        split_date=None if scope_label == "训练集" else split_date,
+        split_date=None if scope_label == tr("dataset.training") else split_date,
     )
     ind_fig = _build_indicator_mini_chart(
         chart_df=chart_df,
@@ -1639,7 +1640,7 @@ def _build_market_visualizations(
 
     score_fig = go.Figure()
     score_df = None
-    score_label = "因子评分"
+    score_label = tr("factor.score")
     if artifact is not None:
         score_df = artifact.full_signal_df.copy()
         if chart_scope == "train":
@@ -1654,7 +1655,7 @@ def _build_market_visualizations(
             f"""
 <div class="analysis-chart-meta">
   <span class="analysis-chart-chip">{html.escape(scope_label)}</span>
-  <span class="analysis-chart-chip">{html.escape({'D': '日 K', 'W': '周 K', 'M': '月 K'}[period_key])}</span>
+  <span class="analysis-chart-chip">{html.escape({'D': tr("chart.daily_k"), 'W': tr("chart.weekly_k"), 'M': tr("chart.monthlyK")}[period_key])}</span>
   <span class="analysis-chart-chip">最新收盘 {html.escape(latest_close)}</span>
   <span class="analysis-chart-chip">EMA 快线 {html.escape(ema_fast_value)}</span>
   <span class="analysis-chart-chip">EMA 慢线 {html.escape(ema_slow_value)}</span>
@@ -1667,7 +1668,7 @@ def _build_market_visualizations(
             chart_df=chart_df,
             symbol=symbol,
             period_key=period_key,
-            split_date=None if scope_label == "训练集" else split_date,
+            split_date=None if scope_label == tr("dataset.training") else split_date,
             indicator_view=indicator_view,
             rsi_upper=rsi_upper,
             rsi_lower=rsi_lower,
@@ -1721,7 +1722,7 @@ def _build_regime_timeline_figure(artifact: StrategyArtifact) -> go.Figure:
         )
     )
     fig.update_yaxes(visible=False, range=[0, 1.2])
-    fig.update_xaxes(title="最近 30 个交易日")
+    fig.update_xaxes(title=tr("period.last_30_trading_days"))
     fig.update_layout(height=220, bargap=0.12, margin=dict(t=24, r=16, b=32, l=16))
     _apply_analysis_chart_layout(fig, height=220)
     return fig
@@ -1743,12 +1744,12 @@ def _render_regime_diagnostics_panel(artifact: StrategyArtifact) -> None:
     proxy_mode = str(regime_summary.get("market_proxy_mode") or "enabled")
     proxy_symbol = str(regime_summary.get("market_proxy_symbol") or "SPY")
     latest_regime = _format_execution_regime_label(regime_summary.get("latest_execution_regime"))
-    proxy_note = "SPY 代理可用" if proxy_mode == "enabled" else "已切到 stock-only" if proxy_mode == "fallback_stock_only" else "研究禁用市场代理"
+    proxy_note = tr("market.spy_proxy_available") if proxy_mode == "enabled" else tr("status.switched_to_stock_only") if proxy_mode == "fallback_stock_only" else tr("research.disableMarketProxy")
 
     overview_col1, overview_col2, overview_col3 = st.columns(3)
-    overview_col1.metric("市场代理", proxy_symbol, proxy_note)
-    overview_col2.metric("代理模式", proxy_mode, "enabled / disabled / fallback")
-    overview_col3.metric("最新 Regime", latest_regime)
+    overview_col1.metric(tr("market.proxy"), proxy_symbol, proxy_note)
+    overview_col2.metric(tr("mode.proxy"), proxy_mode, "enabled / disabled / fallback")
+    overview_col3.metric(tr("regime.latest"), latest_regime)
 
     regime_table = pd.DataFrame(regime_summary.get("regime_table") or [])
     if not regime_table.empty:
@@ -1760,10 +1761,10 @@ def _render_regime_diagnostics_panel(artifact: StrategyArtifact) -> None:
             hide_index=True,
             column_config={
                 "regime": st.column_config.TextColumn("Regime"),
-                "day_count": st.column_config.NumberColumn("天数", format="%d"),
-                "day_ratio": st.column_config.NumberColumn("时间占比", format="%.2f"),
-                "return_contribution": st.column_config.NumberColumn("收益贡献", format="%.4f"),
-                "exposure_ratio": st.column_config.NumberColumn("Exposure 占比", format="%.2f"),
+                "day_count": st.column_config.NumberColumn(tr("common.days"), format="%d"),
+                "day_ratio": st.column_config.NumberColumn(tr("performance.timeProportion"), format="%.2f"),
+                "return_contribution": st.column_config.NumberColumn(tr("analysis.returnContribution"), format="%.4f"),
+                "exposure_ratio": st.column_config.NumberColumn(tr("exposure.percentage"), format="%.2f"),
             },
         )
 
@@ -1779,18 +1780,18 @@ def _render_generated_strategy_summary(
     strategy_preset: str,
 ) -> str:
     if artifact is None:
-        render_status_note("请先在左侧工作台生成一条策略。", tone="info")
-        return "未生成策略"
+        render_status_note(tr("strategy.creationPrompt"), tone="info")
+        return tr("strategy.notGenerated")
     if artifact.full_signal_df.empty:
-        render_status_note("当前策略缺少可展示的信号数据。", tone="warning")
+        render_status_note(tr("strategy.noSignalData"), tone="warning")
         return artifact.display_label
 
     latest = artifact.full_signal_df.iloc[-1]
     score_col, percentile_col, score_label = _resolve_score_columns(artifact.full_signal_df)
-    latest_factor = "课程基线策略"
+    latest_factor = tr("strategy.courseBaseline")
     latest_percentile = "N/A"
     target_position = _safe_float(latest.get("target_position")) or 0.0
-    score_metric_label = "评分 / 分位"
+    score_metric_label = tr("metric.scoreAndQuantile")
     if score_col is not None and percentile_col is not None:
         score_value = _safe_float(latest.get(score_col))
         latest_factor = f"{score_value:.2f}" if score_value is not None else "N/A"
@@ -1799,17 +1800,17 @@ def _render_generated_strategy_summary(
             latest_percentile = f"{float(percentile_value) * 100:.1f}%"
         score_metric_label = f"{score_label} / 分位"
     eval_result = artifact.eval
-    final_stage = artifact.pipeline_lineage[-1].display_label if artifact.pipeline_lineage else "未记录"
+    final_stage = artifact.pipeline_lineage[-1].display_label if artifact.pipeline_lineage else tr("common.not_recorded")
     action_text = _describe_strategy_action(artifact)
     metrics = [
-        ("当前 artifact", artifact.display_label, "右侧所有结果默认读取 current_artifact"),
-        ("预设来源", strategy_preset, f"最终阶段 {final_stage}"),
-        ("最新建议", action_text, "按最近一个交易日信号与目标仓位生成"),
+        (tr("artifact.current"), artifact.display_label, tr("results.defaultSource")),
+        (tr("data.presetSource"), strategy_preset, f"最终阶段 {final_stage}"),
+        (tr("latest.suggestion"), action_text, tr("strategy.generationRule")),
         (score_metric_label, latest_factor, latest_percentile),
-        ("目标仓位", f"{target_position:.1f}", "来自最新一行 target_position"),
-        ("累计收益", format_pct(eval_result.get("cumret")), "测试期"),
-        ("最大回撤", format_pct(eval_result.get("maxdd")), "测试期"),
-        ("夏普", _fmt_eval_metric(eval_result.get("sharpe"), "sharpe"), "风险调整后表现"),
+        (tr("position.target"), f"{target_position:.1f}", tr("data.source.latestTargetPosition")),
+        (tr("returns.cumulative"), format_pct(eval_result.get("cumret")), tr("common.testing_period")),
+        (tr("metrics.max_drawdown"), format_pct(eval_result.get("maxdd")), tr("common.testing_period")),
+        (tr("kpi.sharpe"), _fmt_eval_metric(eval_result.get("sharpe"), "sharpe"), tr("performance.risk_adjusted")),
     ]
     metrics_markup = "".join(
         f"""
@@ -1825,7 +1826,7 @@ def _render_generated_strategy_summary(
         f"""
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">当前策略摘要</h4>
-  <p class="analysis-callout-copy">当前已提交 artifact：{html.escape(artifact.display_label)}。{html.escape(action_text)}</p>
+  <p class="analysis-callout-copy">{tr("single.strategy.currentArtifactCopy", label=artifact.display_label, action=action_text)}</p>
   <div class="analysis-kv-grid">{metrics_markup}</div>
 </div>
         """
@@ -1843,9 +1844,9 @@ def _render_strategy_library_overview(
     if current_artifact is None:
         return
 
-    selected_labels = "、".join(entry.compare_label for entry in selected_entries) if selected_entries else "无"
-    focus_label = focus_entry.compare_label if focus_entry is not None else "无"
-    split_label = "测试集" if signal_dataset_split == "test" else "训练集"
+    selected_labels = "、".join(entry.compare_label for entry in selected_entries) if selected_entries else tr("common.none")
+    focus_label = focus_entry.compare_label if focus_entry is not None else tr("common.none")
+    split_label = tr("backtest.testSet") if signal_dataset_split == "test" else tr("dataset.training")
     st.caption(
         f"当前策略 1 条 + 已保存 {len(saved_artifacts)} 条；当前参与比较：{selected_labels}。"
     )
@@ -1854,7 +1855,7 @@ def _render_strategy_library_overview(
 
 def _describe_strategy_action(artifact: StrategyArtifact) -> str:
     if artifact.full_signal_df.empty:
-        return "当前没有足够的信号数据。"
+        return tr("strategy.insufficientSignalData")
 
     latest = artifact.full_signal_df.iloc[-1]
     target_position = _safe_float(latest.get("target_position")) or 0.0
@@ -1880,19 +1881,19 @@ def _render_strategy_result_empty(
         """
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">结果板暂未生成</h4>
-  <p class="analysis-callout-copy">左侧完成模型路径后，这里会承接当前策略摘要、净值 / 回撤 / 月度收益、买卖点、Walk-Forward 和策略比对视图。</p>
+  <p class="analysis-callout-copy">{tr("single.strategy.resultPlaceholderCopy")}</p>
 </div>
         """
     )
     if request_path:
-        render_status_note("当前草稿路径：" + request_path, tone="info")
+        render_status_note(tr("draft.currentPath") + request_path, tone="info")
 
     if page_state == "EMPTY":
-        render_status_note("先在左侧选择 Baseline、Search 或 Regime 家族，结果板才会进入可配置状态。", tone="info")
+        render_status_note(tr("strategy.configurationHint"), tone="info")
     elif request_ready:
-        render_status_note("当前草稿已经准备好，点击“生成策略”后右侧会提交新的 current_artifact。", tone="positive")
+        render_status_note(tr("draft.ready.generate"), tone="positive")
     else:
-        render_status_note("当前草稿尚未补齐，先完成左侧待选项。", tone="warning")
+        render_status_note(tr("draft.incomplete"), tone="warning")
 
 
 def _render_strategy_workspace_result(
@@ -1910,7 +1911,7 @@ def _render_strategy_workspace_result(
         """
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">当前工作流链路</h4>
-  <p class="analysis-callout-copy">继续沿用 W5 的分阶段产物语义，便于判断当前结果来自 baseline、search、regime 或 ML 过滤后的最终提交。</p>
+  <p class="analysis-callout-copy">{tr("single.strategy.workflowCopy")}</p>
 </div>
         """
     )
@@ -1925,7 +1926,7 @@ def _render_strategy_workspace_result(
     equity_fig = _render_test_performance(
         current_payload,
         active_models=current_models,
-        title="当前策略净值 / 回撤",
+        title=tr("performance.currentNetDrawdown"),
     )
     _render_periodic_returns_heatmap(current_entry)
     _render_artifact_comparison_table(current_payload, current_models)
@@ -1936,12 +1937,12 @@ def _render_strategy_workspace_result(
         "signals",
     )
     detail_view = st.segmented_control(
-        "结果细看",
+        tr("results.detailedView"),
         options=["signals", "walk_forward", "ml"],
         format_func=lambda value: {
-            "signals": "买卖点",
-            "walk_forward": "Walk-Forward",
-            "ml": "ML 质量",
+            "signals": tr("trading.buySellPoints"),
+            "walk_forward": tr("backtest.walkForward"),
+            "ml": tr("metric.mlQuality"),
         }[value],
         default=detail_view_default,
         key=WORKSPACE_DETAIL_VIEW_KEY,
@@ -1954,7 +1955,7 @@ def _render_strategy_workspace_result(
         _render_walk_forward(current_artifact)
     else:
         if current_artifact.ml_quality is None:
-            render_status_note("当前策略路径没有可展示的 ML 过滤质量指标。", tone="info")
+            render_status_note(tr("ml.filter.quality.noData"), tone="info")
         else:
             _render_ml_quality(current_payload, current_models)
 
@@ -1983,18 +1984,18 @@ def _render_strategy_compare_summary(
     signal_dataset_split: str,
 ) -> ArtifactLibraryEntry | None:
     best_entry = _pick_best_artifact_entry(selected_entries)
-    focus_label = focus_entry.compare_label if focus_entry is not None else "无"
-    split_label = "测试集" if signal_dataset_split == "test" else "训练集"
+    focus_label = focus_entry.compare_label if focus_entry is not None else tr("common.none")
+    split_label = tr("backtest.testSet") if signal_dataset_split == "test" else tr("dataset.training")
 
-    best_title = best_entry.compare_label if best_entry is not None else "暂无可比策略"
+    best_title = best_entry.compare_label if best_entry is not None else tr("strategy.comparison.empty")
     best_eval = best_entry.artifact.eval if best_entry is not None else {}
     metrics = [
-        ("当前最佳", best_title, "按测试期累计收益优先，夏普作为并列时的次级排序"),
-        ("参与策略数", str(len(selected_entries)), f"主策略 {focus_label}"),
-        ("买卖点读取", split_label, "热图和买卖点细看都跟随当前主策略"),
-        ("累计收益", format_pct(best_eval.get("cumret")) if best_entry is not None else "N/A", "测试期结果"),
-        ("最大回撤", format_pct(best_eval.get("maxdd")) if best_entry is not None else "N/A", "越低越稳"),
-        ("夏普", _fmt_eval_metric(best_eval.get("sharpe"), "sharpe") if best_entry is not None else "N/A", "风险调整后表现"),
+        (tr("status.currentBest"), best_title, tr("sorting.cumulative_return_first")),
+        (tr("strategy.participationCount"), str(len(selected_entries)), f"主策略 {focus_label}"),
+        (tr("data.trade_point_reading"), split_label, tr("chart.followsMainStrategy")),
+        (tr("returns.cumulative"), format_pct(best_eval.get("cumret")) if best_entry is not None else "N/A", tr("backtest.test_period_result")),
+        (tr("metrics.max_drawdown"), format_pct(best_eval.get("maxdd")) if best_entry is not None else "N/A", tr("metric.lowerIsBetter")),
+        (tr("kpi.sharpe"), _fmt_eval_metric(best_eval.get("sharpe"), "sharpe") if best_entry is not None else "N/A", tr("performance.risk_adjusted")),
     ]
     metrics_markup = "".join(
         f"""
@@ -2029,7 +2030,7 @@ def _render_strategy_compare_result(
     active_artifacts: list[str],
 ) -> tuple[str, go.Figure, go.Figure]:
     if len(selected_entries) < 2:
-        render_status_note("当前只有 1 条策略参与比较。继续保存更多快照后，再观察曲线差异会更有价值。", tone="warning")
+        render_status_note(tr("strategy.comparison.insufficientSnapshots"), tone="warning")
 
     _render_strategy_library_overview(selected_entries, current_artifact, saved_artifacts, focus_entry, signal_dataset_split)
     best_entry = _render_strategy_compare_summary(selected_entries, focus_entry, signal_dataset_split)
@@ -2037,7 +2038,7 @@ def _render_strategy_compare_result(
     equity_fig = _render_test_performance(
         artifact_payload,
         active_models=active_artifacts,
-        title="多策略净值 / 回撤",
+        title=tr("chart.multi_strategy_net_drawdown"),
     )
     _render_periodic_returns_heatmap(focus_entry)
     _render_artifact_comparison_table(artifact_payload, active_artifacts)
@@ -2048,9 +2049,9 @@ def _render_strategy_compare_result(
         "signals",
     )
     detail_view = st.segmented_control(
-        "比对细看",
+        tr("comparison.detail_view"),
         options=["signals", "ml"],
-        format_func=lambda value: {"signals": "买卖点比较", "ml": "ML 质量"}[value],
+        format_func=lambda value: {"signals": tr("analysis.trade_point_comparison"), "ml": tr("metric.mlQuality")}[value],
         default=detail_view_default,
         key=COMPARE_DETAIL_VIEW_KEY,
         width="stretch",
@@ -2062,7 +2063,7 @@ def _render_strategy_compare_result(
         if any(payload.get("ml_quality") is not None for payload in artifact_payload.values()):
             _render_ml_quality(artifact_payload, active_artifacts)
         else:
-            render_status_note("当前所选策略没有 ML 过滤质量指标。", tone="info")
+            render_status_note(tr("warning.noMLMetrics"), tone="info")
 
     suggestion = best_entry.compare_label if best_entry is not None else current_artifact.display_label
     return suggestion, equity_fig, signal_fig
@@ -2123,7 +2124,7 @@ def _build_candlestick_chart(
     period_key: str,
     split_date: pd.Timestamp | None,
 ) -> go.Figure:
-    """构建 K 线主图。"""
+    """chart.build_main_candlestick"""
     return create_candlestick_chart(
         chart_df=chart_df,
         symbol=symbol,
@@ -2142,14 +2143,14 @@ def _build_indicator_mini_chart(
     rsi_lower: float,
     visible_range: tuple[pd.Timestamp, pd.Timestamp] | None = None,
 ) -> go.Figure:
-    """构建指标小图。"""
+    """action.buildIndicatorMiniChart"""
     if chart_df.empty:
-        return _build_empty_chart("暂无可展示的指标数据。")
+        return _build_empty_chart(tr("data.noMetricsAvailable"))
 
     tokens = get_plotly_theme_tokens()
     if indicator_view == "RSI":
         if "rsi" not in chart_df.columns or chart_df["rsi"].isna().all():
-            return _build_empty_chart("当前周期下没有可用的 RSI 指标。")
+            return _build_empty_chart(tr("indicator.rsi.unavailable"))
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
@@ -2170,7 +2171,7 @@ def _build_indicator_mini_chart(
 
     if indicator_view == "VOL":
         if "volume" not in chart_df.columns or chart_df["volume"].isna().all():
-            return _build_empty_chart("当前周期下没有可用的成交量数据。")
+            return _build_empty_chart(tr("data.no_volume_current_period"))
         transform, axis_config, is_compressed = _build_axis_transform(
             [chart_df["volume"]],
             positive_only=True,
@@ -2187,12 +2188,12 @@ def _build_indicator_mini_chart(
                 x=chart_df["date"],
                 y=transform(volume_values),
                 marker_color=colors,
-                name="成交量",
+                name=tr("chart.volume"),
                 customdata=volume_values,
                 hovertemplate="<b>成交量</b><br>日期: %{x|%Y-%m-%d}<br>数值: %{customdata:,.0f}<extra></extra>",
             )
         )
-        fig.update_yaxes(title="成交量（压缩）" if is_compressed else "成交量", **axis_config)
+        fig.update_yaxes(title=tr("metric.volume.compressed") if is_compressed else tr("chart.volume"), **axis_config)
         _apply_analysis_chart_layout(fig, height=220)
         fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])] if period_key == "D" else [])
         if visible_range is not None:
@@ -2201,7 +2202,7 @@ def _build_indicator_mini_chart(
 
     required = {"macd", "signal", "histogram"}
     if not required.issubset(chart_df.columns) or chart_df[list(required)].isna().all().all():
-        return _build_empty_chart("当前周期下没有可用的 MACD 指标。")
+        return _build_empty_chart(tr("warning.noMACD"))
 
     histogram_colors = np.where(
         chart_df["histogram"] >= 0,
@@ -2246,7 +2247,7 @@ def _build_indicator_mini_chart(
             hovertemplate="<b>Signal</b><br>日期: %{x|%Y-%m-%d}<br>数值: %{customdata:.3f}<extra></extra>",
         )
     )
-    fig.update_yaxes(title="MACD（压缩）" if is_compressed else "MACD", **axis_config)
+    fig.update_yaxes(title=tr("indicator.macd_compressed") if is_compressed else "MACD", **axis_config)
     _apply_analysis_chart_layout(fig, height=220)
     fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])] if period_key == "D" else [])
     if visible_range is not None:
@@ -2254,8 +2255,8 @@ def _build_indicator_mini_chart(
     return fig
 
 
-def _build_factor_score_chart(df: pd.DataFrame, *, score_label: str = "因子评分") -> go.Figure:
-    """构建评分 + 分位数图。"""
+def _build_factor_score_chart(df: pd.DataFrame, *, score_label: str = tr("factor.score")) -> go.Figure:
+    """chart.build.scoreQuantile"""
     tokens = get_plotly_theme_tokens()
     score_fig = make_subplots(
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, row_heights=[0.6, 0.4]
@@ -2285,14 +2286,14 @@ def _build_factor_score_chart(df: pd.DataFrame, *, score_label: str = "因子评
         go.Scatter(
             x=df["date"],
             y=df["factor_percentile"] * 100,
-            name="评分分位数%",
+            name=tr("score.percentile"),
             line=dict(color=tokens["accent_primary"], width=1.5),
         ),
         row=2,
         col=1,
     )
-    score_fig.update_yaxes(title="评分", row=1, col=1)
-    score_fig.update_yaxes(title="分位数 %", row=2, col=1)
+    score_fig.update_yaxes(title=tr("score"), row=1, col=1)
+    score_fig.update_yaxes(title=tr("statistics.quantile_percent"), row=2, col=1)
     _apply_analysis_chart_layout(score_fig, height=360)
     return score_fig
 
@@ -2304,7 +2305,7 @@ def _build_result_factor_score_figure(
     signal_dataset_split: str,
 ) -> tuple[go.Figure, str]:
     if artifact is None or artifact.full_signal_df.empty:
-        return go.Figure(), "评分"
+        return go.Figure(), tr("score")
 
     score_df = artifact.full_signal_df.copy()
     if signal_dataset_split == "train":
@@ -2332,16 +2333,16 @@ def _render_result_factor_score_panel(
     split_idx: int,
     signal_dataset_split: str,
 ) -> go.Figure:
-    split_label = "测试集" if signal_dataset_split == "test" else "训练集"
+    split_label = tr("backtest.testSet") if signal_dataset_split == "test" else tr("dataset.training")
     score_fig, score_label = _build_result_factor_score_figure(
         artifact=artifact,
         split_idx=split_idx,
         signal_dataset_split=signal_dataset_split,
     )
 
-    with st.expander("评分（可选）", expanded=False):
+    with st.expander(tr("scoring.optional"), expanded=False):
         if artifact is None:
-            render_status_note("生成策略后可查看评分走势。", tone="info")
+            render_status_note(tr("strategy.postGeneration.viewScores"), tone="info")
         elif not score_fig.data:
             render_status_note(f"{artifact_label} 当前没有可展示的 {split_label}{score_label}。", tone="warning")
         else:
@@ -2356,7 +2357,7 @@ def _render_result_factor_score_panel(
 
 
 def _fmt_eval_metric(value: object, kind: str) -> str:
-    """评估区 KPI 展示：kind = pct | sharpe | ratio | days"""
+    """evaluation.kpi.displayOptions"""
     if value is None:
         return "—"
     try:
@@ -2378,23 +2379,23 @@ def _render_test_performance(
     model_payload: dict[str, dict],
     *,
     active_models: list[str],
-    title: str = "回测净值 / 回撤",
+    title: str = tr("backtest.net_value_drawdown"),
 ) -> go.Figure:
-    """基于已选 artifact 渲染多策略净值/回撤比较。"""
+    """visualization.multi_strategy_comparison"""
     st.subheader(title)
 
     if not model_payload:
-        st.warning("当前没有可比较的 artifact，跳过净值与回撤。")
+        st.warning(tr("warning.noComparableArtifacts"))
         return go.Figure()
 
-    st.markdown("##### 核心指标")
+    st.markdown(tr("section.title.coreMetrics"))
     kpi_specs = [
-        ("累计收益率", "cumret", "pct"),
-        ("年化收益率", "annret", "pct"),
-        ("最大回撤", "maxdd", "pct"),
-        ("夏普比率", "sharpe", "sharpe"),
-        ("胜率", "winrate", "pct"),
-        ("盈亏比", "pnl_ratio", "ratio"),
+        (tr("returns.cumulativeRate"), "cumret", "pct"),
+        (tr("metrics.annualizedReturn"), "annret", "pct"),
+        (tr("metrics.max_drawdown"), "maxdd", "pct"),
+        (tr("metric.sharpe_ratio"), "sharpe", "sharpe"),
+        (tr("metric.win_rate"), "winrate", "pct"),
+        (tr("metric.profit_loss_ratio"), "pnl_ratio", "ratio"),
     ]
     for row in range(0, 6, 3):
         cols = st.columns(3)
@@ -2421,7 +2422,7 @@ def _render_test_performance(
 
     st.markdown("---")
 
-    st.markdown("##### 净值与回撤")
+    st.markdown(tr("section.title.netValueAndDrawdown"))
     series_specs = [
         {
             "name": payload["short_label"],
@@ -2439,9 +2440,9 @@ def _render_test_performance(
 
 
 def _render_periodic_returns_heatmap(focus_entry: ArtifactLibraryEntry | None) -> None:
-    st.markdown("##### 月度收益热图")
+    st.markdown(tr("chart.monthlyReturnsHeatmap.title"))
     if focus_entry is None:
-        st.info("请先选定一个主策略，再查看收益热图。")
+        st.info(tr("validation.select_main_strategy_for_heatmap"))
         return
 
     heatmap_fig = create_periodic_returns_heatmap(
@@ -2450,15 +2451,15 @@ def _render_periodic_returns_heatmap(focus_entry: ArtifactLibraryEntry | None) -
     )
     if heatmap_fig:
         st.plotly_chart(heatmap_fig, width="stretch")
-        st.caption("按主策略测试集日收益率复利聚合到月份；绿色代表正收益，红色代表负收益。")
+        st.caption(tr("chart.monthlyReturnsDescription"))
     else:
-        st.info("当前主策略的测试集跨度不足以生成月度收益热图。")
+        st.info(tr("chart.monthlyReturnsHeatmap.insufficientData"))
 
 
 def _render_artifact_comparison_table(model_payload: dict[str, dict], active_models: list[str]) -> None:
-    st.markdown("##### 指标对比表")
+    st.markdown(tr("table.metrics_comparison"))
     if not model_payload:
-        st.info("当前没有可展示的策略指标。")
+        st.info(tr("strategy.noMetrics"))
         return
 
     comp = build_comparison_table([model_payload[name]["eval"] for name in active_models])
@@ -2483,23 +2484,23 @@ def _render_artifact_comparison_table(model_payload: dict[str, dict], active_mod
         width="stretch",
         hide_index=True,
         column_config={
-            "label": st.column_config.TextColumn("模型"),
-            "cumret": st.column_config.NumberColumn("累计收益 %", format="%.2f"),
-            "annret": st.column_config.NumberColumn("年化收益 %", format="%.2f"),
-            "maxdd": st.column_config.NumberColumn("最大回撤 %", format="%.2f"),
-            "sharpe": st.column_config.NumberColumn("夏普", format="%.2f"),
-            "winrate": st.column_config.NumberColumn("胜率 %", format="%.2f"),
-            "pnl_ratio": st.column_config.NumberColumn("盈亏比", format="%.2f"),
-            "avg_hold": st.column_config.NumberColumn("均持仓(日)", format="%.1f"),
-            "turnover": st.column_config.NumberColumn("换手 %", format="%.2f"),
-            "bench_cumret": st.column_config.NumberColumn("基准累计 %", format="%.2f"),
-            "bench_annret": st.column_config.NumberColumn("基准年化 %", format="%.2f"),
-            "bench_maxdd": st.column_config.NumberColumn("基准回撤 %", format="%.2f"),
-            "bench_sharpe": st.column_config.NumberColumn("基准夏普", format="%.2f"),
-            "excess_return": st.column_config.NumberColumn("超额 %", format="%.2f"),
+            "label": st.column_config.TextColumn(tr("common.model")),
+            "cumret": st.column_config.NumberColumn(tr("metric.cumulativeReturn.percent"), format="%.2f"),
+            "annret": st.column_config.NumberColumn(tr("performance.annualReturnPct"), format="%.2f"),
+            "maxdd": st.column_config.NumberColumn(tr("metrics.maxDrawdownPercent"), format="%.2f"),
+            "sharpe": st.column_config.NumberColumn(tr("kpi.sharpe"), format="%.2f"),
+            "winrate": st.column_config.NumberColumn(tr("metric.win_rate_percent"), format="%.2f"),
+            "pnl_ratio": st.column_config.NumberColumn(tr("metric.profit_loss_ratio"), format="%.2f"),
+            "avg_hold": st.column_config.NumberColumn(tr("metrics.avgPositionDays"), format="%.1f"),
+            "turnover": st.column_config.NumberColumn(tr("metric.turnover_percent"), format="%.2f"),
+            "bench_cumret": st.column_config.NumberColumn(tr("metric.benchmarkCumulative.percent"), format="%.2f"),
+            "bench_annret": st.column_config.NumberColumn(tr("metrics.benchmark_annualized_pct"), format="%.2f"),
+            "bench_maxdd": st.column_config.NumberColumn(tr("metrics.benchmark_drawdown_pct"), format="%.2f"),
+            "bench_sharpe": st.column_config.NumberColumn(tr("metrics.benchmarkSharpe"), format="%.2f"),
+            "excess_return": st.column_config.NumberColumn(tr("metric.excess_percent"), format="%.2f"),
         },
     )
-    st.caption("表中累计/年化/回撤/胜率/换手/超额等为 ×100 后的百分比数值；夏普与盈亏比为原始比率，未缩放。")
+    st.caption(tr("table.note.percentageFormat"))
 
 
 def _render_ml_quality(model_payload: dict[str, dict], active_models: list[str]) -> None:
@@ -2507,13 +2508,13 @@ def _render_ml_quality(model_payload: dict[str, dict], active_models: list[str])
     if not active_ml_models:
         return
 
-    st.markdown("##### ML 质量展示")
+    st.markdown(tr("section.mlQuality.title"))
     ml_specs = [
-        ("Precision", "precision"),
-        ("Recall", "recall"),
-        ("F1", "f1"),
-        ("PR-AUC", "pr_auc"),
-        ("通过率", "signal_pass_rate"),
+        (tr("metric.precision"), "precision"),
+        (tr("metric.recall"), "recall"),
+        (tr("metric.f1"), "f1"),
+        (tr("metric.prAuc"), "pr_auc"),
+        (tr("passRate"), "signal_pass_rate"),
     ]
     ml_cols = st.columns(5)
     for col, (title, key) in zip(ml_cols, ml_specs):
@@ -2551,21 +2552,21 @@ def _render_ml_quality(model_payload: dict[str, dict], active_models: list[str])
 
 
 def _render_walk_forward(artifact: StrategyArtifact | None) -> None:
-    """渲染 Walk-Forward 回测区域。"""
+    """ui.render_walk_forward_backtest"""
     st.markdown("---")
-    st.subheader("Walk-Forward 回测")
+    st.subheader(tr("backtest.walkForward"))
 
     if artifact is None:
-        st.info("请先生成当前策略，再执行 Walk-Forward。")
+        st.info(tr("workflow.generateBeforeWalkForward"))
         return
 
     df = artifact.full_signal_df
     stop_loss_mult = float(artifact.params_snapshot.get("stop_loss_mult", 0.0))
     take_profit_mult = float(artifact.params_snapshot.get("take_profit_mult", 0.0))
 
-    enable_walk = st.checkbox("启用 Walk-Forward", value=True)
+    enable_walk = st.checkbox(tr("action.enable_walk_forward"), value=True)
     if not enable_walk:
-        st.info("已关闭 Walk-Forward 回测。")
+        st.info(tr("walkForward.closed"))
         return
 
     max_window = max(5, len(df) - 1)
@@ -2573,30 +2574,30 @@ def _render_walk_forward(artifact: StrategyArtifact | None) -> None:
     min_test = min(5, max_window)
 
     if max_window <= min_train:
-        st.info("数据量较少，已固定训练/测试窗口。")
+        st.info(tr("data.warning.fixedWindow"))
         train_window = max_window
         test_window = max_window
     else:
         wf_col1, wf_col2 = st.columns(2)
         with wf_col1:
             train_window = st.slider(
-                "训练窗口（交易日）",
+                tr("backtest.training_window_days"),
                 min_train,
                 max_window,
                 min(252, max_window),
-                help="每次用训练窗口后接测试窗口滚动回测。",
+                help=tr("backtest.method.rolling_window"),
             )
         with wf_col2:
             test_window = st.slider(
-                "测试窗口（交易日）",
+                tr("backtest.window"),
                 min_test,
                 max_window,
                 min(63, max_window),
-                help="每次滚动的测试区间长度。",
+                help=tr("backtest.rollingWindow.description"),
             )
 
     if train_window + test_window > len(df):
-        st.warning("训练窗口 + 测试窗口超过数据长度，请调小窗口。")
+        st.warning(tr("error.window_exceeds_data_length"))
         return
 
     wf_results, wf_equity = walk_forward_backtest(
@@ -2607,14 +2608,17 @@ def _render_walk_forward(artifact: StrategyArtifact | None) -> None:
         take_profit_mult=take_profit_mult,
     )
     if wf_equity.empty:
-        st.warning("Walk-Forward 回测未产生结果。")
+        st.warning(tr("backtest.walkForward.noResults"))
         return
 
     wf_return = wf_equity["strategy_equity"].iloc[-1] - 1
     wf_bh_return = wf_equity["buy_hold_equity"].iloc[-1] - 1
     st.write(
-        f"Walk-Forward 策略收益：{format_pct(wf_return)} | "
-        f"买入并持有收益：{format_pct(wf_bh_return)}"
+        tr(
+            "walkForward.summary",
+            strategy_return=format_pct(wf_return),
+            buy_hold_return=format_pct(wf_bh_return),
+        )
     )
 
     wf_fig = go.Figure()
@@ -2622,7 +2626,7 @@ def _render_walk_forward(artifact: StrategyArtifact | None) -> None:
         go.Scatter(
             x=wf_equity["date"],
             y=wf_equity["strategy_equity"],
-            name="Walk-Forward 策略",
+            name=tr("strategy.walk_forward"),
             line=dict(color="#17becf"),
         )
     )
@@ -2630,11 +2634,11 @@ def _render_walk_forward(artifact: StrategyArtifact | None) -> None:
         go.Scatter(
             x=wf_equity["date"],
             y=wf_equity["buy_hold_equity"],
-            name="买入并持有",
+            name=tr("strategy.buy_and_hold"),
             line=dict(color="#bcbd22"),
         )
     )
-    wf_fig.update_layout(height=420, xaxis_title="日期", yaxis_title="净值（起始=1.0）")
+    wf_fig.update_layout(height=420, xaxis_title=tr("common.date"), yaxis_title=tr("metric.net_value"))
     _apply_analysis_chart_layout(wf_fig, height=420)
     st.plotly_chart(wf_fig, width="stretch")
 
@@ -2649,10 +2653,10 @@ def _render_trade_signals(
     focus_entry: ArtifactLibraryEntry | None,
     signal_dataset_split: str,
 ) -> go.Figure:
-    """渲染主 artifact 的训练/测试集交易信号图。"""
-    st.subheader("买卖点查看")
+    """chart.render_artifact_signals"""
+    st.subheader(tr("action.viewTradePoints"))
     if focus_entry is None:
-        st.info("请先选定一个主策略，再查看买卖点。")
+        st.info(tr("instruction.select_strategy_first"))
         return go.Figure()
 
     signal_df = (
@@ -2661,11 +2665,11 @@ def _render_trade_signals(
         else focus_entry.artifact.train_sim_df
     )
     if signal_df is None or signal_df.empty:
-        st.info("当前主策略没有可用的买卖点数据。")
+        st.info(tr("info.no_trading_signals"))
         return go.Figure()
 
     color, _dash = _artifact_style(focus_entry, 0)
-    split_label = "测试集" if signal_dataset_split == "test" else "训练集"
+    split_label = tr("backtest.testSet") if signal_dataset_split == "test" else tr("dataset.training")
 
     signal_fig = go.Figure(
         data=[
@@ -2673,7 +2677,7 @@ def _render_trade_signals(
                 x=signal_df["date"],
                 y=signal_df["close"],
                 mode="lines",
-                name="Close",
+                name=tr("chart.closeLine"),
                 line=dict(color=color, width=2.0),
             )
         ]
@@ -2683,7 +2687,7 @@ def _render_trade_signals(
             x=signal_df.loc[signal_df["buy_signal"], "date"],
             y=signal_df.loc[signal_df["buy_signal"], "close"],
             mode="markers",
-            name=f"{focus_entry.compare_label} Buy",
+            name=f"{focus_entry.compare_label} {tr('signal.buyLabel')}",
             marker=dict(color="#2ca02c", size=8, symbol="triangle-up"),
         )
     )
@@ -2692,14 +2696,14 @@ def _render_trade_signals(
             x=signal_df.loc[signal_df["sell_signal"], "date"],
             y=signal_df.loc[signal_df["sell_signal"], "close"],
             mode="markers",
-            name=f"{focus_entry.compare_label} Sell",
+            name=f"{focus_entry.compare_label} {tr('signal.sellLabel')}",
             marker=dict(color="#d62728", size=8, symbol="triangle-down"),
         )
     )
     signal_fig.update_layout(
         height=420,
-        xaxis_title="日期",
-        yaxis_title="价格",
+        xaxis_title=tr("common.date"),
+        yaxis_title=tr("field.price"),
         title=f"{focus_entry.compare_label} {split_label}买卖点",
     )
     _apply_analysis_chart_layout(signal_fig, height=420)
@@ -2712,22 +2716,22 @@ def _render_trade_signal_comparison(
     focus_entry: ArtifactLibraryEntry | None,
     signal_dataset_split: str,
 ) -> go.Figure:
-    st.subheader("买卖点比较")
+    st.subheader(tr("analysis.trade_point_comparison"))
     if not selected_entries:
-        st.info("请先在左侧策略库中勾选至少一条策略。")
+        st.info(tr("strategy.selectionRequired"))
         return go.Figure()
     if focus_entry is None:
-        st.info("请先指定主策略，再查看多策略买卖点。")
+        st.info(tr("instruction.selectPrimaryStrategy"))
         return go.Figure()
 
-    split_label = "测试集" if signal_dataset_split == "test" else "训练集"
+    split_label = tr("backtest.testSet") if signal_dataset_split == "test" else tr("dataset.training")
     base_df = (
         focus_entry.artifact.test_sim_df
         if signal_dataset_split == "test"
         else focus_entry.artifact.train_sim_df
     )
     if base_df is None or base_df.empty:
-        st.info("当前主策略没有可用于比较的价格与信号数据。")
+        st.info(tr("message.no_comparison_data"))
         return go.Figure()
 
     comparison_fig = go.Figure()
@@ -2736,7 +2740,7 @@ def _render_trade_signal_comparison(
             x=base_df["date"],
             y=base_df["close"],
             mode="lines",
-            name=f"{focus_entry.compare_label} Close",
+            name=f"{focus_entry.compare_label} {tr('chart.closeLine')}",
             line=dict(color=get_plotly_theme_tokens()["accent_primary"], width=2.1),
         )
     )
@@ -2792,13 +2796,13 @@ def _render_trade_signal_comparison(
         rendered_count += 1
 
     if rendered_count == 0:
-        st.info("所选策略都没有可展示的买卖点数据。")
+        st.info(tr("strategy.signal.empty"))
         return go.Figure()
 
     comparison_fig.update_layout(
         title=f"{split_label}多策略买卖点比较",
-        xaxis_title="日期",
-        yaxis_title="价格",
+        xaxis_title=tr("common.date"),
+        yaxis_title=tr("field.price"),
     )
     _apply_analysis_chart_layout(comparison_fig, height=460)
     st.plotly_chart(comparison_fig, width="stretch")
@@ -2824,28 +2828,28 @@ def _render_single_stock_export(
     equity_fig: go.Figure,
     signal_fig: go.Figure,
     suggestion: str,
-    indicator_title: str = "指标小图",
+    indicator_title: str = tr("chart.indicatorsMini"),
 ) -> None:
-    """渲染单股票 HTML 报告导出区域。"""
+    """report.exportAreaDescription"""
     st.markdown("---")
-    st.subheader("📤 导出分析报告")
+    st.subheader(tr("action.exportAnalysisReport"))
 
     if not model_payload and (test_df is None or test_df.empty):
-        st.info("请先生成策略后再导出 HTML 报告。")
+        st.info(tr("warning.generate_strategy_before_export"))
         return
 
     single_col1, single_col2, _single_col3 = st.columns([1, 1, 2])
     with single_col1:
         single_export_title = st.text_input(
-            "报告标题", value=f"单股策略分析 - {symbol}", key="single_export_title"
+            tr("report.title"), value=f"单股策略分析 - {symbol}", key="single_export_title"
         )
     with single_col2:
-        single_include_date = st.checkbox("包含生成日期", value=True, key="single_include_date")
+        single_include_date = st.checkbox(tr("report.include_generation_date"), value=True, key="single_include_date")
 
-    if not st.button("🎁 生成并下载HTML报告", type="primary", width="stretch", key="single_export_btn"):
+    if not st.button(tr("report.generateDownloadHTML"), type="primary", width="stretch", key="single_export_btn"):
         return
 
-    with st.spinner("正在生成HTML报告..."):
+    with st.spinner(tr("report.generating_html")):
         generated_at = datetime.now()
         full_html = build_single_stock_export_html(
             title=single_export_title,
@@ -2868,11 +2872,11 @@ def _render_single_stock_export(
         )
 
         st.download_button(
-            label="⬇️ 下载HTML报告",
+            label=tr("action.download_html_report"),
             data=full_html,
             file_name=f"strategy_report_{symbol}_{generated_at.strftime('%Y%m%d_%H%M%S')}.html",
             mime="text/html",
             type="primary",
             width="stretch",
         )
-        st.success("✅ HTML报告已生成！点击上方按钮下载")
+        st.success(tr("report.ready"))

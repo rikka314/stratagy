@@ -5,6 +5,7 @@
 """
 
 from __future__ import annotations
+from ui.i18n import tr
 
 from datetime import datetime
 import html
@@ -87,7 +88,7 @@ def _fmt_generated_at(value: datetime | None, language: str) -> str:
     timestamp = value or datetime.now()
     if _lang(language) == "en":
         return timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    return timestamp.strftime("%Y年%m月%d日 %H:%M:%S")
+    return timestamp.strftime(tr("dateTime.formatLong"))
 
 
 def _build_css(theme: str) -> str:
@@ -333,14 +334,30 @@ tbody tr:last-child td {{ border-bottom: none; }}
 """
 
 
+def _get_plotly_js_inline() -> str:
+    """Read the local plotly.min.js bundled with the plotly package for offline use."""
+    try:
+        import plotly
+        import os
+        js_path = os.path.join(os.path.dirname(plotly.__file__), "package_data", "plotly.min.js")
+        if os.path.exists(js_path):
+            with open(js_path, "r", encoding="utf-8") as f:
+                return f"<script>{f.read()}</script>"
+    except Exception:
+        pass
+    # fallback to CDN if local file not available
+    return '<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>'
+
+
 def _build_head(title: str, theme: str, language: str) -> str:
+    plotly_tag = _get_plotly_js_inline()
     return f"""<!DOCTYPE html>
 <html lang="{'en' if _lang(language) == 'en' else 'zh-CN'}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{_esc(title)}</title>
-  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  {plotly_tag}
   <style>{_build_css(theme)}</style>
 </head>
 <body data-theme="{_esc(_theme(theme))}">
@@ -351,8 +368,8 @@ def _build_head(title: str, theme: str, language: str) -> str:
 def _build_footer(language: str) -> str:
     return f"""
     <footer class="footer">
-      <div>{_esc(_t(language, "由 Strategy Lab 导出，结构与站点主分析页保持同一前端语法。", "Exported by Strategy Lab with the same frontend grammar as the main analysis site."))}</div>
-      <div>{_esc(_t(language, "图表由 Plotly 渲染；离线打开时仍保留响应式缩放。", "Charts are rendered with Plotly and remain responsive when opened offline."))}</div>
+      <div>{_esc(_t(language, tr("export.description"), "Exported by Strategy Lab with the same frontend grammar as the main analysis site."))}</div>
+      <div>{_esc(_t(language, tr("chart.plotlyNote"), "Charts are rendered with Plotly and remain responsive when opened offline."))}</div>
     </footer>
   </main>
 </body>
@@ -406,17 +423,17 @@ def _plot_card_markup(
     *,
     plot_id: str,
     title: str,
-    copy: str,
+    copy: str = "",
     wide: bool = False,
     tall: bool = False,
 ) -> str:
     card_class = "chart-card wide" if wide else "chart-card"
     host_class = "plot-host tall" if tall else "plot-host"
+    copy_html = f'  <p class="chart-copy">{_esc(copy)}</p>\n' if copy else ""
     return f"""
 <article class="{card_class}">
   <div class="chart-title">{_esc(title)}</div>
-  <p class="chart-copy">{_esc(copy)}</p>
-  <div id="{_esc(plot_id)}" class="{host_class}"></div>
+{copy_html}  <div id="{_esc(plot_id)}" class="{host_class}"></div>
 </article>
 """
 
@@ -459,6 +476,7 @@ def build_single_stock_export_html(
     export_models = [name for name in active_models if name in model_payload]
     export_payloads = [model_payload[name] for name in export_models]
 
+    # ── 基础行情数据 ──────────────────────────────────────────────────────────
     latest_close = _safe_float(df["close"].iloc[-1]) if not df.empty and "close" in df.columns else None
     previous_close = _safe_float(df["close"].iloc[-2]) if len(df) > 1 and "close" in df.columns else None
     change_pct = None if latest_close is None or previous_close in {None, 0} else latest_close / previous_close - 1.0
@@ -467,6 +485,7 @@ def build_single_stock_export_html(
     date_min = _fmt_date(df["date"].min()) if "date" in df.columns and not df.empty else "N/A"
     date_max = _fmt_date(df["date"].max()) if "date" in df.columns and not df.empty else "N/A"
 
+    # ── 策略评估数据 ──────────────────────────────────────────────────────────
     if export_payloads:
         main_eval = dict(export_payloads[0].get("eval") or {})
         export_model_text = ", ".join(str(payload.get("short_label") or "Model") for payload in export_payloads)
@@ -489,85 +508,173 @@ def build_single_stock_export_html(
             strategy_ret = _safe_float(test_df["strategy_equity"].iloc[-1]) - 1.0 if "strategy_equity" in test_df.columns else None
             benchmark_ret = _safe_float(test_df["buy_hold_equity"].iloc[-1]) - 1.0 if "buy_hold_equity" in test_df.columns else None
         main_eval = {"cumret": strategy_ret, "annret": None, "maxdd": None, "sharpe": None}
-        export_model_text = "SM"
+        export_model_text = _t(language, "无策略", "No strategy")
         summary_rows = [[
-            _esc(_t(language, "当前策略", "Current strategy")),
+            _esc(_t(language, tr("strategy.current"), "Current strategy")),
             _esc(_fmt_pct(strategy_ret)),
-            "N/A",
-            "N/A",
-            "N/A",
-            "N/A",
+            "N/A", "N/A", "N/A", "N/A",
             _esc(_fmt_pct(benchmark_ret)),
         ]]
 
+    # ── Hero stat cards ───────────────────────────────────────────────────────
     cards = [
-        {"label": _t(language, "最新收盘", "Latest close"), "value": _fmt_decimal(latest_close), "meta": _t(language, f"最新涨跌 {_fmt_pct(change_pct, signed=True)}", f"Latest move {_fmt_pct(change_pct, signed=True)}")},
-        {"label": _t(language, "导出模型", "Exported models"), "value": export_model_text, "meta": _t(language, f"{len(export_payloads) or 1} 条策略结果", f"{len(export_payloads) or 1} strategy result(s)")},
-        {"label": _t(language, "训练 / 测试", "Train / test"), "value": f"{train_rows} / {test_rows}", "meta": _t(language, "按当前页面上下文冻结", "Frozen from the current page context")},
-        {"label": _t(language, "数据区间", "Data range"), "value": f"{date_min} - {date_max}", "meta": _t(language, f"{len(df)} 行价格数据", f"{len(df)} rows of price data")},
+        {
+            "label": _t(language, tr("price.latest_close"), "Latest close"),
+            "value": _fmt_decimal(latest_close),
+            "meta": _t(language, f"最新涨跌 {_fmt_pct(change_pct, signed=True)}", f"Latest move {_fmt_pct(change_pct, signed=True)}"),
+        },
+        {
+            "label": _t(language, tr("action.exportModel"), "Exported models"),
+            "value": export_model_text,
+            "meta": _t(language, f"{len(export_payloads) or 1} 条策略结果", f"{len(export_payloads) or 1} strategy result(s)"),
+        },
+        {
+            "label": _t(language, tr("phase.train_test"), "Train / test"),
+            "value": f"{train_rows} / {test_rows}",
+            "meta": _t(language, f"共 {len(df)} 行数据", f"{len(df)} rows total"),
+        },
+        {
+            "label": _t(language, tr("data.range"), "Data range"),
+            "value": f"{date_min} – {date_max}",
+            "meta": _t(language, f"{len(df)} 行价格数据", f"{len(df)} rows of price data"),
+        },
     ]
+
+    # ── Overview kv items ─────────────────────────────────────────────────────
     overview_items = [
-        {"label": _t(language, "当前建议", "Current suggestion"), "value": suggestion or "N/A", "meta": _t(language, "从当前主结果区同步", "Synced from the current result board")},
-        {"label": _t(language, "最新开盘 / 最高 / 最低", "Latest open / high / low"), "value": f"{_fmt_decimal(df['open'].iloc[-1] if 'open' in df.columns and not df.empty else None)} / {_fmt_decimal(df['high'].iloc[-1] if 'high' in df.columns and not df.empty else None)} / {_fmt_decimal(df['low'].iloc[-1] if 'low' in df.columns and not df.empty else None)}", "meta": _t(language, "直接来自当前行情窗口", "Read from the current market window")},
-        {"label": _t(language, "最新成交量", "Latest volume"), "value": _fmt_compact_number(df["volume"].iloc[-1] if "volume" in df.columns and not df.empty else None), "meta": _t(language, "字段缺失时回退为 N/A", "Falls back to N/A when the field is missing")},
-        {"label": _t(language, "核心指标", "Key metrics"), "value": f"{_t(language, '累计收益', 'Total return')} {_fmt_pct(main_eval.get('cumret'))}", "meta": f"{_t(language, '夏普', 'Sharpe')} {_fmt_ratio(main_eval.get('sharpe'))} · {_t(language, '最大回撤', 'Max drawdown')} {_fmt_pct(main_eval.get('maxdd'))}"},
+        {
+            "label": _t(language, tr("suggestions.current"), "Current suggestion"),
+            "value": suggestion or "N/A",
+            "meta": "",
+        },
+        {
+            "label": _t(language, tr("price.latestOHL"), "Latest open / high / low"),
+            "value": (
+                f"{_fmt_decimal(df['open'].iloc[-1] if 'open' in df.columns and not df.empty else None)}"
+                f" / {_fmt_decimal(df['high'].iloc[-1] if 'high' in df.columns and not df.empty else None)}"
+                f" / {_fmt_decimal(df['low'].iloc[-1] if 'low' in df.columns and not df.empty else None)}"
+            ),
+            "meta": "",
+        },
+        {
+            "label": _t(language, tr("market.latestVolume"), "Latest volume"),
+            "value": _fmt_compact_number(df["volume"].iloc[-1] if "volume" in df.columns and not df.empty else None),
+            "meta": "",
+        },
+        {
+            "label": _t(language, tr("metrics.core_metrics"), "Key metrics"),
+            "value": f"{_t(language, tr('returns.cumulative'), 'Total return')} {_fmt_pct(main_eval.get('cumret'))}",
+            "meta": (
+                f"{_t(language, tr('kpi.sharpe'), 'Sharpe')} {_fmt_ratio(main_eval.get('sharpe'))}"
+                f" · {_t(language, tr('metrics.max_drawdown'), 'Max drawdown')} {_fmt_pct(main_eval.get('maxdd'))}"
+            ),
+        },
     ]
+
+    # ── Model summary table ───────────────────────────────────────────────────
     summary_table = _build_table(
-        [_t(language, "模型", "Model"), _t(language, "累计收益率", "Total return"), _t(language, "年化收益率", "Annualized return"), _t(language, "最大回撤", "Max drawdown"), _t(language, "夏普", "Sharpe"), _t(language, "胜率", "Win rate"), _t(language, "盈亏比 / 基准", "PnL ratio / Benchmark")],
+        [
+            _t(language, tr("common.model"), "Model"),
+            _t(language, tr("returns.cumulativeRate"), "Total return"),
+            _t(language, tr("metrics.annualizedReturn"), "Annualized return"),
+            _t(language, tr("metrics.max_drawdown"), "Max drawdown"),
+            _t(language, tr("kpi.sharpe"), "Sharpe"),
+            _t(language, tr("metric.win_rate"), "Win rate"),
+            _t(language, tr("performance.profitLossRatioVsBenchmark"), "PnL ratio / Benchmark"),
+        ],
         summary_rows,
     )
 
-    chips = [_t(language, "单股导出报告", "Single-stock export report"), symbol, _t(language, "站点结构同步", "Site-structure synced"), _t(language, "离线 HTML", "Offline HTML")]
+    # ── Chips ─────────────────────────────────────────────────────────────────
+    chips = [
+        _t(language, tr("report.singleStockExport"), "Single-stock export report"),
+        symbol,
+        _t(language, tr("report.offlineHtml"), "Offline HTML"),
+    ]
     if include_date:
-        chips.append(f"{_t(language, '生成时间', 'Generated at')} {_fmt_generated_at(generated_at, language)}")
+        chips.append(f"{_t(language, tr('meta.generatedTime'), 'Generated at')} {_fmt_generated_at(generated_at, language)}")
 
+    # ── Assemble HTML ─────────────────────────────────────────────────────────
     html_parts = [_build_head(title, theme, language)]
-    html_parts.append(
-        f"""
+
+    # Hero + overview + model summary
+    html_parts.append(f"""
     <section class="export-hero">
-      <div class="hero-kicker">{_esc(_t(language, "Strategy Lab Report", "Strategy Lab Report"))}</div>
+      <div class="hero-kicker">Strategy Lab Report</div>
       <h1 class="hero-title">{_esc(title)}</h1>
-      <p class="hero-copy">{_esc(_t(language, "导出页沿用主站点的暖白产品页语法，把单股基础信息、策略摘要和关键图表收进同一份可离线阅读的报告。", "The export follows the warm product-site grammar of the main app and gathers single-stock basics, strategy summary, and key charts into one offline report."))}</p>
-      <div class="chip-row">{"".join(f"<span class='chip{' accent' if index == 0 else ''}'>{_esc(chip)}</span>" for index, chip in enumerate(chips))}</div>
+      <div class="chip-row">{"".join(f"<span class='chip{' accent' if i == 0 else ''}'>{_esc(c)}</span>" for i, c in enumerate(chips))}</div>
       <div class="stat-grid">{_build_stat_cards(cards)}</div>
     </section>
     <section class="report-grid">
       <article class="paper-block">
-        <div class="section-kicker">{_esc(_t(language, "Overview", "Overview"))}</div>
-        <h2 class="section-title">{_esc(_t(language, "策略概览", "Strategy overview"))}</h2>
-        <p class="section-copy">{_esc(_t(language, "左侧保持文字型信息载体，先回答当前导出里到底包含什么模型、什么时间窗口和什么主要结论。", "The left block stays text-first and answers which models, what window, and what main conclusion are included in this export."))}</p>
+        <div class="section-kicker">{_esc(_t(language, "概览", "Overview"))}</div>
+        <h2 class="section-title">{_esc(_t(language, tr("section.strategy_overview"), "Strategy overview"))}</h2>
         <div class="kv-grid">{_build_kv_items(overview_items)}</div>
       </article>
       <article class="paper-block">
-        <div class="section-kicker">{_esc(_t(language, "Model Summary", "Model Summary"))}</div>
-        <h2 class="section-title">{_esc(_t(language, "模型摘要表", "Model summary table"))}</h2>
-        <p class="section-copy">{_esc(_t(language, "这里固定承接第七周结果区的核心指标摘要，用表格把当前导出的模型收益、回撤、夏普和胜率集中展示。", "This table carries over the core metric summary from the Week 7 result board and keeps return, drawdown, Sharpe, and win rate in one place."))}</p>
+        <div class="section-kicker">{_esc(_t(language, "策略汇总", "Model Summary"))}</div>
+        <h2 class="section-title">{_esc(_t(language, tr("analysis.model_summary_table"), "Model summary table"))}</h2>
         {summary_table}
       </article>
     </section>
+""")
+
+    # Charts section — only render cards for figures that have traces
+    chart_cards_html = ""
+    chart_scripts = []
+
+    if bool(candle.data):
+        chart_cards_html += _plot_card_markup(
+            plot_id="single-candle-chart",
+            title=_t(language, tr("chart.candlestick_main"), "Candlestick"),
+            wide=True, tall=True,
+        )
+        chart_scripts.append(_plot_script("single-candle-chart", candle))
+
+    if bool(ind_fig.data):
+        chart_cards_html += _plot_card_markup(
+            plot_id="single-indicator-chart",
+            title=indicator_title,
+        )
+        chart_scripts.append(_plot_script("single-indicator-chart", ind_fig))
+
+    if bool(score_fig.data):
+        chart_cards_html += _plot_card_markup(
+            plot_id="single-score-chart",
+            title=_t(language, tr("factor.score"), "Factor score"),
+        )
+        chart_scripts.append(_plot_script("single-score-chart", score_fig))
+
+    if bool(equity_fig.data):
+        chart_cards_html += _plot_card_markup(
+            plot_id="single-equity-chart",
+            title=_t(language, tr("backtest.net_value_drawdown"), "Backtest equity / drawdown"),
+            wide=True, tall=True,
+        )
+        chart_scripts.append(_plot_script("single-equity-chart", equity_fig))
+
+    if bool(signal_fig.data):
+        chart_cards_html += _plot_card_markup(
+            plot_id="single-signal-chart",
+            title=_t(language, tr("testSet.tradingSignals"), "Test-set trade signals"),
+            wide=True,
+        )
+        chart_scripts.append(_plot_script("single-signal-chart", signal_fig))
+
+    if chart_cards_html:
+        html_parts.append(f"""
     <section class="section-stack">
       <article class="paper-block">
-        <div class="section-kicker">{_esc(_t(language, "Charts", "Charts"))}</div>
-        <h2 class="section-title">{_esc(_t(language, "图表结果区", "Chart result surface"))}</h2>
-        <p class="section-copy">{_esc(_t(language, "导出结构不再沿用旧版蓝灰卡片样式，而是和主分析页保持同一套站点式暖白表面与响应式布局。", "The export no longer uses the old blue-gray card style and now follows the same warm site-like surface and responsive layout as the main analysis page."))}</p>
+        <div class="section-kicker">{_esc(_t(language, "图表", "Charts"))}</div>
+        <h2 class="section-title">{_esc(_t(language, tr("ui.chart_result_area"), "Chart result surface"))}</h2>
       </article>
       <div class="chart-grid">
-        {_plot_card_markup(plot_id="single-candle-chart", title=_t(language, "K 线主图", "Candlestick overview"), copy=_t(language, "主图、小图指标与训练窗口在离线报告里保持同样的阅读重心。", "The main chart, indicator strip, and training-window context keep the same reading priority in the offline report."), wide=True, tall=True)}
-        {_plot_card_markup(plot_id="single-indicator-chart", title=indicator_title, copy=_t(language, "指标小图跟主图分栏展开，便于在移动端单独阅读。", "The indicator mini-chart is separated from the main chart so it remains readable on mobile."))}
-        {_plot_card_markup(plot_id="single-score-chart", title=_t(language, "因子评分", "Factor score"), copy=_t(language, "保留当前结果区中的评分视角，便于补充价格图之外的解释。", "Keeps the scoring perspective from the result board to complement the price view."))}
-        {_plot_card_markup(plot_id="single-equity-chart", title=_t(language, "回测净值 / 回撤", "Backtest equity / drawdown"), copy=_t(language, "沿用净值上 / 回撤下的组合结构，不把结果拆散成多张独立卡片。", "Reuses the equity-on-top / drawdown-below composition instead of scattering results across separate cards."), wide=True, tall=True)}
-        {_plot_card_markup(plot_id="single-signal-chart", title=_t(language, "测试集交易信号", "Test-set trade signals"), copy=_t(language, "买卖点图保留为独立图层，方便和主结果图区分阅读。", "Trade signals stay as a dedicated layer to separate them from the main result board."), wide=True)}
+        {chart_cards_html}
       </div>
     </section>
-"""
-    )
-    html_parts.extend([
-        _plot_script("single-candle-chart", candle),
-        _plot_script("single-indicator-chart", ind_fig),
-        _plot_script("single-score-chart", score_fig),
-        _plot_script("single-equity-chart", equity_fig),
-        _plot_script("single-signal-chart", signal_fig),
-    ])
+""")
+        html_parts.extend(chart_scripts)
+
     html_parts.append(_build_footer(language))
     return "".join(html_parts)
 
@@ -599,16 +706,16 @@ def build_multi_stock_export_html(
     best_return = best_entry.get("total_return") if best_entry is not None else None
 
     cards = [
-        {"label": _t(language, "对比股票数量", "Compared symbols"), "value": str(total_stocks), "meta": _t(language, "当前导出实际包含的有效股票数", "Effective symbols included in this export")},
-        {"label": _t(language, "平均数据天数", "Average data days"), "value": str(avg_days), "meta": _t(language, "按当前时间筛选后的有效样本", "Effective samples after the current date filter")},
-        {"label": _t(language, "最佳表现", "Best performer"), "value": best_symbol, "meta": _t(language, f"区间收益 {_fmt_pct(best_return, signed=True)}", f"Range return {_fmt_pct(best_return, signed=True)}")},
-        {"label": _t(language, "组合结果", "Portfolio result"), "value": _t(language, "已生成" if portfolio_result else "未生成", "Ready" if portfolio_result else "Not generated"), "meta": _t(language, "若已生成则附带 KPI 与个股贡献表", "Includes KPIs and stock contribution table when available")},
+        {"label": _t(language, tr("comparison.stockCount"), "Compared symbols"), "value": str(total_stocks), "meta": _t(language, tr("export.valid_stocks_count"), "Effective symbols included in this export")},
+        {"label": _t(language, tr("data.averageDays"), "Average data days"), "value": str(avg_days), "meta": _t(language, tr("filter.validSamples.currentTime"), "Effective samples after the current date filter")},
+        {"label": _t(language, tr("performance.best"), "Best performer"), "value": best_symbol, "meta": _t(language, f"区间收益 {_fmt_pct(best_return, signed=True)}", f"Range return {_fmt_pct(best_return, signed=True)}")},
+        {"label": _t(language, tr("results.portfolio"), "Portfolio result"), "value": _t(language, tr("state.generated") if portfolio_result else tr("status.notGenerated"), "Ready" if portfolio_result else "Not generated"), "meta": _t(language, tr("strategy.generation.includes"), "Includes KPIs and stock contribution table when available")},
     ]
     overview_items = [
-        {"label": _t(language, "股票池", "Stock pool"), "value": ", ".join(compare_stocks) if compare_stocks else "N/A", "meta": _t(language, "导出保留主分析页当前股票池顺序", "The export keeps the current stock-pool order from the main page")},
-        {"label": _t(language, "最佳表现股票", "Best performing stock"), "value": best_symbol, "meta": _t(language, f"区间收益 {_fmt_pct(best_return, signed=True)}", f"Range return {_fmt_pct(best_return, signed=True)}")},
-        {"label": _t(language, "基础信息结构", "Basics structure"), "value": _t(language, "摘要数字 + 明细表 + 图表组", "Summary metrics + detail table + chart group"), "meta": _t(language, "对齐图四要求", "Aligned with Figure 4")},
-        {"label": _t(language, "策略结果结构", "Strategy structure"), "value": _t(language, "组合 KPI + 个股表现表 + 主图", "Portfolio KPIs + stock table + main chart"), "meta": _t(language, "对齐图五要求", "Aligned with Figure 5")},
+        {"label": _t(language, tr("stock.pool"), "Stock pool"), "value": ", ".join(compare_stocks) if compare_stocks else "N/A", "meta": _t(language, tr("export.preserveStockOrder"), "The export keeps the current stock-pool order from the main page")},
+        {"label": _t(language, tr("performance.topPerformer"), "Best performing stock"), "value": best_symbol, "meta": _t(language, f"区间收益 {_fmt_pct(best_return, signed=True)}", f"Range return {_fmt_pct(best_return, signed=True)}")},
+        {"label": _t(language, tr("component.basicInfo.structure"), "Basics structure"), "value": _t(language, tr("report.composition"), "Summary metrics + detail table + chart group"), "meta": _t(language, tr("requirement.align_chart_four"), "Aligned with Figure 4")},
+        {"label": _t(language, tr("strategy.resultStructure"), "Strategy structure"), "value": _t(language, tr("dashboard.combinedLayout"), "Portfolio KPIs + stock table + main chart"), "meta": _t(language, tr("chart.alignmentRequirement"), "Aligned with Figure 5")},
     ]
     comparison_rows = [[
         _esc(str(item.get("symbol") or "N/A")),
@@ -634,9 +741,9 @@ def build_multi_stock_export_html(
                 _esc(_fmt_pct(result.get("max_dd"), signed=True)),
             ])
 
-    chips = [_t(language, "多股导出报告", "Multi-stock export report"), _t(language, "站点结构同步", "Site-structure synced"), _t(language, f"{total_stocks} 个标的", f"{total_stocks} symbols"), _t(language, "离线 HTML", "Offline HTML")]
+    chips = [_t(language, tr("export.multiStockReport"), "Multi-stock export report"), _t(language, tr("layout.site_sync"), "Site-structure synced"), _t(language, f"{total_stocks} 个标的", f"{total_stocks} symbols"), _t(language, tr("report.offlineHtml"), "Offline HTML")]
     if include_date:
-        chips.append(f"{_t(language, '生成时间', 'Generated at')} {_fmt_generated_at(generated_at, language)}")
+        chips.append(f"{_t(language, tr("meta.generatedTime"), 'Generated at')} {_fmt_generated_at(generated_at, language)}")
 
     html_parts = [_build_head(title, theme, language)]
     html_parts.append(
@@ -644,36 +751,36 @@ def build_multi_stock_export_html(
     <section class="export-hero">
       <div class="hero-kicker">{_esc(_t(language, "Strategy Lab Report", "Strategy Lab Report"))}</div>
       <h1 class="hero-title">{_esc(title)}</h1>
-      <p class="hero-copy">{_esc(_t(language, "导出页把多股基础信息、横向对比和组合策略结果收进统一的站点式报告，避免再回到旧版大卡片堆叠。", "The export gathers multi-stock basics, cross-sectional comparison, and portfolio strategy results into one site-style report instead of returning to the old stacked-card layout."))}</p>
+      <p class="hero-copy">{_esc(_t(language, tr("export.page.description"), "The export gathers multi-stock basics, cross-sectional comparison, and portfolio strategy results into one site-style report instead of returning to the old stacked-card layout."))}</p>
       <div class="chip-row">{"".join(f"<span class='chip{' accent' if index == 0 else ''}'>{_esc(chip)}</span>" for index, chip in enumerate(chips))}</div>
       <div class="stat-grid">{_build_stat_cards(cards)}</div>
     </section>
     <section class="report-grid">
       <article class="paper-block">
         <div class="section-kicker">{_esc(_t(language, "Overview", "Overview"))}</div>
-        <h2 class="section-title">{_esc(_t(language, "多股概览", "Multi-stock overview"))}</h2>
-        <p class="section-copy">{_esc(_t(language, "先用摘要数字回答股票池规模、样本窗口和结果结构，再进入明细表与图表区。", "Start with summary metrics that explain pool size, sample window, and result structure before moving into tables and charts."))}</p>
+        <h2 class="section-title">{_esc(_t(language, tr("multiStock.overview"), "Multi-stock overview"))}</h2>
+        <p class="section-copy">{_esc(_t(language, tr("analysis.flow.summaryFirst"), "Start with summary metrics that explain pool size, sample window, and result structure before moving into tables and charts."))}</p>
         <div class="kv-grid">{_build_kv_items(overview_items)}</div>
       </article>
       <article class="paper-block">
         <div class="section-kicker">{_esc(_t(language, "Figure 4", "Figure 4"))}</div>
-        <h2 class="section-title">{_esc(_t(language, "详细对比表", "Detailed comparison table"))}</h2>
-        <p class="section-copy">{_esc(_t(language, "这张表固定承接图四要求的“摘要数字 + 明细表”，不再把所有信息挤进图里。", "This table carries the Figure 4 requirement of “summary metrics + detail table” so that not all information is forced into charts."))}</p>
-        {_build_table([_t(language, "股票代码", "Ticker"), _t(language, "名称", "Name"), _t(language, "起始价格", "Start price"), _t(language, "最新价格", "Latest price"), _t(language, "总收益率", "Total return"), _t(language, "年化收益率", "Annualized return"), _t(language, "最高价", "High"), _t(language, "最低价", "Low"), _t(language, "数据天数", "Data days")], comparison_rows)}
+        <h2 class="section-title">{_esc(_t(language, tr("table.detailedComparison"), "Detailed comparison table"))}</h2>
+        <p class="section-copy">{_esc(_t(language, tr("summaryTable.description"), "This table carries the Figure 4 requirement of “summary metrics + detail table” so that not all information is forced into charts."))}</p>
+        {_build_table([_t(language, tr("field.symbol"), "Ticker"), _t(language, tr("common.name"), "Name"), _t(language, tr("metric.startPrice"), "Start price"), _t(language, tr("price.latest"), "Latest price"), _t(language, tr("metric.totalReturn"), "Total return"), _t(language, tr("metrics.annualizedReturn"), "Annualized return"), _t(language, tr("price.highest"), "High"), _t(language, tr("price.low"), "Low"), _t(language, tr("data.days"), "Data days")], comparison_rows)}
       </article>
     </section>
     <section class="section-stack">
       <article class="paper-block">
         <div class="section-kicker">{_esc(_t(language, "Charts", "Charts"))}</div>
-        <h2 class="section-title">{_esc(_t(language, "多股基础信息图表", "Multi-stock basics charts"))}</h2>
-        <p class="section-copy">{_esc(_t(language, "右侧主图区固定承接价格对比、相对强弱、风险收益、因子评分和相关性，不再堆成长页面。", "The right-side chart surface keeps price comparison, relative strength, risk-return, factor score, and correlation together instead of turning into a long stacked page."))}</p>
+        <h2 class="section-title">{_esc(_t(language, tr("chart.multiStock.basicInfo"), "Multi-stock basics charts"))}</h2>
+        <p class="section-copy">{_esc(_t(language, tr("layout.mainChartArea.function"), "The right-side chart surface keeps price comparison, relative strength, risk-return, factor score, and correlation together instead of turning into a long stacked page."))}</p>
       </article>
       <div class="chart-grid">
-        {(_plot_card_markup(plot_id="multi-comparison-chart", title=_t(language, "价格对比分析图", "Price comparison"), copy=_t(language, "所有股票起点统一到同一基准，先判断谁在当前观察区间内跑得更快。", "All symbols are rebased to the same starting level so relative speed is visible first."), wide=True, tall=True) if comparison_fig is not None else "")}
-        {(_plot_card_markup(plot_id="multi-rs-chart", title=_t(language, "相对强弱对比", "Relative strength"), copy=_t(language, "默认相对基准使用等权平均，观察每只股票是持续跑赢还是跑输股票池。", "The equal-weight basket stays as the default benchmark to show who consistently leads or lags the pool.")) if rs_fig is not None else "")}
-        {(_plot_card_markup(plot_id="multi-risk-return-chart", title=_t(language, "风险收益分析", "Risk-return analysis"), copy=_t(language, "在一个平面里同时看回报、风险和夏普，便于快速识别结构差异。", "Return, risk, and Sharpe are kept in one plane to surface structural differences quickly.")) if risk_return_fig is not None else "")}
-        {(_plot_card_markup(plot_id="multi-factor-score-chart", title=_t(language, "最新因子评分对比", "Latest factor score"), copy=_t(language, "直接回答当前更值得关注谁，作为图表以外的第二条判断线。", "It answers who deserves attention now and acts as a second reading line beyond price charts.")) if factor_score_fig is not None else "")}
-        {(_plot_card_markup(plot_id="multi-corr-chart", title=_t(language, "股票相关性热图", "Correlation heatmap"), copy=_t(language, "帮助识别股票池是否过于同质化。", "Helps reveal whether the stock pool is overly homogeneous.")) if corr_fig is not None else "")}
+        {(_plot_card_markup(plot_id="multi-comparison-chart", title=_t(language, tr("chart.price_comparison"), "Price comparison"), copy=_t(language, tr("comparison.unified_start"), "All symbols are rebased to the same starting level so relative speed is visible first."), wide=True, tall=True) if comparison_fig is not None else "")}
+        {(_plot_card_markup(plot_id="multi-rs-chart", title=_t(language, tr("chart.relativeStrength"), "Relative strength"), copy=_t(language, tr("description.baseline_equal_weight"), "The equal-weight basket stays as the default benchmark to show who consistently leads or lags the pool.")) if rs_fig is not None else "")}
+        {(_plot_card_markup(plot_id="multi-risk-return-chart", title=_t(language, tr("analysis.riskReturn"), "Risk-return analysis"), copy=_t(language, tr("analysis.riskReturnSharpeDescription"), "Return, risk, and Sharpe are kept in one plane to surface structural differences quickly.")) if risk_return_fig is not None else "")}
+        {(_plot_card_markup(plot_id="multi-factor-score-chart", title=_t(language, tr("factor.latestScoreComparison"), "Latest factor score"), copy=_t(language, tr("analysis.secondary_judgment_line"), "It answers who deserves attention now and acts as a second reading line beyond price charts.")) if factor_score_fig is not None else "")}
+        {(_plot_card_markup(plot_id="multi-corr-chart", title=_t(language, tr("analysis.correlationHeatmap"), "Correlation heatmap"), copy=_t(language, tr("analysis.identify_homogeneity"), "Helps reveal whether the stock pool is overly homogeneous.")) if corr_fig is not None else "")}
       </div>
     </section>
 """
@@ -691,24 +798,24 @@ def build_multi_stock_export_html(
 
     if portfolio_result:
         portfolio_cards = [
-            {"label": _t(language, "组合总收益", "Portfolio return"), "value": _fmt_pct(portfolio_result.get("port_total_return"), signed=True), "meta": _t(language, f"夏普 {_fmt_ratio(portfolio_result.get('port_sharpe'))}", f"Sharpe {_fmt_ratio(portfolio_result.get('port_sharpe'))}")},
-            {"label": _t(language, "组合最大回撤", "Portfolio max drawdown"), "value": _fmt_pct(portfolio_result.get("port_max_dd"), signed=True), "meta": _t(language, "策略组合", "Strategy portfolio")},
-            {"label": _t(language, "买入持有收益", "Buy-and-hold return"), "value": _fmt_pct(portfolio_result.get("bh_total_return"), signed=True), "meta": _t(language, f"夏普 {_fmt_ratio(portfolio_result.get('bh_sharpe'))}", f"Sharpe {_fmt_ratio(portfolio_result.get('bh_sharpe'))}")},
-            {"label": _t(language, "买入持有回撤", "Buy-and-hold drawdown"), "value": _fmt_pct(portfolio_result.get("bh_max_dd"), signed=True), "meta": _t(language, "等权基准", "Equal-weight benchmark")},
+            {"label": _t(language, tr("portfolio.totalReturn"), "Portfolio return"), "value": _fmt_pct(portfolio_result.get("port_total_return"), signed=True), "meta": _t(language, f"夏普 {_fmt_ratio(portfolio_result.get('port_sharpe'))}", f"Sharpe {_fmt_ratio(portfolio_result.get('port_sharpe'))}")},
+            {"label": _t(language, tr("metric.portfolio_max_drawdown"), "Portfolio max drawdown"), "value": _fmt_pct(portfolio_result.get("port_max_dd"), signed=True), "meta": _t(language, tr("nav.strategy_portfolio"), "Strategy portfolio")},
+            {"label": _t(language, tr("metric.buyAndHoldReturn"), "Buy-and-hold return"), "value": _fmt_pct(portfolio_result.get("bh_total_return"), signed=True), "meta": _t(language, f"夏普 {_fmt_ratio(portfolio_result.get('bh_sharpe'))}", f"Sharpe {_fmt_ratio(portfolio_result.get('bh_sharpe'))}")},
+            {"label": _t(language, tr("metrics.buy_hold_drawdown"), "Buy-and-hold drawdown"), "value": _fmt_pct(portfolio_result.get("bh_max_dd"), signed=True), "meta": _t(language, tr("benchmark.equalWeight"), "Equal-weight benchmark")},
         ]
         html_parts.append(
             f"""
     <section class="section-stack">
       <article class="paper-block">
         <div class="section-kicker">{_esc(_t(language, "Figure 5", "Figure 5"))}</div>
-        <h2 class="section-title">{_esc(_t(language, "多股策略结果区", "Multi-stock strategy result"))}</h2>
-        <p class="section-copy">{_esc(_t(language, "这部分固定保留组合 KPI、主结果图和各股票表现表，切换主图时不会打散稳定信息区。", "This section keeps portfolio KPIs, the main result chart, and the stock performance table together so stable information does not get scattered when the main chart changes."))}</p>
+        <h2 class="section-title">{_esc(_t(language, tr("strategy.multiStockResults"), "Multi-stock strategy result"))}</h2>
+        <p class="section-copy">{_esc(_t(language, tr("results.stableZone"), "This section keeps portfolio KPIs, the main result chart, and the stock performance table together so stable information does not get scattered when the main chart changes."))}</p>
         <div class="stat-grid">{_build_stat_cards(portfolio_cards)}</div>
-        {_build_table([_t(language, "股票", "Stock"), _t(language, "权重", "Weight"), _t(language, "策略收益", "Strategy return"), _t(language, "夏普比率", "Sharpe ratio"), _t(language, "最大回撤", "Max drawdown")], strategy_rows or [[_esc(_t(language, "暂无数据", "N/A")), "N/A", "N/A", "N/A", "N/A"]])}
+        {_build_table([_t(language, tr("instrument.type.stock"), "Stock"), _t(language, tr("common.weight"), "Weight"), _t(language, tr("metric.strategyReturn"), "Strategy return"), _t(language, tr("metric.sharpe_ratio"), "Sharpe ratio"), _t(language, tr("metrics.max_drawdown"), "Max drawdown")], strategy_rows or [[_esc(_t(language, tr("common.noData"), "N/A")), "N/A", "N/A", "N/A", "N/A"]])}
       </article>
       <div class="chart-grid">
-        {_plot_card_markup(plot_id="multi-portfolio-chart", title=_t(language, "投资组合模拟", "Portfolio simulation"), copy=_t(language, "主图继续沿用结果区里的组合净值图。", "The main chart continues to reuse the portfolio equity view from the result board."), wide=True, tall=True)}
-        {(_plot_card_markup(plot_id="multi-periodic-heatmap-chart", title=_t(language, "周期收益率热图", "Periodic return heatmap"), copy=_t(language, "周期热图和主图分开承载，便于桌面和移动端独立阅读。", "The periodic heatmap is separated from the main chart so both desktop and mobile remain readable."), wide=True) if periodic_heatmap_fig is not None else "")}
+        {_plot_card_markup(plot_id="multi-portfolio-chart", title=_t(language, tr("simulation.portfolio"), "Portfolio simulation"), copy=_t(language, tr("chart.reusePortfolioChart"), "The main chart continues to reuse the portfolio equity view from the result board."), wide=True, tall=True)}
+        {(_plot_card_markup(plot_id="multi-periodic-heatmap-chart", title=_t(language, tr("chart.periodReturnHeatmap"), "Periodic return heatmap"), copy=_t(language, tr("chart.periodHeatmapLayout"), "The periodic heatmap is separated from the main chart so both desktop and mobile remain readable."), wide=True) if periodic_heatmap_fig is not None else "")}
       </div>
     </section>
 """

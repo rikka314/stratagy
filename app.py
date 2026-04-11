@@ -16,6 +16,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+from ui.i18n import tr
 
 from core.config import DATA_DIR
 from core.data import load_uploaded_bytes
@@ -86,15 +87,15 @@ def _derive_symbol_from_filename(filename: str | None) -> str:
 
 def _validate_strategy_params(params: dict) -> str | None:
     if params["ema_fast"] >= params["ema_slow"]:
-        return "趋势 EMA 快线需要小于慢线。"
+        return tr("rule.emaFastBelowSlow")
     if params["macd_fast"] >= params["macd_slow"]:
-        return "MACD 快线周期需要小于慢线周期。"
+        return tr("indicator.macdValidation")
     if params["rsi_lower"] >= params["rsi_upper"]:
-        return "RSI 下限需要小于上限。"
+        return tr("validation.rsi_range")
     if params["momentum_short"] >= params["momentum_long"]:
-        return "短期动量窗口需要小于中期动量窗口。"
+        return tr("validation.momentum_window_order")
     if params["score_mid_pct"] >= params["score_high_pct"]:
-        return "中档分位数需要小于高档分位数。"
+        return tr("validation.quantileOrder")
     return None
 
 
@@ -193,28 +194,28 @@ def _render_single_stock_route() -> None:
 
     if state.get("uploaded_bytes") is not None:
         df_raw = load_uploaded_bytes(state["uploaded_bytes"])
-        st.info(f"当前使用上传数据：{state.get('uploaded_name')}")
+        st.info(tr("message.currentUploadedData", name=state.get("uploaded_name")))
     else:
         compare_stocks = params.get("compare_stocks") or ([symbol] if symbol else [])
         if not compare_stocks:
-            st.warning("当前没有可分析的股票，请返回入口页重新选择。")
+            st.warning(tr("error.no_stocks_to_analyze"))
             return
         if len(compare_stocks) > 1:
-            st.info("当前处于单股路由，仅使用第一只股票进入主分析页。")
+            st.info(tr("routing.single_stock_mode_notice"))
         symbol = compare_stocks[0]
         state["symbol"] = symbol
         state["market"] = params.get("market", state.get("market", "US"))
         df_raw = load_or_fetch_stock(symbol, params["adjust"], market=params.get("market", "US"))
         if df_raw is None:
-            st.error(f"无法获取 {symbol} 的数据，请检查网络连接。")
+            st.error(tr("message.dataFetchFailed", symbol=symbol))
             return
 
-    if not _ensure_valid_dataframe(df_raw, empty_message="没有加载到数据。"):
+    if not _ensure_valid_dataframe(df_raw, empty_message=tr("data.loadingFailed")):
         return
 
     df_raw, _is_datetime, _start_ts, _end_ts = _apply_date_filter(df_raw, params["selected_range"])
     if df_raw.empty:
-        st.warning("所选时间区间内没有数据。")
+        st.warning(tr("error.no_data_in_selected_range"))
         return
 
     params["compare_stocks"] = [symbol] if symbol else []
@@ -228,7 +229,7 @@ def _build_uploaded_multi_sources(uploads: list[dict[str, Any]]) -> dict[str, pd
         try:
             df = load_uploaded_bytes(item["bytes"])
         except Exception as exc:
-            st.warning(f"上传文件 {item['name']} 读取失败：{exc}")
+            st.warning(tr("message.uploadReadFailed", name=item["name"], error=str(exc)))
             continue
         if df is None or df.empty:
             continue
@@ -270,7 +271,7 @@ def _render_multi_stock_route() -> None:
     state["symbols"] = list(compare_stocks)
     total_count = len(compare_stocks) + len(prefetched_sources)
     if total_count < 2:
-        st.warning("当前有效标的不足 2 个，请返回入口页重新组建股票池。")
+        st.warning(tr("stockPool.insufficientWarning"))
         return
 
     params["compare_stocks"] = compare_stocks
@@ -290,10 +291,10 @@ def _render_multi_stock_route() -> None:
 
 
 pages = [
-    st.Page(render_home_page, title="首页", icon="🏠", default=True),
-    st.Page(_render_single_stock_route, title="单股入口", icon="📈", url_path="stock-analysis"),
-    st.Page(_render_multi_stock_route, title="多股入口", icon="📚", url_path="stocks-analysis"),
-    st.Page(render_model_evaluation_page, title="模型评估", icon="🧪", url_path=MODEL_EVALUATION_ROUTE),
+    st.Page(render_home_page, title=tr("nav.home"), icon="🏠", default=True),
+    st.Page(_render_single_stock_route, title=tr("navigation.singleStock.entry"), icon="📈", url_path="stock-analysis"),
+    st.Page(_render_multi_stock_route, title=tr("navigation.multiStock.entry"), icon="📚", url_path="stocks-analysis"),
+    st.Page(render_model_evaluation_page, title=tr("section.model_evaluation"), icon="🧪", url_path=MODEL_EVALUATION_ROUTE),
 ]
 
 navigation = st.navigation(pages, position="hidden")

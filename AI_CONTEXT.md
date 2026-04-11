@@ -1,6 +1,6 @@
 # AI 快速上下文（薄路由版）
 
-> 最近更新：2026-04-01
+> 最近更新：2026-04-09
 > 用途：项目级路由文档。先读本文件，再按任务跳到对应 skill 和接口文档。
 > 约定：详细接口统一维护在 `document/interfaces/`，本文件只保存 durable project facts。
 
@@ -29,6 +29,8 @@
   作用：入口页、侧边栏、单股分析、多股分析、模型评估、共享主题、共享 HTML 导出。
 - `deploy/`
   作用：部署脚本、Nginx 模板、远端 bootstrap。
+- `reports/`
+  作用：最终提交用离线 HTML 报告与后续导出物。
 - `document/`
   作用：风格标准、数据 / 模型约定、接口文档、验收记录、归档。
 - `plan/`
@@ -61,6 +63,8 @@
 - `model-test` Stage A 现在包含 `rsm_adaptive_v1`，会在 run 输出目录写 `regime_artifacts/`。
 - 同一次研究 run 内，adaptive Stage A 会通过环境变量 `STRATAGY_ADAPTIVE_REGIME_ARTIFACT_DIR` 读取刚生成的 `regime_artifacts/`。
 - `rsm_adaptive_v1` 不参加 rolling robustness；`robustness_summary.csv` 不包含它，`report.json` / `report.md` 额外包含 adaptive state / routing 摘要。
+- 仓库现已包含 `reports/Final_Report.html` 作为最终提交 ZIP 的离线报告入口，`scripts/prepare_final_zip.ps1` 用于生成清理后的 `Final_gpXX.zip` 提交包。
+- 站点 UI 语言现固定为英文；顶部中英切换已移除，路由不再传播 `lang` 查询参数。
 
 ## 默认阅读路线
 
