@@ -1,6 +1,6 @@
 # AI 快速上下文（薄路由版）
 
-> 最近更新：2026-04-09
+> 最近更新：2026-04-11
 > 用途：项目级路由文档。先读本文件，再按任务跳到对应 skill 和接口文档。
 > 约定：详细接口统一维护在 `document/interfaces/`，本文件只保存 durable project facts。
 
@@ -14,6 +14,8 @@
 - Streamlit 配置：`server.baseUrlPath = "strategy"`
 - 服务器 SSH 别名：`stratagy`
 - 服务器应用目录：`/opt/stratagy`
+- **开发方式：SSH 远程连接**，不创建新的本地工作区；使用 VS Code / Cursor Remote-SSH 连接 `stratagy`，打开 `/opt/stratagy`
+- SSH 远程开发配置指南：`deploy/ssh_remote_dev.md`
 - 常用增量部署：`deploy/sync.bat`
 - 常用全量上传：`deploy/upload_and_deploy.bat`
 - 两个部署脚本都会在本地存在时同步 `model-test/outputs/`

@@ -22,3 +22,14 @@ When updating `AI_CONTEXT.md`, keep it concise and accurate:
 - prefer updating existing sections over appending redundant text
 - keep dates current when a status entry is time-sensitive
 - skip the update if nothing project-level actually changed
+
+## Workspace Convention
+
+**Do NOT create new worktrees, workspaces, or sandboxes.**
+
+Development and maintenance for this project happen exclusively via SSH remote connection to the server:
+
+- SSH alias: `stratagy`
+- Project directory: `/opt/stratagy`
+
+When editing in VS Code or Cursor, use the Remote-SSH extension to connect to `stratagy` and open `/opt/stratagy` directly. Do not clone the repository locally and create a new workspace.
