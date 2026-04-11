@@ -1,0 +1,823 @@
+<section id="section-2-models">
+  <h2>2. Proposed Models Specification</h2>
+  <p>
+    This section provides a complete mathematical and algorithmic specification for every model
+    used in our quantitative strategy analysis project. Each model is described at sufficient
+    depth that an independent researcher could reproduce the implementation from the specification alone.
+    Code module references map each model to its implementation within the repository.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 2.1  SM – Simple Model (10-Factor Scoring Strategy)                    -->
+  <!-- ====================================================================== -->
+  <h3 id="model-sm">2.1 SM – Simple Model (10-Factor Scoring Strategy)</h3>
+  <p><strong>Implementation:</strong> <code>core/signals.py</code> &mdash; functions
+    <code>compute_signals()</code> and <code>_compute_manual_factor_score()</code>.</p>
+  <p>
+    The SM is a deterministic, multi-factor scoring model that converts 10 technical features
+    into a composite factor score, maps the score to a discrete position level, and then
+    applies entry/exit counting filters to generate trading signals.
+  </p>
+
+  <h4>2.1.1 Raw Factor Definitions</h4>
+  <p>
+    Every factor is computed from the OHLCV price/volume time-series that has already passed
+    through the indicator pipeline (<code>core/indicators.py &rarr; add_indicators()</code>).
+    Let <var>P<sub>t</sub></var> = close price on day&nbsp;<var>t</var>,
+    <var>V<sub>t</sub></var> = volume, and let
+    <var>w</var> = <code>score_lookback</code> (rolling window for normalization, default 30).
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Factor</th><th>Raw Definition</th><th>Normalization</th><th>Direction</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Short-term Momentum</td>
+        <td><code>ret_short<sub>t</sub> = P<sub>t</sub> / P<sub>t&minus;m<sub>s</sub></sub> &minus; 1</code>, where
+            <var>m<sub>s</sub></var> = <code>momentum_short</code> (default&nbsp;5)</td>
+        <td>Rolling Z-score over window <var>w</var></td>
+        <td>Positive</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Long-term Momentum</td>
+        <td><code>ret_long<sub>t</sub> = P<sub>t</sub> / P<sub>t&minus;m<sub>l</sub></sub> &minus; 1</code>, where
+            <var>m<sub>l</sub></var> = <code>momentum_long</code> (default&nbsp;20)</td>
+        <td>Rolling Z-score over window <var>w</var></td>
+        <td>Positive</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>MACD Histogram</td>
+        <td><code>histogram<sub>t</sub> = MACD<sub>t</sub> &minus; Signal<sub>t</sub></code><br>
+            where MACD = EMA(<var>P</var>,&thinsp;fast) &minus; EMA(<var>P</var>,&thinsp;slow), Signal = EMA(MACD,&thinsp;signal_period)</td>
+        <td>Rolling Z-score over window <var>w</var></td>
+        <td>Positive</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>RSI</td>
+        <td>Wilder-style RSI with exponentially weighted moving average (EWMA, <code>alpha = 1/period</code>):<br>
+            <code>RSI = 100 &minus; 100 / (1 + RS)</code>, where RS = EWMA(gain) / EWMA(loss).<br>
+            Computed in <code>core/indicators.py &rarr; compute_rsi()</code>.</td>
+        <td>Rolling Z-score over window <var>w</var></td>
+        <td>Positive</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>Volatility (ATR/Price)</td>
+        <td><code>volatility<sub>t</sub> = ATR<sub>t</sub> / P<sub>t</sub></code></td>
+        <td>Rolling Z-score over window <var>w</var></td>
+        <td><strong>Negative</strong> (higher volatility penalizes score)</td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td>Bollinger Band Position</td>
+        <td><code>bb_position<sub>t</sub> = (P<sub>t</sub> &minus; BB<sub>lower</sub>) / (BB<sub>upper</sub> &minus; BB<sub>lower</sub>)</code></td>
+        <td>Rolling Rank over window <var>w</var> &isin; [0, 1]</td>
+        <td>Positive</td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td>OBV Trend</td>
+        <td><code>obv_trend<sub>t</sub> = OBV<sub>t</sub> / OBV<sub>t&minus;k</sub> &minus; 1</code>,
+            <var>k</var> = <code>indicator_period</code> (default&nbsp;20)</td>
+        <td>Rolling Rank over window <var>w</var> &isin; [0, 1]</td>
+        <td>Positive</td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td>Volume Ratio</td>
+        <td><code>volume_ratio<sub>t</sub> = V<sub>t</sub> / MA(V, k)</code></td>
+        <td>Rolling Rank over window <var>w</var> &isin; [0, 1]</td>
+        <td>Positive</td>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td>Price Position</td>
+        <td><code>price_position<sub>t</sub> = (P<sub>t</sub> &minus; Low<sub>k</sub>) / (High<sub>k</sub> &minus; Low<sub>k</sub>)</code><br>
+            where Low<sub>k</sub>, High<sub>k</sub> are the rolling min/max over window <var>k</var></td>
+        <td>Rolling Rank over window <var>w</var> &isin; [0, 1]</td>
+        <td>Positive</td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td>Drawdown</td>
+        <td><code>drawdown<sub>t</sub> = P<sub>t</sub> / cummax(P<sub>1:t</sub>) &minus; 1</code></td>
+        <td>Rolling Rank over window <var>w</var> &isin; [0, 1]</td>
+        <td><strong>Negative</strong> (deeper drawdown penalizes score)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>2.1.2 Normalization Functions</h4>
+  <p>Two normalization methods are used (implemented in <code>core/indicators.py</code>):</p>
+  <ul>
+    <li>
+      <strong>Rolling Z-score</strong> (<code>rolling_zscore(x, w)</code>):
+      <br>
+      <code>z<sub>t</sub> = (x<sub>t</sub> &minus; &mu;<sub>t</sub>) / &sigma;<sub>t</sub></code>,&ensp;
+      where &mu;<sub>t</sub> and &sigma;<sub>t</sub> are the rolling mean and standard deviation
+      over a window of <var>w</var> observations ending at <var>t</var>.
+      Infinite values are replaced with NaN.
+    </li>
+    <li>
+      <strong>Rolling Rank</strong> (<code>rolling_rank(x, w)</code>):
+      <br>
+      For a window of <var>w</var> values ending at <var>t</var>, compute the percentile rank
+      of the last value within that window.
+      Output &isin; [0, 1]; 0&nbsp;= minimum, 1&nbsp;= maximum within the window.
+      Returns 0.5 when the window contains fewer than 2 observations.
+    </li>
+  </ul>
+
+  <h4>2.1.3 Composite Factor Score Formula</h4>
+  <p>
+    The composite factor score is computed by <code>_compute_manual_factor_score()</code>
+    (line&nbsp;14 of <code>core/signals.py</code>). Rank-normalized factors are re-centered
+    via the affine mapping <code>(rank &minus; 0.5) &times; 2</code>, mapping [0, 1] &rarr; [&minus;1, +1].
+  </p>
+  <pre><code>factor_score<sub>t</sub> =
+      w<sub>mom_short</sub> &middot; z(ret_short)<sub>t</sub>
+    + w<sub>mom_long</sub>  &middot; z(ret_long)<sub>t</sub>
+    + w<sub>macd</sub>      &middot; z(histogram)<sub>t</sub>
+    + w<sub>rsi</sub>       &middot; z(rsi)<sub>t</sub>
+    &minus; w<sub>vol</sub>       &middot; z(volatility)<sub>t</sub>
+    + w<sub>bb</sub>        &middot; (rank(bb_position)<sub>t</sub>  &minus; 0.5) &times; 2
+    + w<sub>obv</sub>       &middot; (rank(obv_trend)<sub>t</sub>   &minus; 0.5) &times; 2
+    + w<sub>volume</sub>    &middot; (rank(volume_ratio)<sub>t</sub> &minus; 0.5) &times; 2
+    + w<sub>price</sub>     &middot; (rank(price_position)<sub>t</sub> &minus; 0.5) &times; 2
+    &minus; w<sub>drawdown</sub>  &middot; (rank(drawdown)<sub>t</sub>  &minus; 0.5) &times; 2</code></pre>
+
+  <p><strong>Default weights</strong> (from <code>compute_signals()</code> function signature):</p>
+  <table>
+    <thead><tr><th>Weight Parameter</th><th>Default</th></tr></thead>
+    <tbody>
+      <tr><td><code>weight_mom_short</code></td><td>set via sidebar (typically 1.0)</td></tr>
+      <tr><td><code>weight_mom_long</code></td><td>set via sidebar (typically 1.0)</td></tr>
+      <tr><td><code>weight_macd</code></td><td>set via sidebar (typically 1.0)</td></tr>
+      <tr><td><code>weight_rsi</code></td><td>set via sidebar (typically 0.5)</td></tr>
+      <tr><td><code>weight_vol</code></td><td>set via sidebar (typically 0.5)</td></tr>
+      <tr><td><code>weight_bb</code></td><td>0.8</td></tr>
+      <tr><td><code>weight_obv</code></td><td>1.0</td></tr>
+      <tr><td><code>weight_volume</code></td><td>0.6</td></tr>
+      <tr><td><code>weight_price</code></td><td>0.7</td></tr>
+      <tr><td><code>weight_drawdown</code></td><td>0.5</td></tr>
+    </tbody>
+  </table>
+
+  <h4>2.1.4 Position Sizing: 7-Tier Mapping</h4>
+  <p>
+    The factor score is first converted to a rolling percentile
+    (<code>factor_percentile</code>) within a window of <code>score_lookback</code> days.
+    Then it is mapped to one of six discrete position levels by
+    <code>_score_position_from_percentile()</code> (line&nbsp;46):
+  </p>
+  <table>
+    <thead><tr><th>Condition (percentile &ge; threshold)</th><th>Position</th></tr></thead>
+    <tbody>
+      <tr><td>&ge; <code>score_high_pct</code> (default 0.80)</td><td>1.0</td></tr>
+      <tr><td>&ge; max(<code>score_mid_pct</code>, <code>score_high_pct</code> &minus; 0.10)</td><td>0.8</td></tr>
+      <tr><td>&ge; <code>score_mid_pct</code> (default 0.60)</td><td>0.6</td></tr>
+      <tr><td>&ge; <code>score_mid_pct</code> &minus; 0.10</td><td>0.4</td></tr>
+      <tr><td>&ge; <code>score_mid_pct</code> &minus; 0.20</td><td>0.2</td></tr>
+      <tr><td>otherwise</td><td>0.0</td></tr>
+    </tbody>
+  </table>
+
+  <h4>2.1.5 High-Volatility Discount</h4>
+  <p>
+    When the rolling volatility percentile exceeds 0.80 (top quintile),
+    a multiplicative discount of 0.7 is applied to the score-derived position:
+  </p>
+  <pre><code>vol_adjustment<sub>t</sub> = 0.7 if percentile(volatility<sub>t</sub>, w) > 0.80 else 1.0
+position_adjusted<sub>t</sub> = score_position<sub>t</sub> &times; vol_adjustment<sub>t</sub></code></pre>
+
+  <h4>2.1.6 Entry Counting Filter</h4>
+  <p>
+    The model uses a counting-based entry filter (when <code>entry_min_signals &gt; 0</code>).
+    Five binary conditions are evaluated; a signal passes entry only when the count
+    reaches <code>entry_min_signals</code> (default&nbsp;3, capped at the number of enabled conditions):
+  </p>
+  <ol>
+    <li><code>factor_score<sub>t</sub> &ge; entry_threshold</code></li>
+    <li><code>trend_ok</code>: EMA<sub>fast</sub> &gt; EMA<sub>slow</sub> (toggled by <code>use_trend_filter</code>)</li>
+    <li><code>strength_ok</code>: ADX<sub>t</sub> &ge; <code>adx_threshold</code> (toggled by <code>use_strength_filter</code>)</li>
+    <li><code>rsi_ok</code>: <code>rsi_lower</code> &lt; RSI<sub>t</sub> &lt; <code>rsi_upper</code> (toggled by <code>use_rsi_filter</code>)</li>
+    <li><code>macd_above</code>: MACD<sub>t</sub> &gt; Signal<sub>t</sub> (toggled by <code>use_macd_filter</code>)</li>
+  </ol>
+  <pre><code>entry_count<sub>t</sub> = &sum; {condition<sub>i,t</sub> : i enabled}
+entry_ok<sub>t</sub> = entry_count<sub>t</sub> &ge; min(entry_min_signals, #enabled_conditions)</code></pre>
+
+  <h4>2.1.7 Exit Counting Filter</h4>
+  <p>
+    Four exit conditions are aggregated via the same counting mechanism
+    (default <code>exit_min_signals</code> = 2):
+  </p>
+  <ol>
+    <li><code>factor_score<sub>t</sub> &le; exit_threshold</code></li>
+    <li>Trend reversal: EMA<sub>fast</sub> &lt; EMA<sub>slow</sub></li>
+    <li>RSI extreme: RSI<sub>t</sub> &gt; <code>rsi_upper</code> or RSI<sub>t</sub> &lt; <code>rsi_lower</code></li>
+    <li>MACD cross-under: MACD<sub>t</sub> &lt; Signal<sub>t</sub></li>
+  </ol>
+  <pre><code>exit_count<sub>t</sub> = &sum; {exit_condition<sub>j,t</sub> : j enabled}
+exit_ok<sub>t</sub> = exit_count<sub>t</sub> &ge; min(exit_min_signals, #enabled_exit_conditions)</code></pre>
+
+  <h4>2.1.8 Final Position and Buy/Sell Signals</h4>
+  <p>
+    In default mode, the target position is the volatility-adjusted score position
+    gated by entry and zeroed by exit:
+  </p>
+  <pre><code>target_position<sub>t</sub> = position_adjusted<sub>t</sub> &times; 𝟙{entry_ok<sub>t</sub>}
+target_position<sub>t</sub> = 0  if exit_ok<sub>t</sub></code></pre>
+  <p>
+    An optional <em>hold-until-exit</em> state machine (<code>hold_until_exit=True</code>)
+    is available via <code>_apply_hold_until_exit_state()</code>: once entered, position is
+    maintained at max(score_position, hold_min_position &times; vol_adjustment) until
+    <code>exit_ok</code> fires.
+  </p>
+  <p>
+    Buy and sell signals are edge-detected:
+    <code>buy_signal<sub>t</sub> = (target_position<sub>t</sub> &gt; 0) &and; (target_position<sub>t&minus;1</sub> &le; 0)</code>;
+    <code>sell_signal<sub>t</sub> = (target_position<sub>t</sub> &le; 0) &and; (target_position<sub>t&minus;1</sub> &gt; 0)</code>.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 2.2  FSM – Factor-Score Model (FA-based)                               -->
+  <!-- ====================================================================== -->
+  <h3 id="model-fsm">2.2 FSM – Factor-Score Model (Factor Analysis)</h3>
+  <p><strong>Implementation:</strong> <code>core/fa_filter.py</code> &mdash; functions
+    <code>fit_fa()</code> and <code>transform_fa()</code>.
+    Integrated into the SM pipeline via the <code>fsm_mode=True</code> flag in <code>compute_signals()</code>.</p>
+
+  <h4>2.2.1 Motivation</h4>
+  <p>
+    Instead of using hand-tuned weights, the FSM employs
+    <strong>scikit-learn <code>FactorAnalysis</code></strong> to discover a latent factor structure
+    from the same 10 standardized features used by the SM. The extracted latent factors
+    replace the manual <code>factor_score</code> while the downstream position sizing and
+    entry/exit filters remain identical to the SM.
+  </p>
+
+  <h4>2.2.2 Input Feature Construction</h4>
+  <p>
+    The 10 source columns (<code>FA_SOURCE_COLUMNS</code>) are pre-processed in
+    <code>_build_fa_feature_frame()</code> to have consistent directional semantics.
+    Z-score factors are passed through directly (with volatility sign-inverted),
+    while rank factors are re-centered to [&minus;1, +1]:
+  </p>
+  <table>
+    <thead><tr><th>FA Feature Name</th><th>Derivation</th></tr></thead>
+    <tbody>
+      <tr><td>mom_short</td><td><code>mom_short_z</code></td></tr>
+      <tr><td>mom_long</td><td><code>mom_long_z</code></td></tr>
+      <tr><td>macd</td><td><code>macd_z</code></td></tr>
+      <tr><td>rsi</td><td><code>rsi_z</code></td></tr>
+      <tr><td>volatility</td><td><code>&minus;vol_z</code> (sign-inverted)</td></tr>
+      <tr><td>bb_position</td><td><code>(bb_position_rank &minus; 0.5) &times; 2</code></td></tr>
+      <tr><td>obv_trend</td><td><code>(obv_trend_rank &minus; 0.5) &times; 2</code></td></tr>
+      <tr><td>volume_ratio</td><td><code>(volume_ratio_rank &minus; 0.5) &times; 2</code></td></tr>
+      <tr><td>price_position</td><td><code>(price_position_rank &minus; 0.5) &times; 2</code></td></tr>
+      <tr><td>drawdown</td><td><code>&minus;(drawdown_rank &minus; 0.5) &times; 2</code> (sign-inverted)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>2.2.3 Training (<code>fit_fa()</code>)</h4>
+  <ol>
+    <li>Build the 10-column feature frame from the <strong>training set only</strong> to prevent data leakage.</li>
+    <li>Fit a <code>StandardScaler</code> on the training set.</li>
+    <li>Fit <code>sklearn.decomposition.FactorAnalysis(n_components=3, random_state=42)</code>
+        on the scaled features.</li>
+    <li><strong>Direction alignment:</strong> For each latent component <var>k</var>,
+        compute Pearson correlation between the component scores and the
+        equal-weight mean of all 10 (sign-adjusted) features (the "anchor score").
+        If the correlation is negative, flip the component:
+        <code>sign<sub>k</sub> = &minus;1</code>; otherwise <code>sign<sub>k</sub> = +1</code>.
+    </li>
+    <li>Compute training-set mean and standard deviation of the direction-corrected composite score
+        for subsequent standardization.</li>
+  </ol>
+  <p>The model artifact is an <code>FAModel</code> named-tuple: <code>(fa, scaler, n_components)</code>.</p>
+
+  <h4>2.2.4 Scoring (<code>transform_fa()</code>)</h4>
+  <pre><code>X_scaled   = scaler.transform(build_fa_feature_frame(df))
+L          = fa.transform(X_scaled)                            # shape (T, n_components)
+L_corrected = L &times; sign_vector                                  # element-wise
+raw_score  = mean(L_corrected, axis=1)                         # average across components
+fsm_score  = (raw_score &minus; &mu;<sub>train</sub>) / &sigma;<sub>train</sub></code></pre>
+  <p>
+    The resulting <code>fsm_score</code> replaces <code>factor_score</code> in the
+    SM pipeline. All downstream processing (percentile mapping, position tiers,
+    entry/exit filters) proceeds identically.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 2.3  ML Signal Filter                                                  -->
+  <!-- ====================================================================== -->
+  <h3 id="model-ml">2.3 ML Signal Filter</h3>
+  <p><strong>Implementation:</strong> <code>core/ml_filter.py</code> &mdash; functions
+    <code>build_feature_bundle()</code>, <code>fit_ml_filter()</code>,
+    <code>predict_filter()</code>, and <code>apply_filter()</code>.</p>
+
+  <h4>2.3.1 Role</h4>
+  <p>
+    The ML filter operates <em>on top of</em> the SM or FSM. It observes every buy signal
+    generated by the base strategy and predicts whether the signal will lead to
+    positive <em>excess</em> return. Low-confidence buy signals are suppressed
+    (position zeroed). The filter never generates signals independently &mdash; it only
+    vetoes existing ones.
+  </p>
+
+  <h4>2.3.2 Feature Set (28 Features)</h4>
+  <p>
+    Features are defined in <code>ML_FEATURE_COLUMNS</code> (line&nbsp;37) and extracted at
+    each buy-signal timestamp. They include:
+  </p>
+  <table>
+    <thead><tr><th>Group</th><th>Features</th><th>Count</th></tr></thead>
+    <tbody>
+      <tr><td>Factor scores &amp; percentile</td>
+          <td><code>factor_score</code>, <code>factor_percentile</code>, <code>target_position</code></td>
+          <td>3</td></tr>
+      <tr><td>Z-score factors</td>
+          <td><code>mom_short_z</code>, <code>mom_long_z</code>, <code>macd_z</code>,
+              <code>rsi_z</code>, <code>vol_z</code></td>
+          <td>5</td></tr>
+      <tr><td>Rank factors</td>
+          <td><code>bb_position_rank</code>, <code>obv_trend_rank</code>,
+              <code>volume_ratio_rank</code>, <code>price_position_rank</code>,
+              <code>drawdown_rank</code></td>
+          <td>5</td></tr>
+      <tr><td>Raw technical indicators</td>
+          <td><code>rsi</code>, <code>macd</code>, <code>signal</code>, <code>adx</code>,
+              <code>atr_pct</code> (ATR/close), <code>volume_ratio</code>,
+              <code>bb_position</code>, <code>bb_width</code>,
+              <code>price_position</code>, <code>drawdown</code></td>
+          <td>10</td></tr>
+      <tr><td>Filter condition flags</td>
+          <td><code>trend_ok</code>, <code>strength_ok</code>, <code>rsi_ok</code>,
+              <code>macd_above</code></td>
+          <td>4</td></tr>
+      <tr><td>Aggregated</td>
+          <td><code>entry_count</code> (sum of satisfied entry conditions),
+              <code>ema_spread_pct</code> ((EMA<sub>fast</sub> &minus; EMA<sub>slow</sub>) / close)</td>
+          <td>2 &ensp;(subtotal not in original list, but derived at build time)</td></tr>
+    </tbody>
+  </table>
+  <p>Total: <strong>28 features</strong> per buy-signal sample (excluding metadata columns <code>signal_pos</code> and <code>date</code>).</p>
+
+  <h4>2.3.3 Label Construction</h4>
+  <p>Labels are constructed per buy-signal event using a forward-looking horizon (default <code>horizon=10</code> days):</p>
+  <pre><code>future_naive_return   = &prod;(1 + r<sub>t+1:t+h</sub>) &minus; 1     (buy-and-hold over horizon)
+future_strategy_return = &prod;(1 + w<sub>t:t+h&minus;1</sub> &middot; r<sub>t+1:t+h</sub>) &minus; 1   (position-weighted)
+future_excess_return   = future_strategy_return &minus; future_naive_return
+
+ml_label = 𝟙{future_excess_return &gt; 0}     (primary: "excess_return" mode)</code></pre>
+  <p>
+    If fewer than <code>min_excess_samples</code> (default 20) valid excess-return samples exist,
+    or labels degenerate to a single class, the labeler falls back to absolute strategy return:
+    <code>ml_label = 𝟙{future_strategy_return &gt; 0}</code> (&ldquo;absolute_return&rdquo; mode).
+  </p>
+
+  <h4>2.3.4 Model Type A: Logistic Regression</h4>
+  <p><strong>Specification</strong> (<code>fit_ml_filter(model_type="logistic")</code>):</p>
+  <ul>
+    <li>Preprocessing: <code>StandardScaler</code> fitted on training features only.</li>
+    <li>Model: <code>sklearn.linear_model.LogisticRegression(max_iter=1000, solver="liblinear",
+        class_weight="balanced", random_state=42)</code></li>
+    <li>Output: <code>P(ml_label=1 | X)</code> via <code>predict_proba</code>.</li>
+  </ul>
+
+  <h4>2.3.5 Model Type B: LightGBM</h4>
+  <p><strong>Specification</strong> (<code>fit_ml_filter(model_type="lgbm")</code>):</p>
+  <ul>
+    <li>No feature scaling (tree-based model is scale-invariant).</li>
+    <li>Model: <code>LGBMClassifier(objective="binary", n_estimators=200,
+        learning_rate=0.05, num_leaves=15, min_child_samples=10,
+        subsample=0.9, colsample_bytree=0.9, reg_alpha=0.1, reg_lambda=0.1,
+        class_weight="balanced", random_state=42, verbosity=-1)</code></li>
+    <li>Output: <code>P(ml_label=1 | X)</code> via <code>predict_proba</code>.</li>
+  </ul>
+
+  <h4>2.3.6 Degenerate-Class Fallback</h4>
+  <p>
+    When training samples contain fewer than 2 unique labels or fewer than 8 samples,
+    a constant-probability model is substituted:
+    <code>P(1|X) = mean(y<sub>train</sub>)</code>. This avoids pipeline crashes on
+    thin-data segments.
+  </p>
+
+  <h4>2.3.7 Filter Application</h4>
+  <p>
+    <code>apply_filter()</code> identifies every <em>trade block</em> (contiguous days with
+    <code>target_position &gt; 0</code>). If the ML probability at the block's first bar
+    falls below <code>threshold</code> (default 0.5), the entire block is zeroed:
+  </p>
+  <pre><code>for each trade block starting at day s:
+    if P(1 | X<sub>s</sub>) &lt; threshold:
+        target_position[s : block_end] = 0</code></pre>
+
+  <!-- ====================================================================== -->
+  <!-- 2.4  RSM – Regime Switching Model                                      -->
+  <!-- ====================================================================== -->
+  <h3 id="model-rsm">2.4 RSM – Regime Switching Model</h3>
+  <p>
+    The RSM exists in two variants: a <strong>legacy rule-based</strong> router and an
+    <strong>adaptive data-driven</strong> router.
+  </p>
+
+  <h4 id="rsm-legacy">2.4.1 Legacy RSM (Dual-State Router)</h4>
+  <p><strong>Implementation:</strong> <code>core/regime_model.py</code> &mdash;
+    <code>compute_regime_features()</code> and <code>compute_regime_signals()</code>.<br>
+    <code>RegimeKind</code> literals: <code>"dual_state_router"</code>,
+    <code>"no_market"</code>, <code>"no_router"</code>.</p>
+
+  <h5>2.4.1.1 Feature Engineering</h5>
+  <p>
+    Features are built for both the <strong>stock</strong> and a <strong>market proxy</strong>
+    (default: SPY) via <code>_build_feature_frame()</code>:
+  </p>
+  <table>
+    <thead><tr><th>Feature</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr><td><code>ret_20</code></td><td><code>close.pct_change(20)</code></td></tr>
+      <tr><td><code>ret_60</code></td><td><code>close.pct_change(60)</code></td></tr>
+      <tr><td><code>atr_pct</code></td><td><code>ATR / close</code></td></tr>
+      <tr><td><code>atr_pct_percentile</code></td><td>rolling percentile of <code>atr_pct</code> over 60&nbsp;days</td></tr>
+      <tr><td><code>realized_vol_20</code></td><td>20-day rolling std of daily returns &times; &radic;20</td></tr>
+      <tr><td><code>ema_spread_pct</code></td><td>(EMA<sub>fast</sub> &minus; EMA<sub>slow</sub>) / close</td></tr>
+      <tr><td><code>bb_width_rank</code></td><td>rolling rank of Bollinger Band width over 60&nbsp;days</td></tr>
+      <tr><td><code>efficiency_ratio_20</code></td><td>|close<sub>t</sub> &minus; close<sub>t&minus;20</sub>| / &sum;|&Delta;close| over 20&nbsp;days, clipped to [0, 1]</td></tr>
+      <tr><td><code>volume_ratio_rank</code></td><td>rolling rank of volume ratio over 60&nbsp;days</td></tr>
+      <tr><td><code>price_position_rank</code></td><td>rolling rank of price position over 60&nbsp;days</td></tr>
+      <tr><td><code>drawdown_rank</code></td><td>rolling rank of drawdown over 60&nbsp;days</td></tr>
+    </tbody>
+  </table>
+
+  <h5>2.4.1.2 Discrete State Classification</h5>
+  <p>Two categorical states per entity (stock and market proxy):</p>
+  <ul>
+    <li><strong>Trend state</strong>: <code>Up</code> if EMA spread &gt; 0 &and; ret_60 &gt; 8%;
+        <code>Down</code> if EMA spread &lt; 0 &and; ret_60 &lt; &minus;5%; else <code>Flat</code>.</li>
+    <li><strong>Volatility state</strong>: <code>Low</code> if ATR percentile &lt; 0.33;
+        <code>High</code> if &ge; 0.67; else <code>Mid</code>.</li>
+  </ul>
+
+  <h5>2.4.1.3 Regime Assignment Rules (dual_state_router)</h5>
+  <table>
+    <thead><tr><th>Condition</th><th>Execution Regime</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>market_trend = Down <strong>OR</strong> market_vol = High <strong>OR</strong> stock_trend = Down</td>
+        <td><code>risk_off</code></td>
+      </tr>
+      <tr>
+        <td>market_trend = Up <strong>AND</strong> stock_trend = Up <strong>AND</strong> stock_vol &ne; High</td>
+        <td><code>trend_follow</code></td>
+      </tr>
+      <tr>
+        <td>otherwise</td>
+        <td><code>range_selective</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h5>2.4.1.4 Regime Score &amp; Position Sizing</h5>
+  <p>A composite regime score is computed as:</p>
+  <pre><code>regime_score<sub>t</sub> =
+      0.25 &times; rel_market_ret_20
+    + 0.20 &times; efficiency_ratio_20
+    + 0.15 &times; price_position_rank
+    + 0.15 &times; volume_ratio_rank
+    + 0.15 &times; bb_width_rank
+    &minus; 0.10 &times; drawdown_rank</code></pre>
+  <p>The regime score percentile determines position size within each regime:</p>
+  <table>
+    <thead><tr><th>Regime</th><th>Percentile &ge;</th><th>Position</th><th>Anchor Requirement</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="3"><code>trend_follow</code></td>
+          <td>0.85</td><td>1.0</td><td rowspan="3">Mean anchor position &ge; 1</td></tr>
+      <tr><td>0.75</td><td>0.8</td></tr>
+      <tr><td>0.60</td><td>0.6</td></tr>
+      <tr><td rowspan="2"><code>range_selective</code></td>
+          <td>0.85</td><td>0.6</td><td rowspan="2">Drift anchor position &ge; 1</td></tr>
+      <tr><td>0.70</td><td>0.3</td></tr>
+      <tr><td><code>risk_off</code></td><td>&mdash;</td><td>0.0</td><td>&mdash;</td></tr>
+    </tbody>
+  </table>
+
+  <h4 id="rsm-adaptive">2.4.2 Adaptive RSM (<code>adaptive_router_v1</code>)</h4>
+  <p><strong>Implementation:</strong> <code>core/adaptive_regime.py</code> &mdash;
+    <code>build_adaptive_feature_frame()</code>,
+    <code>train_adaptive_state_model()</code>,
+    <code>predict_adaptive_states()</code>,
+    <code>score_candidate_state_metrics()</code>,
+    <code>select_routing_policy()</code>.</p>
+
+  <h5>2.4.2.1 State Feature Vector (19 Dimensions)</h5>
+  <p>
+    The feature vector for state classification is defined in
+    <code>ADAPTIVE_STATE_FEATURE_COLUMNS</code> (line&nbsp;84):
+  </p>
+  <table>
+    <thead><tr><th>#</th><th>Feature</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>ret_5</code></td><td>close.pct_change(5)</td></tr>
+      <tr><td>2</td><td><code>ret_20</code></td><td>close.pct_change(20)</td></tr>
+      <tr><td>3</td><td><code>ret_60</code></td><td>close.pct_change(60)</td></tr>
+      <tr><td>4</td><td><code>spy_ret_5</code></td><td>SPY close.pct_change(5)</td></tr>
+      <tr><td>5</td><td><code>spy_ret_20</code></td><td>SPY close.pct_change(20)</td></tr>
+      <tr><td>6</td><td><code>spy_ret_60</code></td><td>SPY close.pct_change(60)</td></tr>
+      <tr><td>7</td><td><code>realized_vol_20</code></td><td>20-day rolling std &times; &radic;20</td></tr>
+      <tr><td>8</td><td><code>realized_vol_60</code></td><td>60-day rolling std &times; &radic;20</td></tr>
+      <tr><td>9</td><td><code>atr_pct</code></td><td>ATR / close</td></tr>
+      <tr><td>10</td><td><code>ema_spread_pct</code></td><td>(EMA<sub>fast</sub> &minus; EMA<sub>slow</sub>) / close</td></tr>
+      <tr><td>11</td><td><code>adx</code></td><td>Average Directional Index</td></tr>
+      <tr><td>12</td><td><code>rsi</code></td><td>Relative Strength Index</td></tr>
+      <tr><td>13</td><td><code>drawdown_rank</code></td><td>Rolling rank of drawdown (60-day)</td></tr>
+      <tr><td>14</td><td><code>bb_width_rank</code></td><td>Rolling rank of Bollinger Band width (60-day)</td></tr>
+      <tr><td>15</td><td><code>volume_ratio_rank</code></td><td>Rolling rank of volume ratio (60-day)</td></tr>
+      <tr><td>16</td><td><code>efficiency_ratio_20</code></td><td>Kaufman efficiency ratio over 20 days</td></tr>
+      <tr><td>17</td><td><code>relative_strength_vs_spy_20</code></td><td>ret_20(stock) &minus; ret_20(SPY)</td></tr>
+      <tr><td>18</td><td><code>beta_60</code></td><td>Rolling 60-day beta vs SPY: Cov(r, r<sub>spy</sub>) / Var(r<sub>spy</sub>)</td></tr>
+      <tr><td>19</td><td><code>corr_60</code></td><td>Rolling 60-day Pearson correlation of daily returns with SPY</td></tr>
+    </tbody>
+  </table>
+
+  <h5>2.4.2.2 State Discovery: MiniBatchKMeans Clustering</h5>
+  <p><code>train_adaptive_state_model()</code>:</p>
+  <ul>
+    <li><strong>Algorithm:</strong> <code>sklearn.cluster.MiniBatchKMeans(n_clusters=6, batch_size=max(64, 6&times;16), random_state=42, n_init=10)</code></li>
+    <li><strong>Input:</strong> The 19-dimensional feature matrix from the historical training period.</li>
+    <li><strong>Output:</strong> <var>K</var>=6 cluster centroids and an integer state_id for each historical day.</li>
+    <li>The number of states is capped at min(<code>ADAPTIVE_STATE_COUNT</code>=6, sample count).</li>
+  </ul>
+
+  <h5>2.4.2.3 State Classifier</h5>
+  <p>
+    To classify <em>new</em> (out-of-sample) days into the discovered states, a supervised
+    classifier is trained on the KMeans-labeled data:
+  </p>
+  <ul>
+    <li>
+      <strong>If sample count &ge; max(60, states&times;12) and LightGBM available:</strong>
+      <code>LGBMClassifier(objective="multiclass", n_estimators=160,
+      learning_rate=0.05, min_child_samples=10, subsample=0.9,
+      colsample_bytree=0.9, random_state=42, verbosity=-1)</code>
+    </li>
+    <li>
+      <strong>Otherwise:</strong>
+      <code>Pipeline([StandardScaler(), LogisticRegression(max_iter=1200,
+      multi_class="multinomial", random_state=42)])</code>
+    </li>
+    <li>
+      <strong>Degenerate case (&le;1 unique state):</strong>
+      <code>DummyClassifier(strategy="most_frequent")</code>
+    </li>
+  </ul>
+
+  <h5>2.4.2.4 Routing Policy Selection</h5>
+  <p>
+    For each discovered state, the router selects the best-performing candidate model
+    based on offline research results. <strong>Candidate models</strong>
+    (<code>ADAPTIVE_OFFLINE_CANDIDATE_MODEL_IDS</code>):
+  </p>
+  <p>
+    <code>naive</code>, <code>mean</code>, <code>drift</code>, <code>sm</code>,
+    <code>fsm</code>, <code>sm_bayesian</code>, <code>sm_random</code>,
+    <code>sm_genetic</code>, <code>fsm_bayesian</code>, <code>fsm_random</code>,
+    <code>fsm_genetic</code>
+  </p>
+  <p>Candidate performance is aggregated per state via <code>aggregate_candidate_state_day_rows()</code>,
+     then scored by <code>score_candidate_state_metrics()</code>:</p>
+  <pre><code>policy_score = 0.5 &times; excess_return_rank + 0.3 &times; sharpe_rank + 0.2 &times; drawdown_rank</code></pre>
+  <p>
+    where each <code>*_rank</code> is a percentile rank (0&ndash;100) within the same
+    (scope, state_id) group. The model with the highest <code>policy_score</code> in each
+    state is selected by <code>select_routing_policy()</code>, subject to a minimum of
+    <code>ADAPTIVE_MIN_STATE_DAYS=20</code> observed days in the state.
+  </p>
+
+  <h5>2.4.2.5 Artifacts &amp; Persistence</h5>
+  <p>
+    The trained adaptive model is serialized to <code>regime_artifacts/</code> as:
+    <code>state_feature_schema.json</code>,
+    <code>state_cluster_centroids.csv</code>,
+    <code>state_classifier.pkl</code>,
+    <code>routing_policy.csv</code>,
+    <code>routing_policy_summary.json</code>,
+    <code>candidate_state_metrics.csv</code>.
+    Online inference loads these artifacts via the environment variable
+    <code>STRATAGY_ADAPTIVE_REGIME_ARTIFACT_DIR</code>.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 2.5  Parameter Optimization                                            -->
+  <!-- ====================================================================== -->
+  <h3 id="model-optimizer">2.5 Parameter Optimization</h3>
+  <p><strong>Implementation:</strong> <code>core/optimizer.py</code> &mdash;
+    <code>bayesian_optimize_params()</code>,
+    <code>random_search_params()</code>,
+    <code>genetic_algorithm_optimize_params()</code>.</p>
+
+  <h4>2.5.1 Search Space</h4>
+  <p>
+    The full parameter space is defined in <code>SEARCH_PARAM_SPACE</code> (line&nbsp;56)
+    and spans <strong>30+ parameters</strong> covering indicator periods, signal thresholds,
+    factor weights, and filter switches:
+  </p>
+  <table>
+    <thead><tr><th>Parameter</th><th>Default</th><th>Range</th><th>Type</th></tr></thead>
+    <tbody>
+      <tr><td><code>ema_fast</code></td><td>12</td><td>[5, 50]</td><td>int</td></tr>
+      <tr><td><code>ema_slow</code></td><td>60</td><td>[20, 200]</td><td>int</td></tr>
+      <tr><td><code>macd_fast</code></td><td>12</td><td>[5, 20]</td><td>int</td></tr>
+      <tr><td><code>macd_slow</code></td><td>26</td><td>[10, 40]</td><td>int</td></tr>
+      <tr><td><code>macd_signal</code></td><td>9</td><td>[5, 20]</td><td>int</td></tr>
+      <tr><td><code>rsi_period</code></td><td>14</td><td>[5, 30]</td><td>int</td></tr>
+      <tr><td><code>rsi_lower</code></td><td>30</td><td>[10, 50]</td><td>float</td></tr>
+      <tr><td><code>rsi_upper</code></td><td>70</td><td>[50, 90]</td><td>float</td></tr>
+      <tr><td><code>adx_period</code></td><td>14</td><td>[5, 30]</td><td>int</td></tr>
+      <tr><td><code>atr_period</code></td><td>14</td><td>[5, 30]</td><td>int</td></tr>
+      <tr><td><code>bb_period</code></td><td>20</td><td>[5, 50]</td><td>int</td></tr>
+      <tr><td><code>bb_std</code></td><td>2.0</td><td>[1.0, 3.0]</td><td>float</td></tr>
+      <tr><td><code>indicator_period</code></td><td>20</td><td>[5, 60]</td><td>int</td></tr>
+      <tr><td><code>entry_threshold</code></td><td>0.5</td><td>[&minus;1.0, 2.0]</td><td>float</td></tr>
+      <tr><td><code>exit_threshold</code></td><td>&minus;0.5</td><td>[&minus;2.0, 0.5]</td><td>float</td></tr>
+      <tr><td><code>adx_threshold</code></td><td>20</td><td>[10, 35]</td><td>float</td></tr>
+      <tr><td><code>stop_loss_mult</code></td><td>2.0</td><td>[0.5, 4.0]</td><td>float</td></tr>
+      <tr><td><code>take_profit_mult</code></td><td>4.0</td><td>[1.0, 6.0]</td><td>float</td></tr>
+      <tr><td><code>weight_bb</code></td><td>0.8</td><td>[0.0, 2.0]</td><td>float</td></tr>
+      <tr><td><code>weight_obv</code></td><td>1.0</td><td>[0.0, 2.0]</td><td>float</td></tr>
+      <tr><td><code>weight_volume</code></td><td>0.6</td><td>[0.0, 1.5]</td><td>float</td></tr>
+      <tr><td><code>weight_price</code></td><td>0.7</td><td>[0.0, 1.5]</td><td>float</td></tr>
+      <tr><td><code>weight_drawdown</code></td><td>0.5</td><td>[0.0, 1.5]</td><td>float</td></tr>
+      <tr><td><code>momentum_short</code></td><td>5</td><td>[3, 15]</td><td>int</td></tr>
+      <tr><td><code>momentum_long</code></td><td>20</td><td>[10, 60]</td><td>int</td></tr>
+      <tr><td><code>score_lookback</code></td><td>30</td><td>[10, 80]</td><td>int</td></tr>
+      <tr><td><code>score_mid_pct</code></td><td>0.6</td><td>[0.40, 0.75]</td><td>float</td></tr>
+      <tr><td><code>score_high_pct</code></td><td>0.8</td><td>[0.60, 0.95]</td><td>float</td></tr>
+      <tr><td><code>entry_min_signals</code></td><td>3</td><td>[1, 5]</td><td>int</td></tr>
+      <tr><td><code>exit_min_signals</code></td><td>2</td><td>[1, 4]</td><td>int</td></tr>
+      <tr><td><code>use_strength_filter</code></td><td>True</td><td>{False, True}</td><td>bool</td></tr>
+      <tr><td><code>use_rsi_filter</code></td><td>True</td><td>{False, True}</td><td>bool</td></tr>
+      <tr><td><code>use_macd_filter</code></td><td>True</td><td>{False, True}</td><td>bool</td></tr>
+    </tbody>
+  </table>
+
+  <h4>2.5.2 Validity Constraints</h4>
+  <p>
+    Candidate parameter sets are rejected by <code>_is_valid_candidate()</code> if any of the
+    following hold:
+  </p>
+  <ul>
+    <li><code>ema_fast &ge; ema_slow</code></li>
+    <li><code>macd_fast &ge; macd_slow</code></li>
+    <li><code>entry_threshold &le; exit_threshold</code></li>
+    <li><code>momentum_short &ge; momentum_long</code></li>
+    <li><code>score_mid_pct &ge; score_high_pct</code></li>
+    <li><code>exit_min_signals &gt; entry_min_signals</code></li>
+  </ul>
+
+  <h4>2.5.3 Objective Function</h4>
+  <p>
+    Each candidate is evaluated on both a sub-training set and a validation set
+    (within the training period). The scoring pipeline in <code>_score_metrics()</code> and
+    <code>_evaluate_candidate_frame()</code>:
+  </p>
+  <pre><code>metrics_score(m) = Sharpe(m) + 2 &times; ExcessReturn(m) &minus; 0.5 &times; |MaxDrawdown(m)| &minus; 0.25 &times; Turnover(m)
+
+raw_score = 0.25 &times; metrics_score(train) + 0.75 &times; metrics_score(val) &minus; 0.20 &times; |train_score &minus; val_score|
+
+final_score = raw_score &minus; regularization_penalty(&theta;)</code></pre>
+  <p>
+    The <strong>regularization penalty</strong> (<code>_regularization_penalty()</code>, &lambda;=0.02
+    or 0.03 for hold-until-exit mode):
+  </p>
+  <pre><code>penalty = &lambda; &times; &sum;<sub>i</sub> ((p<sub>i</sub> &minus; default<sub>i</sub>) / range<sub>i</sub>)&sup2;</code></pre>
+  <p>This penalizes deviation from default parameters, discouraging overfitting.</p>
+
+  <h4>2.5.4 Method A: Bayesian Optimization (Optuna TPE)</h4>
+  <p><code>bayesian_optimize_params()</code>:</p>
+  <ul>
+    <li><strong>Sampler:</strong> <code>optuna.samplers.TPESampler(seed=42)</code> &mdash;
+        Tree-structured Parzen Estimator (TPE) builds a surrogate model of the
+        objective and sequentially suggests promising candidates.</li>
+    <li><strong>Warm start:</strong> If <code>seed_params</code> provided (e.g., from preset evaluation),
+        the first trial is enqueued with those parameters.</li>
+    <li><strong>Trials:</strong> Configurable <code>n_trials</code>.</li>
+    <li>Each trial: suggest &rarr; evaluate &rarr; subtract regularization &rarr; report score.</li>
+  </ul>
+
+  <h4>2.5.5 Method B: Random Search</h4>
+  <p><code>random_search_params()</code>:</p>
+  <ul>
+    <li><strong>Sampling:</strong> Uniform random over the bounded parameter space using
+        <code>numpy.random.default_rng(seed=42)</code>.</li>
+    <li>Integer parameters: discrete uniform. Float parameters: continuous uniform.
+        Boolean parameters: Bernoulli(0.5).</li>
+    <li>First trial uses <code>seed_params</code> if provided.</li>
+    <li>Invalid candidates (violating constraints) yield <code>None</code> and are skipped.</li>
+  </ul>
+
+  <h4>2.5.6 Method C: Genetic Algorithm</h4>
+  <p><code>genetic_algorithm_optimize_params()</code>:</p>
+  <ul>
+    <li><strong>Population:</strong> <code>population_size</code> (default 30).
+        Initialized with seed mutants + random valid individuals.</li>
+    <li><strong>Selection:</strong> Tournament selection with <var>k</var>=3.</li>
+    <li><strong>Crossover:</strong> BLX-&alpha; crossover (&alpha;=0.5): for each parameter,
+        the child value is sampled from
+        <code>U(min(p1,p2) &minus; 0.5&middot;span, max(p1,p2) + 0.5&middot;span)</code>.
+        Applied with probability <code>crossover_rate</code> (default 0.8).</li>
+    <li><strong>Mutation:</strong> Gaussian perturbation with &sigma; = 0.1 &times; parameter range.
+        Each gene mutated independently with probability <code>mutation_rate</code> (default 0.2).
+        Boolean genes are flipped.</li>
+    <li><strong>Elitism:</strong> Top 2 individuals survive to next generation unchanged.</li>
+    <li><strong>Generations:</strong> <code>generations</code> (default 20).</li>
+    <li><strong>Parallelism:</strong> Population fitness evaluated in parallel via
+        <code>ThreadPoolExecutor(max_workers=min(cpu_count, pop_size, 8))</code>.</li>
+  </ul>
+
+  <h4>2.5.7 Evaluation Cache</h4>
+  <p>
+    All three methods share a thread-safe <code>SearchEvaluationCache</code> that
+    deduplicates candidate evaluations by normalizing parameter vectors to canonical
+    form. This avoids redundant simulation runs when different search methods
+    discover the same parameter point.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 2.6  Baseline Models                                                   -->
+  <!-- ====================================================================== -->
+  <h3 id="model-baselines">2.6 Baseline Models</h3>
+  <p><strong>Implementation:</strong> <code>core/baselines.py</code>.</p>
+  <p>
+    Three minimal-complexity models serve as performance benchmarks. Each converts a
+    simple decision rule into a target position series and runs through the standard
+    <code>simulate_strategy()</code> backtest engine with no stop-loss/take-profit.
+  </p>
+
+  <h4>2.6.1 Naive (Buy-and-Hold)</h4>
+  <p><code>naive_baseline()</code>:</p>
+  <pre><code>target_position<sub>t</sub> = 1.0 &ensp; &forall; t</code></pre>
+  <p>
+    Full position from day&nbsp;1. Equity matches buy-and-hold of the underlying asset.
+    Serves as the return benchmark for excess-return calculations.
+  </p>
+
+  <h4>2.6.2 Mean Baseline</h4>
+  <p><code>mean_baseline()</code> / <code>mean_target_position()</code>:</p>
+  <pre><code>target_position<sub>t</sub> = 𝟙{P<sub>t</sub> &gt; MA(P, window)}
+
+where MA(P, window) = (1/window) &times; &sum;<sub>i=0</sub><sup>window&minus;1</sup> P<sub>t&minus;i</sub></code></pre>
+  <p>
+    Default <code>window=60</code>. Full position when price is above the rolling mean;
+    flat otherwise. Initial position is 0.
+  </p>
+
+  <h4>2.6.3 Drift Baseline</h4>
+  <p><code>drift_baseline()</code> / <code>drift_target_position()</code>:</p>
+  <p>
+    A linear drift line is fitted on the training set using the first and last closing
+    prices:
+  </p>
+  <pre><code>&beta; = (P<sub>T<sub>train</sub></sub> &minus; P<sub>1</sub>) / (T<sub>train</sub> &minus; 1)
+drift_line(i) = P<sub>1</sub> + &beta; &times; i &ensp; for row index i = 0, 1, &hellip;</code></pre>
+  <p>
+    Training-period position is 0 (no in-sample trading). For the test period
+    (i &ge; <code>split_idx</code>):
+  </p>
+  <pre><code>target_position<sub>i</sub> = 𝟙{P<sub>i</sub> &ge; drift_line(i)}</code></pre>
+  <p>
+    Full position when price is at or above the extrapolated drift line;
+    flat otherwise. This prevents degenerate behavior (e.g., permanently short when
+    &beta;&nbsp;&lt;&nbsp;0) by making the decision dynamic rather than static.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 2.7  Model Interaction Summary                                         -->
+  <!-- ====================================================================== -->
+  <h3 id="model-interaction">2.7 Model Interaction &amp; Composition Summary</h3>
+  <p>The models compose in a layered architecture:</p>
+  <ol>
+    <li><strong>Layer 0 &ndash; Baselines</strong> (Naive, Mean, Drift): independent, minimal-complexity references.</li>
+    <li><strong>Layer 1 &ndash; Base Strategy</strong> (SM or FSM): produces factor-based signals and positions.</li>
+    <li><strong>Layer 2 &ndash; ML Filter</strong> (optional): vetoes low-quality buy signals from Layer&nbsp;1.</li>
+    <li><strong>Layer 3 &ndash; Regime Router</strong> (RSM, optional): selects the best Layer&nbsp;1
+        variant per market state.</li>
+    <li><strong>Layer 4 &ndash; Parameter Optimization</strong>: tunes Layer&nbsp;1 parameters via
+        Bayesian, Random, or Genetic search, producing optimized SM/FSM variants
+        (<code>sm_bayesian</code>, <code>fsm_genetic</code>, etc.).</li>
+  </ol>
+  <p>
+    All models ultimately produce a daily <code>target_position &isin; [0, 1]</code> series that
+    feeds into the shared backtest engine (<code>core/backtest.py &rarr; simulate_strategy()</code>),
+    which computes equity curves, returns, and trade records under a unified framework.
+  </p>
+</section>
