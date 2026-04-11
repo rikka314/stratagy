@@ -158,11 +158,11 @@
   <table>
     <thead><tr><th>Weight Parameter</th><th>Default</th></tr></thead>
     <tbody>
-      <tr><td><code>weight_mom_short</code></td><td>set via sidebar (typically 1.0)</td></tr>
-      <tr><td><code>weight_mom_long</code></td><td>set via sidebar (typically 1.0)</td></tr>
-      <tr><td><code>weight_macd</code></td><td>set via sidebar (typically 1.0)</td></tr>
-      <tr><td><code>weight_rsi</code></td><td>set via sidebar (typically 0.5)</td></tr>
-      <tr><td><code>weight_vol</code></td><td>set via sidebar (typically 0.5)</td></tr>
+      <tr><td><code>weight_mom_short</code></td><td>1.0</td></tr>
+      <tr><td><code>weight_mom_long</code></td><td>1.0</td></tr>
+      <tr><td><code>weight_macd</code></td><td>1.0</td></tr>
+      <tr><td><code>weight_rsi</code></td><td>0.5</td></tr>
+      <tr><td><code>weight_vol</code></td><td>0.5</td></tr>
       <tr><td><code>weight_bb</code></td><td>0.8</td></tr>
       <tr><td><code>weight_obv</code></td><td>1.0</td></tr>
       <tr><td><code>weight_volume</code></td><td>0.6</td></tr>
@@ -366,7 +366,7 @@ fsm_score  = (raw_score &minus; &mu;<sub>train</sub>) / &sigma;<sub>train</sub><
       <tr><td>Aggregated</td>
           <td><code>entry_count</code> (sum of satisfied entry conditions),
               <code>ema_spread_pct</code> ((EMA<sub>fast</sub> &minus; EMA<sub>slow</sub>) / close)</td>
-          <td>2 &ensp;(subtotal not in original list, but derived at build time)</td></tr>
+          <td>2</td></tr>
     </tbody>
   </table>
   <p>Total: <strong>28 features</strong> per buy-signal sample (excluding metadata columns <code>signal_pos</code> and <code>date</code>).</p>
@@ -534,7 +534,7 @@ ml_label = 𝟙{future_excess_return &gt; 0}     (primary: "excess_return" mode)
       <tr><td>5</td><td><code>spy_ret_20</code></td><td>SPY close.pct_change(20)</td></tr>
       <tr><td>6</td><td><code>spy_ret_60</code></td><td>SPY close.pct_change(60)</td></tr>
       <tr><td>7</td><td><code>realized_vol_20</code></td><td>20-day rolling std &times; &radic;20</td></tr>
-      <tr><td>8</td><td><code>realized_vol_60</code></td><td>60-day rolling std &times; &radic;20</td></tr>
+      <tr><td>8</td><td><code>realized_vol_60</code></td><td>60-day rolling std &times; &radic;20 (monthly scaling factor, matching <code>realized_vol_20</code>)</td></tr>
       <tr><td>9</td><td><code>atr_pct</code></td><td>ATR / close</td></tr>
       <tr><td>10</td><td><code>ema_spread_pct</code></td><td>(EMA<sub>fast</sub> &minus; EMA<sub>slow</sub>) / close</td></tr>
       <tr><td>11</td><td><code>adx</code></td><td>Average Directional Index</td></tr>
