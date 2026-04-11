@@ -41,6 +41,40 @@ streamlit run app.py
 
 可直接使用仓库内 `data/` 的样例数据；若分析其他股票且本地无缓存，应用会通过 `AkShare` 在线拉取数据，因此需要可用网络连接。
 
+## 远程编辑（无需本地克隆）
+
+如果不想在本地克隆仓库，可以直接通过 VS Code 远程编辑 GitHub 上的代码。以下是三种常用方式：
+
+### 方式一：github.dev 网页编辑器（最简单）
+
+在浏览器中打开本仓库的 GitHub 页面，按下键盘 `.` 键，即可在浏览器内打开一个 VS Code 网页编辑器，直接编辑并提交代码。
+
+也可以手动将 URL 中的 `github.com` 替换为 `github.dev`：
+
+```
+https://github.dev/rikka314/stratagy
+```
+
+> 适合快速文本编辑和小范围修改，无需安装任何软件。
+
+### 方式二：GitHub Codespaces（完整云端开发环境）
+
+1. 在仓库 GitHub 页面点击绿色 **Code** 按钮 → **Codespaces** 标签页 → **Create codespace on main**。
+2. 等待环境初始化后，会自动打开一个功能完整的 VS Code 云端编辑器。
+3. 可在其中运行终端、安装依赖、启动应用，与本地开发体验一致。
+
+> 适合需要运行代码、调试或执行 `streamlit run app.py` 的场景。
+
+### 方式三：VS Code Remote-SSH（连接远程服务器）
+
+如果项目已部署到服务器（本项目服务器 SSH 别名为 `stratagy`，应用目录 `/opt/stratagy`），可以用 VS Code 的 Remote-SSH 扩展直接编辑服务器上的代码：
+
+1. 安装 VS Code 桌面版和 [Remote - SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh) 扩展。
+2. 按 `Ctrl+Shift+P`（Mac: `Cmd+Shift+P`）→ 输入 `Remote-SSH: Connect to Host...` → 选择或输入 `stratagy`。
+3. 连接后打开远程目录 `/opt/stratagy`，即可像本地一样编辑文件。
+
+> 适合直接修改服务器上已部署的代码。
+
 ## Windows 快捷脚本
 
 - 首次安装：`scripts\setup.bat`
