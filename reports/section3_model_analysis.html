@@ -1,0 +1,1572 @@
+<section id="section-3-analysis">
+  <h2>3. Model Analysis: Strengths, Weaknesses &amp; Constraints</h2>
+  <p>
+    This section provides a rigorous critical evaluation of every model in the pipeline.
+    For each model we catalogue its architectural strengths, its known weaknesses and failure
+    modes, and the operational constraints that bound its applicability. The analysis is
+    grounded in the actual implementation (code references included) rather than in
+    abstract textbook descriptions, ensuring that the assessment reflects the real behaviour
+    of the deployed system. Where relevant we also note the inter-model dependency chains
+    that propagate failure across layers.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 3.1  SM – 10-Factor Scoring Strategy                                   -->
+  <!-- ====================================================================== -->
+  <h3 id="analysis-sm">3.1 SM &ndash; 10-Factor Scoring Strategy</h3>
+  <p>
+    <strong>Implementation:</strong>
+    <code>core/signals.py</code> &mdash; <code>compute_signals()</code>,
+    <code>_compute_manual_factor_score()</code>,
+    <code>_score_position_from_percentile()</code>,
+    <code>_apply_hold_until_exit_state()</code>.
+  </p>
+
+  <h4>3.1.1 Strengths</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Strength</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Full interpretability</strong></td>
+        <td>
+          The SM is a deterministic, rule-based system with <em>no learned parameters at
+          inference time</em>. Every step&mdash;from factor computation through scoring to
+          position sizing&mdash;can be inspected and explained to a non-technical
+          stakeholder. The composite factor score formula (see Section&nbsp;2.1.3) is a
+          simple weighted sum with signed coefficients, making it straightforward to
+          attribute a position decision to specific factors (e.g., &ldquo;short-term
+          momentum Z-score of +2.1 was the dominant driver&rdquo;).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Diverse economic intuition per factor</strong></td>
+        <td>
+          The ten factors span four distinct alpha themes:
+          <em>trend/momentum</em> (short momentum, long momentum, MACD histogram, price position),
+          <em>mean-reversion risk</em> (RSI, Bollinger Band position, drawdown),
+          <em>volume confirmation</em> (OBV trend, volume ratio),
+          and <em>volatility penalty</em> (ATR/price).
+          By combining multiple orthogonal signals the model reduces dependence on any
+          single market narrative.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Dual normalization scheme</strong></td>
+        <td>
+          Z-score normalization (factors 1&ndash;5) and rolling-rank normalization
+          (factors 6&ndash;10), both implemented in <code>core/indicators.py</code>,
+          bring heterogeneous raw indicators onto comparable scales. Z-scores suit
+          approximately Gaussian features (momentum returns); rolling ranks suit bounded
+          or skewed features (Bollinger position, drawdown). This pragmatic split avoids
+          a one-size-fits-all normalization that would distort non-Gaussian factors.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>7-tier gradual position sizing</strong></td>
+        <td>
+          <code>_score_position_from_percentile()</code> maps the composite score
+          percentile to positions in {0.0, 0.2, 0.4, 0.6, 0.8, 1.0}, enabling
+          <em>gradual exposure</em> rather than binary 0/1 allocation. This reduces
+          whipsaw losses at score boundaries and smooths the equity curve.
+          Tier thresholds are derived from <code>score_mid_pct</code> and
+          <code>score_high_pct</code> with intermediate bands spaced at &minus;0.10
+          and &minus;0.20 increments, providing a predictable decay structure.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Counting-based entry/exit filters</strong></td>
+        <td>
+          The signal-counting mode (<code>entry_min_signals</code> default&nbsp;3,
+          <code>exit_min_signals</code> default&nbsp;2) requires multiple independent
+          conditions (trend&nbsp;EMA, ADX strength, RSI range, MACD crossover, factor
+          score) to agree before entering or exiting. This provides a form of
+          <em>ensemble voting</em> that is robust against single-indicator noise and
+          reduces false signals in choppy markets.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Integrated ATR risk management</strong></td>
+        <td>
+          ATR-based stop-loss and take-profit levels
+          (<code>stop_loss_mult</code>&nbsp;&times;&nbsp;ATR,
+          <code>take_profit_mult</code>&nbsp;&times;&nbsp;ATR) are enforced at simulation
+          time in <code>core/backtest.py &rarr; simulate_strategy()</code> (lines&nbsp;72&ndash;80).
+          By anchoring risk levels to recent market volatility rather than fixed
+          percentages, the model automatically tightens stops in calm markets and
+          widens them in volatile ones.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>High-volatility position discount</strong></td>
+        <td>
+          When <code>volatility_percentile&nbsp;&gt;&nbsp;0.80</code>, position size is
+          multiplied by 0.70 (lines&nbsp;207&ndash;209 of <code>core/signals.py</code>),
+          providing a simple but effective volatility-targeting overlay that reduces
+          drawdowns during extreme-volatility regimes without fully exiting.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.1.2 Weaknesses</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Weakness</th><th>Detail &amp; Impact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Fixed manual factor weights</strong></td>
+        <td>
+          The default weight vector
+          (<code>w_mom_short=1.0, w_mom_long=1.0, w_macd=1.0, w_rsi=0.5, w_vol=0.5,
+          w_bb=0.8, w_obv=1.0, w_volume=0.6, w_price=0.7, w_drawdown=0.5</code>)
+          was set heuristically. There is <em>no guarantee that these weights are
+          optimal</em> for any particular stock or market regime. A&nbsp;weight of 1.0 on
+          short-term momentum may be ideal in trending markets but counter-productive
+          in mean-reverting sideways markets. The Parameter Optimization module
+          (Section&nbsp;3.5) partially mitigates this, but only for a subset of
+          five weights (<code>weight_bb, weight_obv, weight_volume, weight_price,
+          weight_drawdown</code>); the momentum and MACD weights
+          (<code>w_mom_short, w_mom_long, w_macd, w_rsi, w_vol</code>) are <em>not</em>
+          exposed to the optimizer search space, remaining fixed at their defaults.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Z-score stationarity assumption</strong></td>
+        <td>
+          Rolling Z-score normalization in <code>core/indicators.py &rarr;
+          rolling_zscore(x, w)</code> implicitly assumes that the mean and standard
+          deviation of each factor are approximately stationary <em>within</em> the
+          lookback window <var>w</var> (default&nbsp;30). In practice, momentum returns
+          exhibit time-varying volatility (heteroskedasticity), meaning the Z-score
+          denominators can be under-estimated during volatility regime shifts, producing
+          spuriously extreme scores. This is partially mitigated by the rolling-rank
+          normalization used for half the factors, but the Z-score factors
+          (1&ndash;5) remain susceptible.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Warm-up NaN period</strong></td>
+        <td>
+          Factors that depend on rolling windows produce NaN for the first
+          <code>max(score_lookback, momentum_long, ema_slow)</code> bars. With defaults
+          this is at least 60 trading days (&approx;&thinsp;3&nbsp;calendar months) of
+          unusable data. For short backtests or recently listed stocks, this warm-up
+          cost materially reduces the usable sample and may bias results toward the
+          latter portion of the data.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Discrete position tiers (not continuous)</strong></td>
+        <td>
+          The 7-tier mapping ({0.0,&thinsp;0.2,&thinsp;0.4,&thinsp;0.6,&thinsp;0.8,&thinsp;1.0})
+          introduces step-function discontinuities at tier boundaries. A composite-score
+          percentile of 0.599 yields position&nbsp;0.4, while 0.601 yields position&nbsp;0.6
+          &mdash; a 50&thinsp;% jump in capital allocation from an infinitesimal score
+          change. This can cause position flicker near tier edges when the score oscillates
+          around a boundary. A continuous sigmoid or linear mapping would eliminate this
+          artifact, though at the cost of interpretability.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Ad-hoc volatility discount</strong></td>
+        <td>
+          The hardcoded <code>0.7&times;</code> multiplier when volatility percentile
+          exceeds 0.80 is a single, fixed rule with no formal justification.
+          The threshold (0.80) and discount factor (0.70) are not tunable via the
+          optimizer. In extremely volatile markets the 30&thinsp;% reduction may be
+          insufficient; in mildly elevated volatility it may be unnecessarily costly.
+          A continuous volatility-targeting function (e.g., inverse-volatility scaling)
+          would provide smoother risk control.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Rank re-centering approximation</strong></td>
+        <td>
+          The affine mapping <code>(rank &minus; 0.5) &times; 2</code> re-maps rank
+          values from [0,&thinsp;1] to [&minus;1,&thinsp;+1] under the assumption that
+          a rank of 0.5 is a &ldquo;neutral&rdquo; score. However, when the underlying
+          distribution is skewed (e.g., drawdown is concentrated near zero), the
+          median rank does not correspond to the economic neutral point, potentially
+          introducing systematic bias into the composite score.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.1.3 Constraints</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Constraint</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Historical data depth</strong></td>
+        <td>
+          At minimum the model requires <code>max(ema_slow, momentum_long, score_lookback,
+          bb_period, rsi_period, adx_period, atr_period)</code> + margin trading days before
+          the first valid signal. With defaults this is &ge;&thinsp;60 days. Stocks with
+          fewer than ~120 days of history will produce unreliable results because the
+          scoring window contains insufficient observations for stable percentile
+          estimation.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>OHLCV data quality</strong></td>
+        <td>
+          The indicator pipeline (<code>core/indicators.py</code>) assumes clean OHLCV
+          data after <code>_finalize_market_dataframe()</code> in <code>core/data.py</code>.
+          Missing or zero-volume days (e.g., during trading halts) can distort OBV trend
+          and volume ratio factors. Non-positive prices would cause division-by-zero in
+          <code>atr_pct = ATR / close</code>.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Network dependency (AkShare)</strong></td>
+        <td>
+          Real-time data acquisition depends on AkShare&rsquo;s upstream providers.
+          Network outages or API changes may prevent data refresh, causing the model to
+          operate on stale data. The offline <code>model-test/</code> research pipeline
+          caches data to mitigate this, but the Streamlit app relies on live access.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Regime transition degradation</strong></td>
+        <td>
+          During sharp market regime changes (e.g., sudden crash after a bull run), the
+          rolling windows still contain pre-regime data. The Z-score normalization window
+          (<var>w</var>=30) takes approximately 6 weeks to fully adapt to a new
+          volatility/trend regime, during which scores may be misleading. This lag is
+          inherent to any lookback-based indicator.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Long-only constraint</strong></td>
+        <td>
+          Target positions are bounded to [0,&thinsp;1]&mdash;no short selling.
+          The model can only protect capital by going flat (position&nbsp;=&thinsp;0),
+          limiting its ability to profit from bear markets.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 3.2  FSM – Factor Analysis Model                                       -->
+  <!-- ====================================================================== -->
+  <h3 id="analysis-fsm">3.2 FSM &ndash; Factor Analysis Model</h3>
+  <p>
+    <strong>Implementation:</strong>
+    <code>core/fa_filter.py</code> &mdash; <code>fit_fa()</code>,
+    <code>transform_fa()</code>,
+    <code>_build_fa_feature_frame()</code>,
+    <code>_resolve_component_count()</code>.
+  </p>
+
+  <h4>3.2.1 Strengths</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Strength</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Data-driven weight learning</strong></td>
+        <td>
+          Unlike SM&rsquo;s fixed manual weights, the FSM uses scikit-learn&rsquo;s
+          <code>FactorAnalysis(n_components=3, random_state=42)</code> to learn latent
+          factor loadings from the training data. This captures the <em>actual covariance
+          structure</em> among the 10 input factors, automatically assigning higher
+          effective weight to factors that co-move coherently and lower weight to noisy
+          or redundant ones. The weights adapt to each stock&rsquo;s factor dynamics rather
+          than using a universal default.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Dimensionality reduction</strong></td>
+        <td>
+          Projecting 10 correlated factors to 3 latent components (default
+          <code>n_components=3</code>) reduces the effective dimensionality of the signal
+          space, filtering out high-frequency noise present in individual technical
+          indicators. The three latent factors often align with interpretable market
+          themes (e.g., momentum, volume, risk), though this is data-dependent.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Cross-factor correlation capture</strong></td>
+        <td>
+          Factor Analysis explicitly models the factor correlation matrix. SM treats
+          factors as independent additive contributions; FSM recognizes, for example,
+          that high short-term momentum and high MACD are correlated and avoids
+          double-counting their contribution. This leads to a more statistically
+          efficient composite score.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Semantic sign correction</strong></td>
+        <td>
+          The implementation computes an &ldquo;anchor score&rdquo; from feature means
+          and flips the sign of any latent component whose correlation with the anchor
+          is negative (lines&nbsp;88&ndash;99 of <code>core/fa_filter.py</code>). This
+          ensures that the FSM score direction is consistent with the economic
+          interpretation (higher&nbsp;=&nbsp;more bullish), even though raw Factor
+          Analysis components have arbitrary sign.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Standardized output</strong></td>
+        <td>
+          The final FSM score is Z-standardized using stored <code>score_mean_</code>
+          and <code>score_std_</code> from the training fit, ensuring the downstream
+          position-sizing tiers receive inputs on the same scale as SM scores. This
+          allows seamless substitution of SM with FSM in the pipeline.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.2.2 Weaknesses</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Weakness</th><th>Detail &amp; Impact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Gaussian factor structure assumption</strong></td>
+        <td>
+          scikit-learn&rsquo;s <code>FactorAnalysis</code> assumes that observed variables
+          are generated from Gaussian latent factors plus Gaussian noise:
+          <code>X = &Lambda;F + &epsilon;</code>, where <code>F&thinsp;~&thinsp;N(0,&thinsp;I)</code>
+          and <code>&epsilon;&thinsp;~&thinsp;N(0,&thinsp;&Psi;)</code>.
+          Financial factor returns are typically fat-tailed and exhibit skewness, violating
+          this assumption. Maximum likelihood estimation under mis-specified Gaussianity can
+          produce loadings that under-weight tail events, leading to score distributions that
+          understate extreme-regime signals.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Training-set sensitivity</strong></td>
+        <td>
+          Factor loadings are estimated from the training window. If the training period
+          is dominated by a single regime (e.g., a strong bull run), the learned factor
+          structure may not generalize to the test period when the regime changes. Small
+          training sets amplify this problem&mdash;fewer observations increase loading
+          estimation variance. The <code>_resolve_component_count()</code> function
+          clamps <code>n_components &le; min(n_samples, 10)</code>, but even with 3
+          components, reliable FA estimation typically requires
+          &ge;&thinsp;5&times;&thinsp;p&thinsp;=&thinsp;50 training observations.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Overfitting risk with short windows</strong></td>
+        <td>
+          When the training window is barely longer than the number of features (10),
+          the estimated covariance matrix approaches singularity, and Factor Analysis may
+          capture noise as structure. The consequence is an in-sample score that appears
+          discriminative but degrades markedly out-of-sample. No cross-validation or
+          regularization is applied within <code>fit_fa()</code> itself.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Reduced interpretability</strong></td>
+        <td>
+          Latent components are linear combinations of all 10 factors. Unlike SM, where
+          each weight has a named economic role (e.g., <code>weight_vol</code> penalizes
+          volatility), the FSM loadings must be inspected post-hoc to assign meaning.
+          If Component 1 loads heavily on both momentum and RSI, it is unclear which
+          economic narrative drives the score, complicating model audit and debugging.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Component-count sensitivity</strong></td>
+        <td>
+          The default <code>n_components=3</code> is a fixed hyperparameter. With
+          3&nbsp;components the model may under-fit a market with 5+ latent drivers;
+          conversely it may over-fit a simple market. No automatic model-selection
+          criterion (e.g., BIC, scree plot threshold) is used to choose
+          <code>n_components</code> adaptively.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>NaN propagation from upstream</strong></td>
+        <td>
+          <code>_build_fa_feature_frame()</code> drops rows with any NaN
+          (implicit via <code>dropna()</code> in <code>fit_fa()</code>, line&nbsp;79).
+          If the upstream indicator pipeline produces many NaN rows during warm-up, the
+          effective training sample shrinks further, compounding the short-window problem.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.2.3 Constraints</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Constraint</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Minimum sample requirement</strong></td>
+        <td>
+          <code>n_components</code> must satisfy
+          <code>n_components &le; min(n_samples, n_features=10)</code>.
+          With the default 3 components, at least 3 clean training rows are needed for
+          the FA algorithm to run, but in practice &ge;&thinsp;50 rows are needed for
+          statistically meaningful loadings. If fewer than <code>n_components</code>
+          clean rows exist, <code>_resolve_component_count()</code> silently reduces
+          the component count.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Feature-set coupling to SM</strong></td>
+        <td>
+          <code>FA_SOURCE_COLUMNS</code> in <code>core/fa_filter.py</code> (lines&nbsp;20&ndash;31)
+          references the same 10 indicator columns as SM. Any change to the indicator
+          pipeline (e.g., adding a new factor) requires updating both SM and FSM code
+          paths. The FSM cannot discover new factors; it can only re-weight existing ones.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Scaler leakage risk</strong></td>
+        <td>
+          <code>fit_fa()</code> applies a <code>StandardScaler</code> before FA. If the
+          same data is used for both fitting and evaluation (i.e., no proper train/test
+          split at the FA level), information from the test period leaks into the scaler
+          parameters. The pipeline mitigates this by fitting on training data and
+          transforming test data via <code>transform_fa()</code>, but this relies on
+          correct call-site discipline.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Single random seed</strong></td>
+        <td>
+          FA initialization uses <code>random_state=42</code>. While this ensures
+          reproducibility, it means the solution is not checked against alternative
+          initializations. Multiple runs with different seeds could reveal
+          initialization sensitivity.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 3.3  ML Filter (Logistic Regression / LightGBM)                        -->
+  <!-- ====================================================================== -->
+  <h3 id="analysis-ml">3.3 ML Filter &ndash; Logistic Regression / LightGBM</h3>
+  <p>
+    <strong>Implementation:</strong>
+    <code>core/ml_filter.py</code> &mdash;
+    <code>build_feature_bundle()</code>,
+    <code>fit_ml_filter()</code>,
+    <code>predict_filter()</code>,
+    <code>apply_filter()</code>,
+    <code>evaluate_ml_quality()</code>.
+  </p>
+
+  <h4>3.3.1 Strengths</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Strength</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Rich 29-feature representation</strong></td>
+        <td>
+          <code>ML_FEATURE_COLUMNS</code> (lines&nbsp;37&ndash;67) defines 29 features spanning
+          raw Z-scores and ranks (10), composite scoring metadata (3: <code>factor_score</code>,
+          <code>factor_percentile</code>, <code>target_position</code>),
+          raw technical indicators (8: <code>rsi</code>, <code>macd</code>,
+          <code>signal</code>, <code>adx</code>, <code>atr_pct</code>,
+          <code>volume_ratio</code>, <code>bb_position</code>, <code>bb_width</code>),
+          drawdown state (2: <code>drawdown</code>, <code>price_position</code>),
+          binary filter flags (4: <code>trend_ok</code>, <code>strength_ok</code>,
+          <code>rsi_ok</code>, <code>macd_above</code>), signal count (1:
+          <code>entry_count</code>), and trend spread (1: <code>ema_spread_pct</code>).
+          This multi-granularity feature set gives the classifier access to both
+          processed scores and raw market state.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Non-linear pattern capture (LightGBM)</strong></td>
+        <td>
+          <code>LGBMClassifier(n_estimators=200, num_leaves=15, learning_rate=0.05)</code>
+          captures feature interactions and non-linear decision boundaries that the linear
+          factor-score formula in SM/FSM cannot express. For example, it can learn that
+          high momentum combined with low volume is a false signal, without requiring
+          an explicit interaction term.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Well-defined binary label</strong></td>
+        <td>
+          The training label is based on <em>excess return</em>: whether the strategy
+          return over a future horizon exceeds the na&iuml;ve buy-and-hold return
+          (<code>future_excess_return &gt; 0</code>). This directly targets the economic
+          question &ldquo;does acting on this signal add value?&rdquo; rather than
+          predicting price direction, aligning the ML objective with the business
+          objective. A fallback to absolute-return labeling activates when excess-return
+          samples are too few (&lt;&thinsp;20 with both classes), ensuring the model
+          always has a viable training target.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Probability threshold flexibility</strong></td>
+        <td>
+          <code>predict_filter()</code> outputs class probabilities rather than hard
+          predictions (default threshold&nbsp;=&thinsp;0.5). This allows downstream
+          calibration of the precision&ndash;recall trade-off: raising the threshold
+          improves precision (fewer false buy signals) at the cost of recall (missed
+          opportunities). This is particularly valuable in finance where the cost of
+          false positives (entering bad trades) often exceeds the cost of false negatives
+          (missing good trades).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Class imbalance handling</strong></td>
+        <td>
+          Both Logistic Regression and LightGBM use <code>class_weight="balanced"</code>,
+          automatically re-weighting the loss function inversely proportional to class
+          frequencies. This mitigates the bias that arises when buy signals are rare
+          (&lt;&thinsp;30&thinsp;% of days), preventing the classifier from learning a
+          trivial &ldquo;always reject&rdquo; decision.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Graceful degradation</strong></td>
+        <td>
+          If the training set contains fewer than 8 samples or only one class,
+          <code>fit_ml_filter()</code> falls back to a <code>ConstantProbabilityModel</code>
+          that outputs the mean label probability for all inputs (lines&nbsp;130&ndash;155).
+          This prevents crashes and ensures the pipeline always completes, even when the
+          upstream SM/FSM generates too few buy signals to train a meaningful classifier.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>LightGBM regularization suite</strong></td>
+        <td>
+          The LightGBM configuration includes <code>reg_alpha=0.1</code> (L1),
+          <code>reg_lambda=0.1</code> (L2), <code>min_child_samples=10</code>,
+          <code>subsample=0.9</code>, and <code>colsample_bytree=0.9</code>&mdash;five
+          distinct regularization mechanisms that collectively limit overfitting on the
+          typically noisy financial training set.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.3.2 Weaknesses</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Weakness</th><th>Detail &amp; Impact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Low signal-to-noise ratio</strong></td>
+        <td>
+          Financial return prediction is notoriously difficult; typical classification
+          accuracy on directional return labels is 52&ndash;53&thinsp;% in academic
+          literature, barely above the 50&thinsp;% random baseline. The ML filter operates
+          in this same low-SNR regime. With 29 features and a weak target signal, the
+          model is in constant tension between fitting real patterns and fitting noise.
+          Even with regularization, out-of-sample accuracy often fails to materially
+          exceed the constant-class baseline.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Label noise from imperfect future return estimation</strong></td>
+        <td>
+          The binary label is derived from a finite-horizon look-ahead
+          (<code>horizon</code> parameter, default&thinsp;10 days). The actual benefit
+          of a trade depends on the full holding period, stop-loss exits, and market
+          microstructure effects not captured by the simplified horizon return. This
+          introduces systematic label noise that the classifier cannot overcome regardless
+          of capacity.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Overfitting with weak signals</strong></td>
+        <td>
+          With 29 features and typically 200&ndash;500 buy-signal training samples,
+          the feature-to-sample ratio is high (1:7 to 1:17). The LightGBM configuration
+          (<code>n_estimators=200</code>) can easily memorize idiosyncratic patterns.
+          While the regularization parameters help, they were set heuristically; no
+          cross-validation-based tuning of the ML hyperparameters is performed within
+          the pipeline.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Class imbalance when few buy signals exist</strong></td>
+        <td>
+          If the upstream SM/FSM produces buy signals on only 10&ndash;15&thinsp;% of
+          days, the positive class is severely underrepresented. Even with
+          <code>class_weight="balanced"</code>, extreme imbalance ratios (&gt;&thinsp;1:8)
+          can cause the minority class decision boundary to be poorly estimated,
+          especially for Logistic Regression which relies on a single linear hyperplane.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>LightGBM external dependency</strong></td>
+        <td>
+          LightGBM (<code>lightgbm</code>) is an optional dependency. The code
+          conditionally imports it and falls back to Logistic Regression if unavailable
+          (lines&nbsp;22&ndash;27). In deployment environments where LightGBM is not
+          installed, the model silently loses its non-linear capacity, which may not be
+          obvious to the operator.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>No temporal cross-validation</strong></td>
+        <td>
+          <code>fit_ml_filter()</code> uses a single train/test split. Time-series data
+          requires <em>purged walk-forward cross-validation</em> to avoid look-ahead bias.
+          The current implementation uses future returns to create labels, which correctly
+          avoids label leakage, but the feature matrix is not purged: features at time
+          <var>t</var> may contain rolling statistics computed over a window that overlaps
+          with the horizon period. This creates subtle information leakage.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Block-level filtering granularity</strong></td>
+        <td>
+          <code>apply_filter()</code> zeroes out <em>entire trading blocks</em> (all
+          contiguous buy-signal days) when the prediction probability is below threshold.
+          This all-or-nothing approach means a block that starts strong but weakens is
+          either fully accepted or fully rejected, with no intra-block modulation.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.3.3 Constraints</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Constraint</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Upstream dependency</strong></td>
+        <td>
+          The ML filter <em>cannot operate independently</em>. It requires buy signals
+          from the upstream SM or FSM to create its training sample (only buy-signal
+          rows are used for label computation). If SM/FSM generates zero buy signals,
+          the ML filter has no training data and degrades to the
+          <code>ConstantProbabilityModel</code>.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Horizon parameter sensitivity</strong></td>
+        <td>
+          Label quality is tightly coupled to the <code>horizon</code> parameter. A
+          horizon of 5 days may label a trade as unprofitable even though it becomes
+          profitable at day 15. Conversely, a horizon of 30 days introduces severe label
+          smoothing. There is no principled method to select horizon&mdash;it is a
+          hyperparameter that significantly affects what the classifier learns.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>StandardScaler requirement for Logistic Regression</strong></td>
+        <td>
+          Logistic Regression requires <code>StandardScaler</code> pre-processing for
+          numerical stability and convergence (<code>solver="liblinear"</code>,
+          <code>max_iter=1000</code>). LightGBM does not. The scaler is fitted on the
+          training set and must be stored alongside the model for inference. If the scaler
+          is lost or mismatched, predictions become meaningless.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Single-class degeneracy</strong></td>
+        <td>
+          If all training labels are the same class (all 1 or all 0), the classifier
+          degrades to <code>ConstantProbabilityModel</code>. This commonly occurs when
+          the upstream strategy is highly directional (e.g., always in a buy signal during
+          a strong trend), producing a degenerate training set. The filter then provides
+          zero information gain.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Minimum sample count</strong></td>
+        <td>
+          A hard minimum of 8 samples is required to fit the classifier; below this the
+          constant-probability fallback activates. Even at 8 samples, no meaningful
+          classification learning is possible with 29 features. Practical utility requires
+          at least ~100 buy-signal rows.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 3.4  Adaptive Regime Router                                             -->
+  <!-- ====================================================================== -->
+  <h3 id="analysis-regime">3.4 Adaptive Regime Router</h3>
+  <p>
+    <strong>Implementation:</strong>
+    <code>core/adaptive_regime.py</code> &mdash;
+    <code>train_adaptive_state_model()</code>,
+    <code>predict_adaptive_state()</code>,
+    <code>aggregate_candidate_state_day_rows()</code>,
+    <code>score_candidate_state_metrics()</code>,
+    <code>select_routing_policy()</code>.
+    <br>
+    <strong>Artifacts:</strong> <code>regime_artifacts/</code> directory
+    (<code>state_classifier.pkl</code>, <code>routing_policy.csv</code>,
+    <code>state_cluster_centroids.csv</code>, etc.).
+  </p>
+
+  <h4>3.4.1 Strengths</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Strength</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Dynamic strategy selection</strong></td>
+        <td>
+          Unlike static model selection, the Adaptive Regime Router dynamically assigns the
+          best-performing candidate strategy to each <em>market state</em>. This means the
+          system can use SM with Bayesian-optimized parameters during trending markets,
+          switch to FSM during volatile sideways markets, and fall back to na&iuml;ve
+          buy-and-hold during strong bull runs&mdash;all automatically, based on the
+          current cluster assignment.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Rich 19-dimensional state characterization</strong></td>
+        <td>
+          The state feature vector (<code>ADAPTIVE_STATE_FEATURE_COLUMNS</code>,
+          lines&nbsp;84&ndash;104) captures:
+          <ul style="margin:4px 0">
+            <li><em>Multi-horizon returns:</em> <code>ret_5</code>, <code>ret_20</code>,
+                <code>ret_60</code> (stock) + <code>spy_ret_5</code>,
+                <code>spy_ret_20</code>, <code>spy_ret_60</code> (market proxy)</li>
+            <li><em>Volatility:</em> <code>realized_vol_20</code>,
+                <code>realized_vol_60</code>, <code>atr_pct</code></li>
+            <li><em>Trend quality:</em> <code>ema_spread_pct</code>, <code>adx</code>,
+                <code>efficiency_ratio_20</code></li>
+            <li><em>Sentiment/positioning:</em> <code>rsi</code>,
+                <code>bb_width_rank</code>, <code>volume_ratio_rank</code>,
+                <code>drawdown_rank</code></li>
+            <li><em>Market-relative:</em> <code>relative_strength_vs_spy_20</code>,
+                <code>beta_60</code>, <code>corr_60</code></li>
+          </ul>
+          This multi-dimensional view provides the clustering algorithm with enough
+          information to distinguish regimes that univariate indicators (e.g., VIX alone)
+          would conflate.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Lightweight, interpretable pipeline</strong></td>
+        <td>
+          The two-stage architecture&mdash;MiniBatchKMeans for state discovery followed by
+          LogisticRegression (or LightGBM) for state classification&mdash;is computationally
+          inexpensive and produces interpretable outputs. Each state can be characterized by
+          its centroid (mean feature values), and the routing table
+          (<code>routing_policy.csv</code>) is a simple state&thinsp;&rarr;&thinsp;model
+          lookup that can be audited by hand.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Multi-criterion routing score</strong></td>
+        <td>
+          Candidate models are ranked per state using a weighted combination of three
+          metrics:
+          <code>policy_score = 0.50&thinsp;&times;&thinsp;excess_return_rank
+          + 0.30&thinsp;&times;&thinsp;sharpe_rank
+          + 0.20&thinsp;&times;&thinsp;drawdown_rank</code>.
+          This balances return generation, risk-adjusted return, and tail-risk control,
+          avoiding the pitfall of selecting models solely on highest return (which may
+          come with unacceptable drawdowns).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Tiered classifier selection</strong></td>
+        <td>
+          The state classifier automatically upgrades from LogisticRegression to LightGBM
+          when sufficient training data is available
+          (&ge;&thinsp;max(60,&thinsp;states&thinsp;&times;&thinsp;12) samples) and the
+          <code>lightgbm</code> package is installed, and degrades to
+          <code>DummyClassifier</code> when only one unique state is discovered. This
+          three-tier fallback ensures robustness across data availability scenarios.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Offline research validation</strong></td>
+        <td>
+          The routing policy is derived from offline batch research
+          (<code>model-test/</code> pipeline, Stage&nbsp;A), where all candidate
+          strategies are evaluated over the full historical window. This produces
+          higher-quality routing decisions than online estimation because it can
+          observe multiple market cycles.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Automatic degradation to legacy router</strong></td>
+        <td>
+          If <code>regime_artifacts/</code> are missing, corrupted, or incompatible, the
+          single-stock workflow automatically degrades from <code>adaptive_router_v1</code>
+          to the legacy <code>dual_state_router</code>, marking the result as
+          <code>status="degraded"</code>. The user is never left with a hard failure.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.4.2 Weaknesses</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Weakness</th><th>Detail &amp; Impact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Clustering may not capture true regime boundaries</strong></td>
+        <td>
+          MiniBatchKMeans uses Euclidean distance in the 19-dimensional feature space and
+          assumes convex, isotropic clusters. Real market regimes are likely non-convex
+          (e.g., a &ldquo;crisis&rdquo; regime may be characterized by extreme values on
+          several features simultaneously rather than by proximity to a single centroid).
+          The algorithm may also split a single economic regime into multiple clusters or
+          merge distinct regimes into one, depending on feature scaling and cluster count.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Fixed cluster count (<var>K</var>&thinsp;=&thinsp;6)</strong></td>
+        <td>
+          <code>ADAPTIVE_STATE_COUNT&thinsp;=&thinsp;6</code> is hardcoded. For some stocks
+          or markets, 6 states may be too many (leading to states with too few samples for
+          reliable routing), while for others 6 may be too few (conflating distinct regimes).
+          No automated model selection (e.g., silhouette score, BIC for GMM) is applied to
+          choose <var>K</var> adaptively. States with fewer than
+          <code>ADAPTIVE_MIN_STATE_DAYS=20</code> observations are excluded from routing,
+          but the cluster count itself is never adjusted.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Strategy whipsaw on state transitions</strong></td>
+        <td>
+          When the state classifier assigns a new state, the router may switch to a
+          completely different strategy (e.g., from <code>sm_bayesian</code> to
+          <code>naive</code>). If states flicker&mdash;alternating between two states
+          on successive days&mdash;the portfolio experiences frequent strategy switches,
+          each potentially incurring transaction costs and conflicting position signals.
+          No smoothing, hysteresis, or minimum holding period is applied to state
+          transitions.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Dependency on offline research quality</strong></td>
+        <td>
+          The routing policy is only as good as the offline research that produced
+          <code>candidate_state_metrics.csv</code>. If the research run used insufficient
+          data, had bugs in metric computation, or evaluated candidates on
+          non-representative historical periods, the routing policy will be suboptimal.
+          The online system has no mechanism to detect or correct a stale or poor-quality
+          routing table.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>SPY market proxy assumption</strong></td>
+        <td>
+          Six of the 19 state features depend on SPY data
+          (<code>spy_ret_5/20/60</code>, <code>relative_strength_vs_spy_20</code>,
+          <code>beta_60</code>, <code>corr_60</code>). This is appropriate for US
+          equities but potentially misleading for A-shares (Chinese market), where the
+          SPY correlation structure is different. For non-US stocks, these features may
+          add noise rather than signal.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Trend/Volatility segment heuristic</strong></td>
+        <td>
+          The segment classification (lines&nbsp;170&ndash;202) uses hardcoded return
+          thresholds: Trend&nbsp;Up when return&nbsp;&gt;&thinsp;0.20, Down when
+          return&nbsp;&lt;&thinsp;&minus;0.10. These asymmetric thresholds embed a
+          prior that up-moves must be larger than down-moves to qualify as
+          &ldquo;trending,&rdquo; which may not hold across all markets and time periods.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.4.3 Constraints</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Constraint</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>SPY data availability</strong></td>
+        <td>
+          The state feature computation requires concurrent SPY daily price data
+          (<code>DEFAULT_MARKET_PROXY_SYMBOL = "SPY"</code>). If SPY data is unavailable
+          (network failure, non-US market hours, AkShare API change), the 6
+          market-relative features cannot be computed, and the state classifier will
+          receive NaN inputs, producing undefined behaviour.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Offline artifacts directory</strong></td>
+        <td>
+          Inference requires a valid <code>regime_artifacts/</code> directory containing at
+          least <code>state_classifier.pkl</code> and <code>routing_policy.csv</code>.
+          The directory path is resolved via the environment variable
+          <code>STRATAGY_ADAPTIVE_REGIME_ARTIFACT_DIR</code> or falls back to a default
+          path within the research run output. If artifacts are missing the router
+          auto-degrades, but this means the user does not benefit from adaptive routing.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Minimum state sample requirement</strong></td>
+        <td>
+          <code>ADAPTIVE_MIN_STATE_DAYS=20</code> requires at least 20 historical days
+          assigned to a state before it can participate in routing policy selection.
+          Rare market regimes (e.g., flash-crash states) may never accumulate enough
+          samples, leaving those states without a routing assignment. During such states,
+          the router falls back to the overall best model rather than a state-specific one.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>US market focus</strong></td>
+        <td>
+          The state features, SPY proxy, and offline research universe are designed for
+          US equities. Applying the adaptive router to A-shares, crypto, or commodity
+          futures would require replacing the proxy, re-calibrating the return thresholds,
+          and re-running the offline research pipeline&mdash;a non-trivial adaptation.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>252-day lookback</strong></td>
+        <td>
+          <code>ADAPTIVE_LOOKBACK_DAYS=252</code> (&approx;&thinsp;1 trading year) is used
+          for state feature computation. Stocks with less than one year of history cannot
+          use the adaptive router at all, and recently IPO-ed stocks will have degraded
+          state estimates.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 3.5  Parameter Optimization                                             -->
+  <!-- ====================================================================== -->
+  <h3 id="analysis-optimizer">3.5 Parameter Optimization</h3>
+  <p>
+    <strong>Implementation:</strong>
+    <code>core/optimizer.py</code> &mdash;
+    <code>bayesian_optimize_params()</code>,
+    <code>random_search_params()</code>,
+    <code>genetic_algorithm_optimize_params()</code>,
+    <code>_evaluate_candidate_frame()</code>,
+    <code>_score_metrics()</code>,
+    <code>_regularization_penalty()</code>.
+    <br>
+    <strong>Configuration:</strong> <code>core/config.py</code> &mdash;
+    <code>SEARCH_PARAM_SPACE</code>,
+    <code>_PRESET_PARAMS_FOR_OPTIMIZATION</code>.
+    <br>
+    <strong>Research runner:</strong> <code>model-test/config.py</code> &mdash;
+    <code>ResearchConfig</code>.
+  </p>
+
+  <h4>3.5.1 Strengths</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Strength</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Three complementary search methods</strong></td>
+        <td>
+          The optimizer offers Bayesian optimization (Optuna TPE), random search, and
+          genetic algorithm. Each method has different exploration&ndash;exploitation
+          characteristics:
+          <ul style="margin:4px 0">
+            <li><strong>Bayesian (TPE)</strong> builds a surrogate model of the objective,
+                efficiently exploiting promising regions while still exploring. Best for
+                smooth, unimodal landscapes.</li>
+            <li><strong>Random search</strong> provides unbiased coverage of the full
+                parameter space. Empirically competitive with grid search in high dimensions
+                (Bergstra &amp; Bengio, 2012).</li>
+            <li><strong>Genetic algorithm</strong> maintains a population of solutions and
+                uses crossover/mutation to explore combinatorial interactions. Best for
+                rugged, multi-modal landscapes.</li>
+          </ul>
+          Running all three on the same problem and comparing results provides confidence
+          that the optimizer is not stuck in a local optimum.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Anti-overfitting objective function</strong></td>
+        <td>
+          The blended score explicitly penalizes train&ndash;validation gap:
+          <br><br>
+          <code>raw_score = 0.25&thinsp;&times;&thinsp;train_score
+          + 0.75&thinsp;&times;&thinsp;val_score
+          &minus; 0.20&thinsp;&times;&thinsp;|train_score &minus; val_score|</code>
+          <br><br>
+          The 0.75 validation weight ensures out-of-sample performance dominates, while
+          the 0.20 gap penalty discourages solutions that excel in-sample but fail
+          on held-out data. This is a practical proxy for generalization in the absence
+          of full cross-validation.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Regularization toward defaults</strong></td>
+        <td>
+          <code>_regularization_penalty()</code> applies an L2-style penalty:
+          <code>&lambda;&thinsp;&times;&thinsp;&sum;((p<sub>i</sub> &minus; default<sub>i</sub>)
+          / range<sub>i</sub>)&sup2;</code>, where &lambda;&thinsp;=&thinsp;0.02
+          (or 0.03 for hold-until-exit mode). This shrinks parameters toward their
+          manually-tuned defaults, preventing the optimizer from finding exotic parameter
+          combinations that happen to fit the training data but lack economic rationale.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Warm-starting from presets</strong></td>
+        <td>
+          Before running the search, <code>evaluate_presets_for_optimization()</code>
+          evaluates 3 preset parameter sets from <code>_PRESET_PARAMS_FOR_OPTIMIZATION</code>
+          and uses the best as the seed for subsequent optimization. This ensures the
+          search starts from a known-good baseline rather than a random point, improving
+          convergence speed.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Validity constraints enforcement</strong></td>
+        <td>
+          <code>_is_valid_candidate()</code> enforces 6 ordering constraints (e.g.,
+          <code>ema_fast &lt; ema_slow</code>, <code>entry_threshold &gt;
+          exit_threshold</code>). Invalid candidates are rejected before evaluation,
+          avoiding wasted computation on economically nonsensical parameter combinations.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Thread-safe evaluation cache</strong></td>
+        <td>
+          <code>SearchEvaluationCache</code> deduplicates evaluations by normalizing
+          parameter vectors to a canonical form. When the genetic algorithm or random
+          search re-discovers a previously evaluated point, the cached result is returned
+          immediately, significantly reducing computation in later generations/trials.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Multi-metric objective</strong></td>
+        <td>
+          The scoring function
+          <code>score = Sharpe + 2&thinsp;&times;&thinsp;ExcessReturn
+          &minus; 0.5&thinsp;&times;&thinsp;|MaxDrawdown|
+          &minus; 0.25&thinsp;&times;&thinsp;Turnover</code>
+          balances four aspects of strategy quality (risk-adjusted return, absolute alpha,
+          tail risk, and trading cost proxy), avoiding single-metric optimization that
+          could produce pathological strategies (e.g., maximizing Sharpe by trading once
+          in a lucky period).
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.5.2 Weaknesses</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Weakness</th><th>Detail &amp; Impact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>High-dimensional search space</strong></td>
+        <td>
+          The full parameter space contains 30+ dimensions (12 indicator parameters,
+          15+ signal parameters, 3 boolean switches). The curse of dimensionality means
+          that even 60 Bayesian trials or 30&thinsp;&times;&thinsp;20&thinsp;=&thinsp;600
+          genetic evaluations sample a vanishingly small fraction of the space. Important
+          interactions (e.g., between <code>rsi_period</code> and <code>rsi_lower/upper</code>)
+          may be missed entirely unless the search happens to explore that sub-region.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Bayesian local optima convergence</strong></td>
+        <td>
+          Optuna&rsquo;s TPE sampler models each parameter independently, which can miss
+          strong parameter interactions. In a multi-modal landscape, TPE may converge to
+          the first promising basin it finds and under-explore distant alternatives. The
+          warm-start mechanism exacerbates this by biasing the initial exploration toward
+          the preset neighbourhood.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Genetic algorithm computational cost</strong></td>
+        <td>
+          With <code>population_size=30</code> and <code>generations=20</code>, each GA
+          run requires up to 600 candidate evaluations (each involving a full indicator
+          &rarr;&thinsp;signal&thinsp;&rarr;&thinsp;backtest pipeline). Parallel evaluation
+          (up to 8 workers) helps, but for slow data feeds or complex backtest
+          configurations, a single GA run can take tens of minutes. Multiple stocks
+          &times;&thinsp;3 search methods &times;&thinsp;2 model variants (SM, FSM) scales
+          to hours of compute.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>In-sample optimization ≠ out-of-sample performance</strong></td>
+        <td>
+          Despite the train&ndash;validation gap penalty, the optimizer fundamentally
+          selects parameters that maximized performance on <em>past data</em>. Financial
+          markets are non-stationary: the optimal parameter set for 2020&ndash;2023 may
+          perform poorly in 2024 if the market regime changes. The rolling-window
+          robustness evaluation in the <code>model-test/</code> pipeline partially
+          addresses this, but the optimizer itself does not incorporate regime-awareness.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Regularization lambda is heuristic</strong></td>
+        <td>
+          &lambda;&thinsp;=&thinsp;0.02 (or 0.03) was chosen without formal tuning.
+          Too small a &lambda; provides no effective regularization; too large collapses
+          all solutions to defaults. There is no mechanism to calibrate &lambda; to the
+          noise level of the specific stock or time period being optimized.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Elitism bias in GA</strong></td>
+        <td>
+          The top 20&thinsp;% (or top 2) individuals survive unchanged to the next
+          generation. In a noisy fitness landscape (as is typical in finance), an
+          individual that scores highly due to luck may dominate the population for
+          many generations, reducing diversity and causing premature convergence to
+          a noise-fit solution.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>No feature importance feedback</strong></td>
+        <td>
+          The optimizer treats all 30+ parameters equally. It does not identify which
+          parameters have the largest marginal effect on the objective, nor does it prune
+          insensitive parameters. Sensitivity analysis or ANOVA decomposition could
+          dramatically reduce the effective search dimension.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.5.3 Constraints</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Constraint</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Computational budget</strong></td>
+        <td>
+          Each search method&rsquo;s budget is configurable (<code>search_trials=60</code>
+          for Bayesian/Random, <code>ga_population_size=30 &times; ga_generations=20</code>
+          for GA). On resource-constrained environments (e.g., shared cloud instances),
+          the total wall-clock time may exceed acceptable limits, forcing the user to
+          reduce trials at the cost of solution quality.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Parameter validity constraints</strong></td>
+        <td>
+          Six hard constraints (<code>ema_fast &lt; ema_slow</code>,
+          <code>macd_fast &lt; macd_slow</code>,
+          <code>entry_threshold &gt; exit_threshold</code>,
+          <code>momentum_short &lt; momentum_long</code>,
+          <code>score_mid_pct &lt; score_high_pct</code>,
+          <code>exit_min_signals &le; entry_min_signals</code>) reduce the effective
+          search volume but are handled by rejection sampling rather than constrained
+          optimization. In high-dimensional spaces, rejection rates can be significant,
+          wasting computational budget on invalid candidates.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Sufficient data for train/val split</strong></td>
+        <td>
+          The 70/30 sub-train/validation split within the training period requires the
+          training set itself to be large enough for both sub-sets to be statistically
+          representative. With a default <code>main_window_days=756</code> (~3 years)
+          and <code>train_ratio=0.7</code>, the training window is ~530 days and the
+          validation is ~226 days. Stocks with less than 756 trading days of history
+          will either have a truncated window or be skipped entirely.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Optuna dependency</strong></td>
+        <td>
+          Bayesian optimization requires the <code>optuna</code> library. If not installed,
+          only random search and GA are available. The import is conditional but the loss
+          of the most sample-efficient method may degrade optimization quality.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Single-stock scope</strong></td>
+        <td>
+          Parameters are optimized independently per stock. There is no cross-stock
+          regularization or shared parameter structure, meaning the optimizer may
+          over-specialize to each stock&rsquo;s idiosyncratic history. A portfolio-level
+          optimizer that considers cross-stock correlation would be more robust but is
+          not implemented.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 3.6  Baseline Models                                                    -->
+  <!-- ====================================================================== -->
+  <h3 id="analysis-baselines">3.6 Baseline Models (Naive, Mean, Drift)</h3>
+  <p>
+    <strong>Implementation:</strong>
+    <code>core/baselines.py</code> &mdash;
+    <code>naive_baseline()</code>,
+    <code>mean_baseline()</code> / <code>mean_target_position()</code>,
+    <code>drift_baseline()</code> / <code>drift_target_position()</code>.
+  </p>
+  <p>
+    The three baselines originate directly from course lecture notes (AIE1902) and serve
+    as performance anchors. They are intentionally simple, providing a lower bound on
+    what any reasonable strategy should achieve.
+  </p>
+
+  <h4>3.6.1 Naive Baseline (Buy-and-Hold)</h4>
+  <table>
+    <thead>
+      <tr><th style="width:14%">Category</th><th>Analysis</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Strengths</strong></td>
+        <td>
+          <ul>
+            <li><strong>Zero parameters:</strong> <code>target_position = 1.0</code> for all
+                <var>t</var>. No lookback windows, no tuning, no warm-up period. Completely
+                immune to overfitting.</li>
+            <li><strong>Theoretical benchmark:</strong> In efficient-market theory, any
+                strategy with risk equal to the market should earn the market return. Naive
+                is the market return itself (for the selected stock), making it the natural
+                baseline for excess-return calculations throughout the project.</li>
+            <li><strong>Transparent cost:</strong> A single entry trade and no exits means
+                zero turnover cost beyond the initial allocation.</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Weaknesses</strong></td>
+        <td>
+          <ul>
+            <li><strong>No adaptive behaviour:</strong> Holds through all drawdowns. In a
+                50&thinsp;% crash, the na&iuml;ve strategy suffers the full 50&thinsp;%
+                loss. It has no mechanism to reduce exposure during adverse regimes.</li>
+            <li><strong>Path-dependent risk:</strong> The final return depends entirely on
+                the entry and exit dates. A buy-and-hold starting at a market peak will
+                underperform a strategy that enters during a trough, even if both hold
+                the same asset.</li>
+            <li><strong>Not a prediction:</strong> The strategy makes <em>no</em> forecast
+                about future prices; it is simply a passive benchmark.</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Constraints</strong></td>
+        <td>
+          <ul>
+            <li>Requires at least one day of data. No other constraints.</li>
+            <li>Performance is entirely determined by the underlying asset&rsquo;s return
+                over the evaluation period&mdash;no model-specific failure mode exists.</li>
+          </ul>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.6.2 Mean Baseline (Moving-Average Crossover)</h4>
+  <table>
+    <thead>
+      <tr><th style="width:14%">Category</th><th>Analysis</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Strengths</strong></td>
+        <td>
+          <ul>
+            <li><strong>Simple trend filter:</strong>
+                <code>target_position = 𝟙{P<sub>t</sub> &gt; MA(P, window=60)}</code>
+                captures the basic idea that prices above their recent average are in an
+                uptrend. This single rule has a long history in technical analysis and
+                provides a non-trivial benchmark that is harder to beat than na&iuml;ve
+                buy-and-hold in trendless or declining markets.</li>
+            <li><strong>Single parameter:</strong> Only the <code>window</code> parameter
+                (default 60) needs to be specified. Low model complexity implies low
+                overfitting risk.</li>
+            <li><strong>Drawdown reduction:</strong> By going flat when price drops below
+                the moving average, the Mean baseline avoids the worst of prolonged
+                downturns (though with a lag of approximately <code>window/2</code> days).</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Weaknesses</strong></td>
+        <td>
+          <ul>
+            <li><strong>Stationarity assumption:</strong> The rolling mean assumes the
+                price process is stationary around its recent average. In trending markets,
+                the price can stay above the MA for extended periods, providing no timing
+                signal. In mean-reverting markets, it whipsaws.</li>
+            <li><strong>Lag:</strong> The MA signal is a lagging indicator by construction.
+                It enters after a trend has already started and exits after a reversal
+                has already occurred. The lag is proportional to <code>window</code>:
+                a 60-day MA lags roughly 30 trading days behind the true turning point.</li>
+            <li><strong>Binary position:</strong> The position is strictly 0 or 1 with
+                no gradation. A price 0.01&thinsp;% above the MA produces the same full
+                allocation as a price 10&thinsp;% above.</li>
+            <li><strong>Window sensitivity:</strong> The default <code>window=60</code>
+                is chosen without optimization. A different window may perform significantly
+                better or worse for specific stocks or time periods.</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Constraints</strong></td>
+        <td>
+          <ul>
+            <li>Requires at least <code>window</code> (60) days of data before the first
+                valid signal. Initial position is 0 during the warm-up.</li>
+            <li>Performance depends heavily on the choice of <code>window</code>, which is
+                not optimized in the baseline implementation.</li>
+          </ul>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>3.6.3 Drift Baseline (Linear Extrapolation)</h4>
+  <table>
+    <thead>
+      <tr><th style="width:14%">Category</th><th>Analysis</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Strengths</strong></td>
+        <td>
+          <ul>
+            <li><strong>Incorporates historical trend:</strong> The drift slope
+                <code>&beta; = (P<sub>T</sub> &minus; P<sub>1</sub>) / (T &minus; 1)</code>
+                captures the average price trend during the training period, providing
+                a simple forecast that the trend will continue. This is more informative
+                than the Mean baseline when there is a clear secular trend.</li>
+            <li><strong>Dynamic decision:</strong> The test-period rule
+                <code>target_position = 𝟙{P<sub>t</sub> &ge; drift_line(t)}</code>
+                makes a daily decision by comparing actual price to the extrapolated
+                trend. Prices above the drift line suggest the uptrend is intact; prices
+                below suggest a break, triggering a flat position.</li>
+            <li><strong>Training-period discipline:</strong> Position is 0 during the
+                training period, ensuring the baseline does not use in-sample returns
+                to inflate its reported performance.</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Weaknesses</strong></td>
+        <td>
+          <ul>
+            <li><strong>Linear trend assumption:</strong> Extrapolating a straight line
+                from training data assumes constant absolute price changes per day. Real
+                prices grow (or decline) multiplicatively (geometric random walk), not
+                additively. Over long test periods the drift line increasingly
+                diverges from reality, especially for high-growth or high-decline stocks.</li>
+            <li><strong>Endpoint sensitivity:</strong> The slope &beta; is computed from
+                only two points (first and last training prices). A single outlier at
+                either endpoint can drastically change the slope and all subsequent
+                decisions. This makes the Drift baseline fragile to noisy training
+                boundaries.</li>
+            <li><strong>No adaptiveness:</strong> Once &beta; is estimated from the
+                training set, it is fixed for the entire test period. The baseline
+                cannot adapt to a change in the market&rsquo;s trend slope during the
+                test period.</li>
+            <li><strong>Zero training-period return:</strong> By holding position&thinsp;=&thinsp;0
+                during training, the Drift baseline &ldquo;wastes&rdquo; the training
+                period in terms of return accumulation. This makes it appear weaker in
+                evaluations that measure total-period equity growth.</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Constraints</strong></td>
+        <td>
+          <ul>
+            <li>Requires a defined training&ndash;test split (<code>split_idx</code>).
+                The training period must contain at least 2 data points for slope
+                estimation.</li>
+            <li>Performance is highly sensitive to the split point: moving the split
+                forward or backward changes &beta; and therefore all test-period
+                decisions.</li>
+            <li>The linear extrapolation can produce unrealistic drift-line values (e.g.,
+                negative prices) over long test horizons, though the binary position
+                rule prevents direct financial damage from this.</li>
+          </ul>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 3.7  Cross-Model Dependency & Failure Propagation                       -->
+  <!-- ====================================================================== -->
+  <h3 id="analysis-cross-model">3.7 Cross-Model Dependency &amp; Failure Propagation</h3>
+  <p>
+    The layered architecture (Baselines &rarr; SM/FSM &rarr; ML Filter &rarr; Regime Router
+    &rarr; Optimizer) creates dependency chains where a failure or degradation at one layer
+    propagates downstream. The following table summarizes key cross-model vulnerabilities:
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Upstream Failure</th>
+        <th>Downstream Impact</th>
+        <th>Mitigation</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>SM/FSM produces zero buy signals (e.g., during a prolonged bear market)</td>
+        <td>ML Filter receives empty training set &rarr; degrades to
+            <code>ConstantProbabilityModel</code> &rarr; provides no filtering value</td>
+        <td>Constant-probability fallback ensures pipeline completion; operator should
+            monitor <code>evaluate_ml_quality()</code> metrics</td>
+      </tr>
+      <tr>
+        <td>Indicator pipeline produces excessive NaN (short history or data gaps)</td>
+        <td>SM factor score is NaN &rarr; FSM training sample shrinks &rarr;
+            FA loadings are unreliable &rarr; ML features are NaN</td>
+        <td>Each layer drops NaN rows, but cumulative data loss can render results
+            statistically meaningless; minimum data-length checks are enforced at
+            the workflow level</td>
+      </tr>
+      <tr>
+        <td>SPY data unavailable</td>
+        <td>Adaptive Router state features contain NaN for 6/19 features &rarr;
+            state classification undefined &rarr; router degrades to legacy
+            <code>dual_state_router</code></td>
+        <td>Auto-degradation with <code>status="degraded"</code> flag; legacy router
+            uses only stock-level features</td>
+      </tr>
+      <tr>
+        <td>Optimizer finds parameter set that overperforms in-sample due to data mining</td>
+        <td>SM/FSM with optimized parameters produces overconfident signals &rarr;
+            ML Filter trains on biased labels &rarr; Regime Router selects the overfit
+            variant as best model</td>
+        <td>Regularization penalty, train-val gap penalty, and rolling robustness
+            evaluation in <code>model-test/</code> pipeline provide partial mitigation;
+            but no formal multiple-testing correction is applied across the 3 search
+            methods &times; 2 model variants</td>
+      </tr>
+      <tr>
+        <td>Offline research artifacts are stale (trained on data &gt;6&thinsp;months old)</td>
+        <td>Regime Router uses an outdated routing policy &rarr; may assign suboptimal
+            strategies to current market states</td>
+        <td>No automatic staleness detection; operator must periodically re-run the
+            offline research pipeline</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 3.8  Summary Comparison Matrix                                          -->
+  <!-- ====================================================================== -->
+  <h3 id="analysis-summary">3.8 Summary Comparison Matrix</h3>
+  <p>
+    The following matrix provides a high-level comparison across all models on seven
+    evaluation dimensions, rated on a qualitative scale
+    (&#9679;&#9679;&#9679;&thinsp;=&thinsp;Strong,
+     &#9679;&#9679;&#9675;&thinsp;=&thinsp;Moderate,
+     &#9679;&#9675;&#9675;&thinsp;=&thinsp;Weak,
+     &#9675;&#9675;&#9675;&thinsp;=&thinsp;Absent/Minimal):
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Dimension</th>
+        <th>SM</th>
+        <th>FSM</th>
+        <th>ML Filter</th>
+        <th>Adaptive Router</th>
+        <th>Optimizer</th>
+        <th>Baselines</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Interpretability</strong></td>
+        <td>&#9679;&#9679;&#9679;</td>
+        <td>&#9679;&#9675;&#9675;</td>
+        <td>&#9679;&#9675;&#9675;</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9679;&#9679;</td>
+      </tr>
+      <tr>
+        <td><strong>Adaptiveness</strong></td>
+        <td>&#9675;&#9675;&#9675;</td>
+        <td>&#9679;&#9675;&#9675;</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9679;&#9679;</td>
+        <td>&#9679;&#9679;&#9679;</td>
+        <td>&#9675;&#9675;&#9675;</td>
+      </tr>
+      <tr>
+        <td><strong>Robustness to noise</strong></td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9675;&#9675;</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9675;&#9675;</td>
+        <td>&#9679;&#9679;&#9679;</td>
+      </tr>
+      <tr>
+        <td><strong>Overfitting risk</strong></td>
+        <td>&#9679;&#9679;&#9679; (low)</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9675;&#9675; (high)</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9675;&#9675; (high)</td>
+        <td>&#9679;&#9679;&#9679; (none)</td>
+      </tr>
+      <tr>
+        <td><strong>Data requirements</strong></td>
+        <td>&#9679;&#9679;&#9675; (&ge;60 days)</td>
+        <td>&#9679;&#9675;&#9675; (&ge;50+ clean rows)</td>
+        <td>&#9679;&#9675;&#9675; (&ge;100 buy signals)</td>
+        <td>&#9675;&#9675;&#9675; (&ge;252 days + SPY)</td>
+        <td>&#9675;&#9675;&#9675; (&ge;756 days)</td>
+        <td>&#9679;&#9679;&#9679; (&ge;1&ndash;60 days)</td>
+      </tr>
+      <tr>
+        <td><strong>Computational cost</strong></td>
+        <td>&#9679;&#9679;&#9679; (fast)</td>
+        <td>&#9679;&#9679;&#9679; (fast)</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9675;&#9675;&#9675; (expensive)</td>
+        <td>&#9679;&#9679;&#9679; (trivial)</td>
+      </tr>
+      <tr>
+        <td><strong>Graceful degradation</strong></td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>&#9679;&#9679;&#9679;</td>
+        <td>&#9679;&#9679;&#9679;</td>
+        <td>&#9679;&#9679;&#9675;</td>
+        <td>N/A</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Key takeaway:</strong> No single model in the pipeline dominates on all dimensions.
+    The SM provides interpretability and low overfitting risk but lacks adaptiveness. The FSM
+    adds data-driven weighting but introduces Gaussian assumptions. The ML Filter can capture
+    non-linear patterns but is prone to overfitting in the low-SNR financial domain. The Adaptive
+    Router provides regime-awareness but depends on offline artifact quality and SPY data. The
+    Optimizer improves parameters but cannot guarantee out-of-sample performance. The Baselines
+    provide robustness and simplicity but no alpha. This complementary structure is by design:
+    the layered pipeline allows each model to contribute its strength while downstream layers
+    compensate for upstream weaknesses.
+  </div>
+</section>
