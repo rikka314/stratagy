@@ -250,13 +250,14 @@
               − w<sub>vol</sub>·z<sub>vol</sub>
               + w<sub>bb</sub>·(r<sub>bb</sub>−0.5)·2
               + w<sub>obv</sub>·(r<sub>obv</sub>−0.5)·2
-              + w<sub>vol_ratio</sub>·(r<sub>vol_ratio</sub>−0.5)·2
+              + w<sub>volume</sub>·(r<sub>vol_ratio</sub>−0.5)·2
               + w<sub>price</sub>·(r<sub>price</sub>−0.5)·2
               − w<sub>dd</sub>·(r<sub>drawdown</sub>−0.5)·2
             </div>
             where <em>z</em> denotes rolling Z-scores and <em>r</em> denotes rolling
-            percentile ranks. Default weights:
-            <code>w_bb=0.8, w_obv=1.0, w_volume=0.6, w_price=0.7, w_drawdown=0.5</code>.
+            percentile ranks. Default weights (from <code>compute_signals()</code> signature):
+            <code>w_ms=1.0, w_ml=1.0, w_macd=1.0, w_rsi=0.5, w_vol=0.5,
+            w_bb=0.8, w_obv=1.0, w_volume=0.6, w_price=0.7, w_dd=0.5</code>.
             In <strong>FSM mode</strong> (<code>core/fa_filter.py</code>), sklearn
             <code>FactorAnalysis(n_components=3)</code> replaces manual weighting by
             projecting the same ten raw factors into a three-dimensional latent space and
@@ -277,7 +278,7 @@
               </thead>
               <tbody>
                 <tr><td style="padding:3px 10px;">1</td><td>≥ <code>score_high_pct</code> (default 0.80)</td><td>1.0 (full)</td></tr>
-                <tr><td style="padding:3px 10px;">2</td><td>≥ mid(<code>score_mid_pct</code>, <code>score_high_pct</code> − 0.10)</td><td>0.8</td></tr>
+                <tr><td style="padding:3px 10px;">2</td><td>≥ max(<code>score_mid_pct</code>, <code>score_high_pct</code> − 0.10)</td><td>0.8</td></tr>
                 <tr><td style="padding:3px 10px;">3</td><td>≥ <code>score_mid_pct</code> (default 0.60)</td><td>0.6</td></tr>
                 <tr><td style="padding:3px 10px;">4</td><td>≥ max(0, <code>score_mid_pct</code> − 0.10)</td><td>0.4</td></tr>
                 <tr><td style="padding:3px 10px;">5</td><td>≥ max(0, <code>score_mid_pct</code> − 0.20)</td><td>0.2</td></tr>
@@ -355,8 +356,13 @@
         </p>
         <div style="margin:10px 0;padding:10px 14px;background:var(--surface-alt);border-radius:12px;font-family:Consolas,monospace;font-size:13px;overflow-x:auto;">
           Total = (20·Beat-Naive + 15·Excess-Return + 15·Sharpe + 15·Drawdown-Control
-          + 20·Stability + 10·Overfit-Discipline + 5·Reliability) / 100
+          + 20·Stability + 10·Overfit-Discipline + 5·Reliability) / 100 &ensp;∈ [0, 100]
         </div>
+        <p style="font-size:13px;color:var(--muted);margin-top:4px;">
+          Each component is a percentile rank in [0,&thinsp;100]. The weights sum to 100,
+          so dividing by 100 normalises to the same [0,&thinsp;100] scale (since each weighted
+          term contributes at most <em>weight</em> points).
+        </p>
         <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:14px;">
           <thead>
             <tr style="border-bottom:2px solid var(--line);text-align:left;">
