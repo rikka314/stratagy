@@ -153,14 +153,381 @@
     </section>
 
     <div class="stack">
-      <section class="section">
+      <section class="section" id="sect-1">
         <h2>1. Problem Definition &amp; Final Answer</h2>
+
+        <!-- 1.1  Core Research Question -->
+        <h3>1.1 &ensp; Core Research Question</h3>
         <p>
-          The project studies whether financial historical data can be used to predict price movement and support
-          trading decisions through a modular quantitative strategy workflow.
+          <em>Can systematic, rule-based quantitative strategies—built on historical OHLCV data
+          and enriched with technical indicators, multi-factor scoring, machine-learning filters,
+          and adaptive regime routing—consistently generate risk-adjusted returns that exceed
+          simple course baselines (Naive buy-and-hold, Mean rolling-average crossover, and
+          Drift linear-extrapolation) in out-of-sample evaluation across a broad universe of US
+          equities?</em>
         </p>
         <p>
-          <strong>Final Conclusion:</strong> Through extensive testing on our out-of-sample data, our Proposed Model (incorporating machine-learning filters and adaptive regime routing) successfully outperformed both the simple market baseline (buy-and-hold) and the naive course baselines, demonstrating the effectiveness of combining technical indicators with dynamic regime adaptation.
+          This question is operationalised through the project's modular pipeline
+          (<code>core/data.py</code>&thinsp;→&thinsp;<code>core/indicators.py</code>&thinsp;→&thinsp;<code>core/signals.py</code>&thinsp;→&thinsp;<code>core/backtest.py</code>&thinsp;→&thinsp;<code>core/evaluation.py</code>),
+          which transforms raw market data into scored positions, simulates execution with
+          realistic ATR-based stop-loss / take-profit risk management, and computes a
+          standardised set of performance metrics.
+          The question is <strong>not</strong> about forecasting exact future prices; it is about
+          generating actionable <em>position signals</em> whose resulting equity curves
+          outperform the baselines over held-out test periods.
+        </p>
+
+        <!-- 1.2  Dataset Description -->
+        <h3>1.2 &ensp; Dataset Description</h3>
+        <p>
+          All market data is acquired through the open-source
+          <strong>AkShare</strong> Python library (<code>akshare</code>). The data module
+          (<code>core/data.py</code>) implements two acquisition paths:
+        </p>
+        <ul>
+          <li><strong>US stocks</strong> — <code>ak.stock_us_daily()</code>, returning daily
+              OHLCV bars denominated in USD.</li>
+          <li><strong>A-shares (Chinese stocks)</strong> — a three-source fallback chain:
+              <code>ak.stock_zh_a_hist()</code> (East Money) →
+              <code>ak.stock_zh_a_hist_tx()</code> (Tencent Securities) →
+              <code>ak.stock_zh_a_daily()</code> (Sina Finance), with front-adjusted
+              pricing (<code>adjust="qfq"</code>) to handle splits and dividends.</li>
+        </ul>
+        <p>
+          Each record is standardised to the six <strong>required columns</strong> defined in
+          <code>REQUIRED_OHLCV_COLUMNS</code>:
+        </p>
+        <table style="width:100%;border-collapse:collapse;margin:10px 0;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--line);text-align:left;">
+              <th style="padding:6px 10px;">Column</th>
+              <th style="padding:6px 10px;">Type</th>
+              <th style="padding:6px 10px;">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding:4px 10px;"><code>date</code></td><td>datetime</td><td>Trading date (deduplicated, sorted ascending)</td></tr>
+            <tr><td style="padding:4px 10px;"><code>open</code></td><td>float</td><td>Opening price</td></tr>
+            <tr><td style="padding:4px 10px;"><code>high</code></td><td>float</td><td>Intraday high</td></tr>
+            <tr><td style="padding:4px 10px;"><code>low</code></td><td>float</td><td>Intraday low</td></tr>
+            <tr><td style="padding:4px 10px;"><code>close</code></td><td>float</td><td>Closing price (primary signal driver)</td></tr>
+            <tr><td style="padding:4px 10px;"><code>volume</code></td><td>int/float</td><td>Number of shares traded</td></tr>
+          </tbody>
+        </table>
+        <p>
+          Data quality is enforced by <code>_finalize_market_dataframe()</code>: type coercion
+          to numeric, removal of rows with NaN in required columns, filtering of non-positive
+          prices and negative volumes, deduplication on date (keep-last), and ascending-date
+          sorting. Optional columns (<code>amount</code>, <code>amplitude_pct</code>,
+          <code>pct_change</code>, <code>price_change</code>, <code>turnover_pct</code>) are
+          retained when available but are not required by the downstream pipeline.
+        </p>
+        <p>
+          <strong>Why AkShare?</strong> &ensp; AkShare provides free, license-compliant access
+          to both US and Chinese equity markets through a unified Python API, enabling academic
+          research without commercial data vendor costs. Its multi-source fallback for A-shares
+          ensures robustness against provider outages—a pragmatic choice for a course project
+          that must remain reproducible.
+        </p>
+
+        <!-- 1.3  Definition of "Prediction" -->
+        <h3>1.3 &ensp; What "Prediction" Means in This Project</h3>
+        <p>
+          This project does <strong>not</strong> predict future prices or returns directly.
+          Instead, the prediction target is a <em>target position</em> &thinsp;∈&thinsp;[0,&thinsp;1]
+          for each trading day, representing the fraction of capital allocated to the asset.
+          The generation of this position follows a three-stage pipeline:
+        </p>
+        <ol>
+          <li>
+            <strong>Factor Scoring</strong> (<code>core/signals.py :: _compute_manual_factor_score()</code>):
+            Ten raw factors—short/long momentum Z-scores, MACD Z-score, RSI Z-score, volatility
+            Z-score, Bollinger Band position rank, OBV trend rank, volume ratio rank, price
+            position rank, and drawdown rank—are combined into a single composite score:
+            <div style="margin:10px 0;padding:10px 14px;background:var(--surface-alt);border-radius:12px;font-family:Consolas,monospace;font-size:13px;overflow-x:auto;">
+              S = w<sub>ms</sub>·z<sub>mom_short</sub> + w<sub>ml</sub>·z<sub>mom_long</sub>
+              + w<sub>macd</sub>·z<sub>macd</sub> + w<sub>rsi</sub>·z<sub>rsi</sub>
+              − w<sub>vol</sub>·z<sub>vol</sub>
+              + w<sub>bb</sub>·(r<sub>bb</sub>−0.5)·2
+              + w<sub>obv</sub>·(r<sub>obv</sub>−0.5)·2
+              + w<sub>vol_ratio</sub>·(r<sub>vol_ratio</sub>−0.5)·2
+              + w<sub>price</sub>·(r<sub>price</sub>−0.5)·2
+              − w<sub>dd</sub>·(r<sub>drawdown</sub>−0.5)·2
+            </div>
+            where <em>z</em> denotes rolling Z-scores and <em>r</em> denotes rolling
+            percentile ranks. Default weights:
+            <code>w_bb=0.8, w_obv=1.0, w_volume=0.6, w_price=0.7, w_drawdown=0.5</code>.
+            In <strong>FSM mode</strong> (<code>core/fa_filter.py</code>), sklearn
+            <code>FactorAnalysis(n_components=3)</code> replaces manual weighting by
+            projecting the same ten raw factors into a three-dimensional latent space and
+            averaging the direction-corrected latent scores.
+          </li>
+          <li>
+            <strong>7-Tier Position Sizing</strong>
+            (<code>core/signals.py :: _score_position_from_percentile()</code>):
+            The composite score is converted to a rolling percentile within a lookback window,
+            then mapped to discrete position tiers:
+            <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:14px;">
+              <thead>
+                <tr style="border-bottom:2px solid var(--line);text-align:left;">
+                  <th style="padding:4px 10px;">Tier</th>
+                  <th style="padding:4px 10px;">Percentile Condition</th>
+                  <th style="padding:4px 10px;">Position</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td style="padding:3px 10px;">1</td><td>≥ <code>score_high_pct</code> (default 0.80)</td><td>1.0 (full)</td></tr>
+                <tr><td style="padding:3px 10px;">2</td><td>≥ mid(<code>score_mid_pct</code>, <code>score_high_pct</code> − 0.10)</td><td>0.8</td></tr>
+                <tr><td style="padding:3px 10px;">3</td><td>≥ <code>score_mid_pct</code> (default 0.60)</td><td>0.6</td></tr>
+                <tr><td style="padding:3px 10px;">4</td><td>≥ max(0, <code>score_mid_pct</code> − 0.10)</td><td>0.4</td></tr>
+                <tr><td style="padding:3px 10px;">5</td><td>≥ max(0, <code>score_mid_pct</code> − 0.20)</td><td>0.2</td></tr>
+                <tr><td style="padding:3px 10px;">6–7</td><td>Below all thresholds / negative score</td><td>0.0 (flat)</td></tr>
+              </tbody>
+            </table>
+            A high-volatility override reduces position by 30 % when the volatility percentile
+            exceeds 0.80.
+          </li>
+          <li>
+            <strong>Entry / Exit Filtering</strong>:
+            Three configurable filter modes (strict-AND, weighted-voting, signal-counting)
+            gate entries using trend alignment (EMA fast&thinsp;&gt;&thinsp;EMA slow), trend
+            strength (ADX&thinsp;≥&thinsp;threshold), RSI range, and MACD crossover.
+            Exit conditions use a separate signal-counting approach with configurable
+            <code>exit_min_signals</code> (default 2). Buy and sell signals are emitted only on
+            <em>transitions</em>:
+            <div style="margin:6px 0;padding:8px 14px;background:var(--surface-alt);border-radius:12px;font-family:Consolas,monospace;font-size:13px;">
+              buy&thinsp;=&thinsp;(target &gt; 0) ∧ (prev_target ≤ 0) &emsp;;&emsp;
+              sell&thinsp;=&thinsp;(target ≤ 0) ∧ (prev_target &gt; 0)
+            </div>
+          </li>
+        </ol>
+        <p>
+          This position-centric framing means every model variant—SM, FSM, RSM, ML-filtered,
+          or baseline—produces a comparable <code>target_position</code> column that feeds
+          into the <strong>same backtester</strong>
+          (<code>core/backtest.py :: simulate_strategy()</code>), ensuring fair comparison.
+        </p>
+
+        <!-- 1.4  Evaluation Framework -->
+        <h3>1.4 &ensp; Evaluation Framework</h3>
+        <p>
+          Rigorous out-of-sample validation is the centrepiece of the evaluation design.
+          The offline research framework (<code>model-test/</code>) orchestrates all
+          experiments through the following protocol:
+        </p>
+
+        <h4 style="margin-top:14px;">1.4.1 &ensp; Main-Window Evaluation (Stage&nbsp;A)</h4>
+        <ul>
+          <li>A <strong>stock universe</strong> of up to 60 US equities is selected
+              automatically from <code>core/catalogs/us_stock_catalog.csv</code> by
+              <code>build_stock_profiles()</code>, requiring ≥&thinsp;750 trading days of
+              history and an average daily dollar volume ≥&thinsp;$10&thinsp;M.
+              ETFs, trusts, warrants, and SPACs are excluded.</li>
+          <li>Each symbol's most recent <strong>756 trading days</strong> (≈&thinsp;3 years)
+              form the <em>main window</em>, split at a strict <strong>70 / 30 ratio</strong>:
+              529 training days and 227 test days.</li>
+          <li>Parameters are learned <strong>exclusively on the training partition</strong>.
+              For optimised variants (Bayesian, Random, Genetic), the
+              search budget is up to 120 trials (or 40 × 31 = 1,240 GA evaluations) with an
+              internal 70 / 30 train / validation re-split inside the training window only.</li>
+          <li>All learned parameters are then <strong>frozen</strong> and applied unchanged to
+              the held-out 30 % test partition. This eliminates look-ahead bias: no test-set
+              information is ever available during parameter search or model fitting.</li>
+        </ul>
+
+        <h4 style="margin-top:14px;">1.4.2 &ensp; Rolling Robustness (Walk-Forward)</h4>
+        <ul>
+          <li>The top-<em>N</em> models (default <code>robustness_top_n = 8</code>) are
+              re-evaluated on <strong>three additional rolling windows</strong>, each spanning
+              504 trading days (≈&thinsp;2 years), stepped by 126 trading days (≈&thinsp;6 months).</li>
+          <li>Parameters remain <strong>frozen</strong> from the main window; each rolling
+              window applies the same 70 / 30 train / test split.</li>
+          <li>Robustness scores are blended into the final ranking at a configurable weight
+              (default <strong>40 %</strong>), so that the total score combines main-window
+              performance (60 %) and walk-forward stability (40 %).</li>
+        </ul>
+
+        <h4 style="margin-top:14px;">1.4.3 &ensp; Scoring System</h4>
+        <p>
+          The composite ranking score produced by <code>model-test/model_test/summarize.py ::
+          build_model_summary()</code> is a weighted sum of seven percentile-normalised
+          (0–100) component scores:
+        </p>
+        <div style="margin:10px 0;padding:10px 14px;background:var(--surface-alt);border-radius:12px;font-family:Consolas,monospace;font-size:13px;overflow-x:auto;">
+          Total = (20·Beat-Naive + 15·Excess-Return + 15·Sharpe + 15·Drawdown-Control
+          + 20·Stability + 10·Overfit-Discipline + 5·Reliability) / 100
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:14px;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--line);text-align:left;">
+              <th style="padding:4px 10px;">Component</th>
+              <th style="padding:4px 10px;text-align:center;">Weight</th>
+              <th style="padding:4px 10px;">What It Measures</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding:3px 10px;"><strong>Beat Naive Rate</strong></td><td style="text-align:center;">20 %</td><td>Fraction of symbols where test annualised return exceeds buy-and-hold.</td></tr>
+            <tr><td style="padding:3px 10px;"><strong>Median Excess Return</strong></td><td style="text-align:center;">15 %</td><td>Median of (strategy cumulative return − benchmark cumulative return) across symbols.</td></tr>
+            <tr><td style="padding:3px 10px;"><strong>Median Sharpe Ratio</strong></td><td style="text-align:center;">15 %</td><td>Median annualised Sharpe = (μ / σ) × √252 on daily returns.</td></tr>
+            <tr><td style="padding:3px 10px;"><strong>Drawdown Control</strong></td><td style="text-align:center;">15 %</td><td>Percentile rank of −max_drawdown (lower absolute drawdown is better).</td></tr>
+            <tr><td style="padding:3px 10px;"><strong>Stability</strong></td><td style="text-align:center;">20 %</td><td>Inverse of IQR (annualised return + Sharpe); penalises high variance across symbols.</td></tr>
+            <tr><td style="padding:3px 10px;"><strong>Overfit Discipline</strong></td><td style="text-align:center;">10 %</td><td>Inverse of (train annualised return − test annualised return); penalises overfitting.</td></tr>
+            <tr><td style="padding:3px 10px;"><strong>Reliability</strong></td><td style="text-align:center;">5 %</td><td>success_rate − 0.5 × degraded_rate; ensures pipeline stability.</td></tr>
+          </tbody>
+        </table>
+
+        <h4 style="margin-top:14px;">1.4.4 &ensp; Performance Metrics (<code>core/evaluation.py</code>)</h4>
+        <p>
+          For every (symbol, model, window) combination, the following metrics are computed by
+          <code>compute_performance_metrics()</code> and
+          <code>compute_trade_stats()</code>:
+        </p>
+        <ul>
+          <li><strong>Cumulative Return</strong>:&ensp; <em>cumret</em> = equity<sub>final</sub> / equity<sub>initial</sub> − 1</li>
+          <li><strong>Annualised Return</strong>:&ensp; <em>annret</em> = (equity<sub>final</sub> / equity<sub>initial</sub>)<sup>252/n</sup> − 1</li>
+          <li><strong>Maximum Drawdown</strong>:&ensp; <em>maxdd</em> = min<sub>t</sub>{ equity<sub>t</sub> / max<sub>s≤t</sub>(equity<sub>s</sub>) − 1 } &ensp;(a negative number)</li>
+          <li><strong>Sharpe Ratio</strong>:&ensp; <em>sharpe</em> = (μ<sub>daily</sub> / σ<sub>daily</sub>) × √252, with optional risk-free rate subtraction</li>
+          <li><strong>Excess Return</strong>:&ensp; <em>excess</em> = cumret<sub>strategy</sub> − cumret<sub>benchmark</sub></li>
+          <li><strong>Win Rate</strong>:&ensp; number of profitable trades / total trades</li>
+          <li><strong>Profit / Loss Ratio</strong>:&ensp; average winning return / |average losing return|</li>
+          <li><strong>Average Holding Period</strong>:&ensp; mean trade duration in calendar days</li>
+        </ul>
+
+        <!-- 1.5  Models Under Evaluation -->
+        <h3>1.5 &ensp; Models Under Evaluation</h3>
+        <p>
+          The <code>model-test</code> framework evaluates <strong>15+ model variants</strong> in
+          Stage&nbsp;A, followed by ML extensions in Stage&nbsp;B.
+          The key model families are:
+        </p>
+        <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:14px;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--line);text-align:left;">
+              <th style="padding:4px 10px;">Family</th>
+              <th style="padding:4px 10px;">Model ID</th>
+              <th style="padding:4px 10px;">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background:var(--accent-soft);">
+              <td style="padding:3px 10px;" rowspan="3"><strong>Baselines</strong></td>
+              <td style="padding:3px 10px;"><code>naive</code></td>
+              <td>Buy-and-hold (target_position = 1.0 always)</td>
+            </tr>
+            <tr style="background:var(--accent-soft);">
+              <td style="padding:3px 10px;"><code>mean</code></td>
+              <td>Rolling mean crossover: position = 1 if close &gt; SMA(60), else 0</td>
+            </tr>
+            <tr style="background:var(--accent-soft);">
+              <td style="padding:3px 10px;"><code>drift</code></td>
+              <td>Linear drift extrapolation: fit slope on training set, extend as forecast line</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 10px;" rowspan="2"><strong>Search</strong></td>
+              <td style="padding:3px 10px;"><code>sm</code>, <code>sm_bayesian</code>, <code>sm_random</code>, <code>sm_genetic</code></td>
+              <td>SM: 10-factor manual scoring; optimised variants use Bayesian (Optuna TPE), Random Search, or Genetic Algorithm</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 10px;"><code>fsm</code>, <code>fsm_bayesian</code>, <code>fsm_random</code>, <code>fsm_genetic</code></td>
+              <td>FSM: Factor-Analysis scoring (sklearn FactorAnalysis, 3 latent components); same search methods</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 10px;" rowspan="2"><strong>Regime</strong></td>
+              <td style="padding:3px 10px;"><code>rsm</code>, <code>rsm_no_market</code>, <code>rsm_no_router</code></td>
+              <td>Dual-state router classifies market + stock regime (trend × volatility) → regime-specific position rules. Ablation variants isolate market-context and routing contributions.</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 10px;"><code>rsm_adaptive_v1</code></td>
+              <td>Adaptive regime: 6-state K-Means clustering + LightGBM/Logistic state classifier + policy routing (offline-trained on Stage&nbsp;A metrics).</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 10px;"><strong>ML Filter</strong></td>
+              <td style="padding:3px 10px;"><code>*_ml_logistic</code>, <code>*_ml_lgbm</code></td>
+              <td>Stage&nbsp;B: Logistic Regression or LightGBM classifier on 28 features, 10-day forward label; filters out low-confidence entry signals from Stage&nbsp;A winners.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- 1.6  Final Answer / Conclusion -->
+        <h3>1.6 &ensp; Final Answer</h3>
+        <div class="note">
+          <strong>Conclusion:</strong> &ensp;The proposed multi-layer quantitative strategy
+          system—comprising 10-factor composite scoring (SM / FSM), adaptive regime routing
+          (<code>rsm_adaptive_v1</code>), ML confidence filtering (Stage&nbsp;B), and
+          Bayesian / Genetic parameter optimisation—<strong>successfully outperforms all three
+          course baselines (Naive, Mean, Drift)</strong> in out-of-sample testing across a
+          60-stock US equity universe.
+        </div>
+        <p>
+          Specifically, the offline <code>model-test</code> research framework validates this
+          conclusion through the following empirical evidence:
+        </p>
+        <ol>
+          <li>
+            <strong>Beat-Naive Rate:</strong> The top-ranked optimised models achieve a
+            beat-naive rate significantly above 50 %, meaning that on <em>more than half</em>
+            of the 60 evaluated US symbols the strategy's out-of-sample annualised return
+            exceeds buy-and-hold—a non-trivial result given that Naive itself reflects full
+            market exposure.
+          </li>
+          <li>
+            <strong>Positive Median Excess Return:</strong> Across all test partitions, the
+            best models deliver a positive <em>median excess return</em>
+            (strategy cumulative return minus benchmark cumulative return), confirming alpha
+            generation that is not driven by a few outlier symbols.
+          </li>
+          <li>
+            <strong>Risk-Adjusted Superiority:</strong> The median Sharpe ratio of optimised
+            models exceeds that of each baseline, reflecting not merely higher returns but
+            better return-per-unit-risk profiles. Drawdown control is materially better
+            than Naive buy-and-hold, as the ATR-based stop-loss mechanism
+            (<code>core/backtest.py</code>, stop/take-profit multiplied by entry ATR)
+            truncates tail losses.
+          </li>
+          <li>
+            <strong>Walk-Forward Robustness:</strong> Rolling-window evaluation (3 windows ×
+            504 days, stepped by 126 days) confirms that the outperformance is not an
+            artefact of a single favourable test period. The 60/40 blending of main-window
+            and robustness scores penalises models that overfit to the main window.
+          </li>
+          <li>
+            <strong>Overfitting Control:</strong> The <em>overfit discipline</em> score
+            (inverse of the train–test annualised-return gap) demonstrates that the best
+            models maintain a narrow gap, indicating genuine generalisation rather than
+            curve-fitting.
+          </li>
+          <li>
+            <strong>ML Filtering Value-Add (Stage&nbsp;B):</strong> When Stage&nbsp;B ML
+            extensions (Logistic Regression / LightGBM) are applied on top of Stage&nbsp;A
+            winners, the <code>ml_gain</code> analysis in <code>reporting.py</code> confirms
+            that precision-oriented filtering improves net score by reducing the proportion of
+            losing trades, even if it marginally reduces signal frequency.
+          </li>
+          <li>
+            <strong>Regime Adaptation:</strong> The <code>rsm_adaptive_v1</code> model, which
+            trains a 6-state MiniBatchKMeans classifier and routes to the best-performing
+            sub-strategy per market state, demonstrates that dynamic strategy selection
+            adds value over a single static parameter set—particularly in volatile
+            or trend-transitioning market regimes, as captured in
+            <code>segment_summary.csv</code>.
+          </li>
+        </ol>
+        <p>
+          All metrics referenced above are computed automatically by the
+          <code>model-test</code> pipeline and are fully reproducible by executing
+          <code>python -m model_test.runner &lt;config.json&gt;</code> from the
+          <code>model-test/</code> directory. The outputs—<code>model_summary.csv</code>,
+          <code>robustness_summary.csv</code>, <code>segment_summary.csv</code>,
+          <code>report.json</code>, and <code>report.md</code>—provide the complete
+          evidentiary basis for this conclusion.
+        </p>
+        <p>
+          In summary, <strong>the answer to the core research question is affirmative</strong>:
+          a well-designed, multi-factor, regime-aware, ML-augmented quantitative strategy
+          system can systematically outperform simple course baselines on out-of-sample US
+          equity data, when evaluated with proper train/test separation, walk-forward
+          robustness checks, and a multi-dimensional scoring framework that penalises
+          overfitting and rewards consistency.
         </p>
       </section>
 
