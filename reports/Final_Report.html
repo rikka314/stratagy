@@ -4395,7 +4395,9 @@
       </p>
       <p>
         Each entry in the search space is a 4-tuple
-        <code>(default, lo, hi, type)</code> where <code>type &isin; {int, float, bool}</code>.
+        <code>(default, lo, hi, type)</code> where <code>default</code> is the initial value,
+        <code>lo</code> and <code>hi</code> define the search bounds, and <code>type &isin; {int, float, bool}</code>
+        specifies the parameter data type.
         The optimizer samples candidate vectors from this space and evaluates them via
         the backtest pipeline. The table below lists every parameter, organized by functional group.
       </p>
