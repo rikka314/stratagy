@@ -1,0 +1,187 @@
+<section id="section-8-references">
+  <h2>8. References</h2>
+  <p>
+    This section catalogues all sources cited throughout the report. References are
+    organised into six categories: course materials that define the project scope and
+    methodology; data sources that supply the raw market observations; software libraries
+    and frameworks that implement the computational pipeline; technical-analysis texts
+    that underpin the indicator suite; machine-learning and statistical references that
+    inform the modelling approach; and financial / quantitative-strategy references that
+    ground the evaluation metrics and validation methodology.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 8.1  Course Materials                                                   -->
+  <!-- ====================================================================== -->
+  <h3 id="ref-course-materials">8.1 Course Materials</h3>
+  <ol class="references" start="1">
+    <li id="ref-1">
+      AIE1902 Lecture Notes, Lectures&nbsp;3, 4, 5. Topics covered: baseline models
+      (Na&iuml;ve, Mean&nbsp;Reversion, Drift), technical indicators (RSI, EMA, MACD,
+      OBV), machine-learning methods (Logistic Regression, Random Forest,
+      XGBoost/LightGBM), Factor Analysis / PCA / ICA, and evaluation methodology
+      (walk-forward validation, risk-adjusted metrics).
+    </li>
+    <li id="ref-2">
+      AIE1902 Project Guidelines, Version&nbsp;4. Requirements specification for the
+      quantitative strategy analysis project, including deliverable structure, model
+      requirements, baseline comparison criteria, and grading rubric.
+    </li>
+  </ol>
+
+  <!-- ====================================================================== -->
+  <!-- 8.2  Data Sources                                                       -->
+  <!-- ====================================================================== -->
+  <h3 id="ref-data-sources">8.2 Data Sources</h3>
+  <ol class="references" start="3">
+    <li id="ref-3">
+      AkShare &mdash; Open-source financial data interface library for the Chinese and
+      U.S.&nbsp;equity markets, providing OHLCV (Open, High, Low, Close, Volume)
+      historical price data. Available at:
+      <a href="https://github.com/akfamily/akshare" target="_blank" rel="noopener">
+        https://github.com/akfamily/akshare</a>.
+    </li>
+    <li id="ref-4">
+      Yahoo Finance (accessed via AkShare). Primary data source for U.S.&nbsp;equity
+      historical price data used in this project.
+    </li>
+  </ol>
+
+  <!-- ====================================================================== -->
+  <!-- 8.3  Software Libraries and Frameworks                                  -->
+  <!-- ====================================================================== -->
+  <h3 id="ref-software">8.3 Software Libraries and Frameworks</h3>
+  <ol class="references" start="5">
+    <li id="ref-5">
+      Streamlit &mdash; The open-source Python framework used to build the interactive
+      web application for this project. Available at:
+      <a href="https://streamlit.io/" target="_blank" rel="noopener">
+        https://streamlit.io/</a>.
+    </li>
+    <li id="ref-6">
+      McKinney, W. (2010). &ldquo;Data Structures for Statistical Computing in
+      Python.&rdquo; <em>Proceedings of the 9th Python in Science Conference</em>,
+      51&ndash;56. Pandas library. Available at:
+      <a href="https://pandas.pydata.org/" target="_blank" rel="noopener">
+        https://pandas.pydata.org/</a>.
+    </li>
+    <li id="ref-7">
+      Harris, C.R., Millman, K.J., van der Walt, S.J. <em>et al.</em> (2020).
+      &ldquo;Array programming with NumPy.&rdquo; <em>Nature</em>, 585, 357&ndash;362.
+      Available at:
+      <a href="https://numpy.org/" target="_blank" rel="noopener">
+        https://numpy.org/</a>.
+    </li>
+    <li id="ref-8">
+      Plotly Technologies Inc. Plotly &mdash; Interactive graphing library for Python.
+      Used for all interactive charts and visualisations in the web application and
+      offline HTML reports. Available at:
+      <a href="https://plotly.com/" target="_blank" rel="noopener">
+        https://plotly.com/</a>.
+    </li>
+    <li id="ref-9">
+      Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O.,
+      Blondel, M., Prettenhofer, P., Weiss, R., Dubourg, V., Vanderplas, J., Passos, A.,
+      Cournapeau, D., Brucher, M., Perrot, M. and Duchesnay, E. (2011).
+      &ldquo;Scikit-learn: Machine Learning in Python.&rdquo; <em>Journal of Machine
+      Learning Research</em>, 12, 2825&ndash;2830. Available at:
+      <a href="https://scikit-learn.org/" target="_blank" rel="noopener">
+        https://scikit-learn.org/</a>.
+      Modules used in this project: <code>FactorAnalysis</code>,
+      <code>LogisticRegression</code>, <code>StandardScaler</code>,
+      <code>MiniBatchKMeans</code>, <code>DummyClassifier</code>,
+      <code>precision_score</code>, <code>recall_score</code>, <code>f1_score</code>,
+      and <code>average_precision_score</code>.
+    </li>
+    <li id="ref-10">
+      Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., Ye, Q. and Liu, T.-Y.
+      (2017). &ldquo;LightGBM: A Highly Efficient Gradient Boosting Decision
+      Tree.&rdquo; <em>Advances in Neural Information Processing Systems</em> (NeurIPS),
+      30, 3146&ndash;3154. Available at:
+      <a href="https://lightgbm.readthedocs.io/" target="_blank" rel="noopener">
+        https://lightgbm.readthedocs.io/</a>.
+    </li>
+    <li id="ref-11">
+      Akiba, T., Sano, S., Yanase, T., Ohta, T. and Koyama, M. (2019).
+      &ldquo;Optuna: A Next-generation Hyperparameter Optimization Framework.&rdquo;
+      <em>Proceedings of the 25th ACM SIGKDD International Conference on Knowledge
+      Discovery &amp; Data Mining</em> (KDD&nbsp;2019), 2623&ndash;2631. Available at:
+      <a href="https://optuna.org/" target="_blank" rel="noopener">
+        https://optuna.org/</a>.
+    </li>
+  </ol>
+
+  <!-- ====================================================================== -->
+  <!-- 8.4  Technical Analysis References                                      -->
+  <!-- ====================================================================== -->
+  <h3 id="ref-technical-analysis">8.4 Technical Analysis References</h3>
+  <ol class="references" start="12">
+    <li id="ref-12">
+      Wilder, J.W. (1978). <em>New Concepts in Technical Trading Systems</em>.
+      Greensboro, NC: Trend Research. Foundational reference for the Relative Strength
+      Index (RSI), Average True Range (ATR), and Average Directional Index (ADX)
+      indicators used in the signal-generation layer.
+    </li>
+    <li id="ref-13">
+      Appel, G. (2005). <em>Technical Analysis: Power Tools for Active Investors</em>.
+      Upper Saddle River, NJ: FT Press. Primary reference for the Moving Average
+      Convergence Divergence (MACD) indicator and its signal-line crossover logic.
+    </li>
+    <li id="ref-14">
+      Bollinger, J. (2001). <em>Bollinger on Bollinger Bands</em>. New York:
+      McGraw-Hill. Reference for the Bollinger Bands volatility envelope used as a
+      regime-awareness and mean-reversion signal component.
+    </li>
+    <li id="ref-15">
+      Granville, J. (1963). <em>Granville&rsquo;s New Key to Stock Market Profits</em>.
+      Englewood Cliffs, NJ: Prentice-Hall. Original formulation of the On-Balance Volume
+      (OBV) indicator, which serves as the volume-confirmation factor in the scoring
+      model.
+    </li>
+  </ol>
+
+  <!-- ====================================================================== -->
+  <!-- 8.5  Machine Learning and Statistical References                        -->
+  <!-- ====================================================================== -->
+  <h3 id="ref-ml-statistics">8.5 Machine Learning and Statistical References</h3>
+  <ol class="references" start="16">
+    <li id="ref-16">
+      Hamilton, J.D. (1989). &ldquo;A New Approach to the Economic Analysis of
+      Nonstationary Time Series and the Business Cycle.&rdquo; <em>Econometrica</em>,
+      57(2), 357&ndash;384. Foundational work on Markov regime-switching models, which
+      informs the adaptive regime detection and routing logic in
+      <code>core/adaptive_regime.py</code>.
+    </li>
+    <li id="ref-17">
+      Haykin, S. (2009). <em>Neural Networks and Learning Machines</em>, 3rd&nbsp;ed.
+      Upper Saddle River, NJ: Pearson. Reference for the mathematical foundations of
+      Factor Analysis, used in the factor-extraction and dimensionality-reduction stages
+      of the pipeline.
+    </li>
+  </ol>
+
+  <!-- ====================================================================== -->
+  <!-- 8.6  Financial and Quantitative Strategy References                     -->
+  <!-- ====================================================================== -->
+  <h3 id="ref-financial-quant">8.6 Financial and Quantitative Strategy References</h3>
+  <ol class="references" start="18">
+    <li id="ref-18">
+      Sharpe, W.F. (1966). &ldquo;Mutual Fund Performance.&rdquo; <em>Journal of
+      Business</em>, 39(1), 119&ndash;138. Original derivation of the Sharpe Ratio,
+      which is the primary risk-adjusted return metric used throughout the evaluation
+      framework.
+    </li>
+    <li id="ref-19">
+      Fama, E.F. (1970). &ldquo;Efficient Capital Markets: A Review of Theory and
+      Empirical Work.&rdquo; <em>Journal of Finance</em>, 25(2), 383&ndash;417.
+      Seminal paper on the Efficient Market Hypothesis (EMH), providing the theoretical
+      backdrop against which active strategy alpha is measured.
+    </li>
+    <li id="ref-20">
+      de Prado, M.L. (2018). <em>Advances in Financial Machine Learning</em>. Hoboken,
+      NJ: Wiley. Key reference for walk-forward validation methodology, combinatorial
+      purged cross-validation, and overfitting detection techniques applied in the
+      parameter-learning and model-checking sections.
+    </li>
+  </ol>
+</section>
