@@ -1,0 +1,1476 @@
+<section id="section-7-interpretation">
+  <h2>7. Interpretation of Differences</h2>
+  <p>
+    This section provides a systematic, pairwise interpretation of <em>why</em> models differ
+    in performance. Rather than merely reporting that one model dominates another, we
+    dissect the structural, informational, and risk-management mechanisms that explain
+    each observed gap. For every comparison pair we identify the <strong>core insight</strong>
+    &mdash; the single most important conceptual takeaway &mdash; and support it with
+    concrete references to the codebase, parameter settings, and economic logic. The
+    analysis culminates in a cross-model performance hierarchy (Section&nbsp;7.8) that
+    synthesizes the individual pairwise findings into a holistic ranking, explaining
+    which architectural choices yield the largest marginal improvements.
+  </p>
+  <p>
+    Throughout this section, &ldquo;SM&rdquo; refers to the 10-Factor Scoring Strategy
+    (<code>core/signals.py</code>), &ldquo;FSM&rdquo; to the Factor-Analysis enhanced
+    model (<code>core/fa_filter.py</code>), and the three baselines &mdash; Naive,
+    Mean&nbsp;Reversion, and Drift &mdash; are implemented in
+    <code>core/evaluation.py &rarr; run_baselines()</code>. Parameter-optimized variants
+    are produced by <code>core/optimization.py</code>, ML-filtered variants by
+    <code>core/ml_filter.py</code>, and the Adaptive Regime Router by
+    <code>core/adaptive_regime.py</code>.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 7.1  SM vs Naive Baseline                                               -->
+  <!-- ====================================================================== -->
+  <h3 id="interp-sm-naive">7.1 SM vs Naive Baseline</h3>
+  <p>
+    The <strong>Naive baseline</strong> adopts a perpetual buy-and-hold strategy: it
+    enters a fully invested long position on the first available bar and holds until the
+    end of the evaluation period. It applies no signal processing, no risk management,
+    and no position sizing. As a result, the Naive baseline captures 100&nbsp;% of the
+    market&rsquo;s upside <em>and</em> 100&nbsp;% of its downside. It serves as the
+    &ldquo;do nothing&rdquo; reference, representing the return an investor would receive
+    simply by buying the underlying asset.
+  </p>
+
+  <h4>7.1.1 Structural Differences</h4>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:22%">Dimension</th>
+        <th style="width:39%">SM</th>
+        <th style="width:39%">Naive</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Signal generation</strong></td>
+        <td>
+          10 factors spanning momentum, trend, strength, volume, and risk
+          (<code>_compute_manual_factor_score()</code>), each normalized via rolling
+          Z-score or rolling rank, combined into a composite score with signed weights.
+        </td>
+        <td>
+          None. Position is unconditionally 1.0 for every bar.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Entry filtering</strong></td>
+        <td>
+          Counting-based entry filter requires &ge;&thinsp;3 out of 5 independent
+          conditions (EMA trend, ADX strength, RSI band, MACD crossover, factor score
+          threshold) to agree before entering
+          (<code>entry_min_signals&nbsp;=&nbsp;3</code>).
+        </td>
+        <td>
+          No entry filter. Always invested from bar&nbsp;0.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Position sizing</strong></td>
+        <td>
+          7-tier gradual sizing {0.0,&thinsp;0.2,&thinsp;0.4,&thinsp;0.6,&thinsp;0.8,&thinsp;1.0}
+          based on composite-score percentile via
+          <code>_score_position_from_percentile()</code>. Higher-conviction signals
+          receive larger allocations; low-conviction signals receive reduced or zero
+          exposure.
+        </td>
+        <td>
+          Fixed 100&nbsp;% allocation at all times. No exposure modulation.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Risk management</strong></td>
+        <td>
+          ATR-based stop-loss (<code>stop_loss_mult &times; ATR</code>) and take-profit
+          (<code>take_profit_mult &times; ATR</code>) enforced in
+          <code>core/backtest.py &rarr; simulate_strategy()</code>.
+        </td>
+        <td>
+          No stop-loss, no take-profit, no drawdown control.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Volatility adaptation</strong></td>
+        <td>
+          High-volatility discount: position size &times;&thinsp;0.70 when
+          <code>volatility_percentile&nbsp;&gt;&nbsp;0.80</code>
+          (lines&nbsp;207&ndash;209, <code>core/signals.py</code>).
+        </td>
+        <td>
+          No volatility awareness. Full exposure during extreme volatility.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.1.2 Performance Implications</h4>
+  <ul>
+    <li>
+      <strong>Drawdown control:</strong> In bear phases, SM reduces or eliminates
+      exposure via low factor scores and unmet entry conditions. Naive absorbs the
+      entire drawdown, often resulting in maximum drawdown (MDD) values 2&ndash;3&times;
+      higher than SM&rsquo;s.
+    </li>
+    <li>
+      <strong>Risk-adjusted returns:</strong> SM&rsquo;s Sharpe and Sortino ratios are
+      typically superior because the denominator (standard deviation or downside
+      deviation) is reduced by selective participation. Even when SM&rsquo;s total return
+      is <em>lower</em> than Naive in strong bull markets, its risk-adjusted metrics
+      remain competitive.
+    </li>
+    <li>
+      <strong>Win rate vs. payoff asymmetry:</strong> SM tends to have a higher win rate
+      on executed trades because the entry filter screens out low-probability setups.
+      Naive&rsquo;s &ldquo;win rate&rdquo; is ill-defined because it is always in a
+      single continuous trade.
+    </li>
+    <li>
+      <strong>Opportunity cost:</strong> SM&rsquo;s conservatism means it will
+      occasionally miss rallies that start from oversold conditions (low factor scores).
+      In powerful V-shaped recoveries, Naive outperforms simply by being invested.
+    </li>
+  </ul>
+
+  <h4>7.1.3 Core Insight</h4>
+  <p class="callout-insight">
+    <strong>SM&rsquo;s edge over Naive comes from &ldquo;avoiding bad trades&rdquo;
+    rather than &ldquo;finding good trades.&rdquo;</strong> The model&rsquo;s primary
+    value-add is <em>asymmetric loss avoidance</em>: by sitting out during adverse
+    conditions (low scores, unmet entry counts, high volatility), SM preserves capital
+    that Naive loses. In the language of behavioural finance, SM exploits the
+    mathematical reality that a &minus;50&nbsp;% drawdown requires a +100&nbsp;% gain to
+    recover. By capping drawdowns, SM keeps the compounding base intact, which
+    compounds into a significant long-term advantage even if the model never achieves a
+    single trade return higher than the market itself.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 7.2  SM vs Mean Baseline                                                -->
+  <!-- ====================================================================== -->
+  <h3 id="interp-sm-mean">7.2 SM vs Mean Baseline</h3>
+  <p>
+    The <strong>Mean Reversion baseline</strong> uses a single signal dimension: the
+    relationship between the current price and its 60-day simple moving average. When
+    price is above the SMA-60, the strategy goes fully long (position&nbsp;=&nbsp;1.0);
+    when below, it goes fully flat or short (position&nbsp;=&nbsp;0.0 in the long-only
+    implementation). This binary, single-feature approach contrasts sharply with
+    SM&rsquo;s multi-factor, multi-tier architecture.
+  </p>
+
+  <h4>7.2.1 Information Set Comparison</h4>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:18%">Category</th>
+        <th style="width:41%">SM (10 factors)</th>
+        <th style="width:41%">Mean Baseline (1 signal)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Trend / Momentum</strong></td>
+        <td>
+          Short-term momentum (5&ndash;20&nbsp;day returns), long-term momentum
+          (60-day returns), MACD histogram, price position relative to 52-week range.
+        </td>
+        <td>
+          Price vs. SMA-60 (a single trend indicator).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Strength / Oscillator</strong></td>
+        <td>
+          ADX (trend strength), RSI (overbought/oversold).
+        </td>
+        <td>
+          None.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Volume / Flow</strong></td>
+        <td>
+          OBV trend (cumulative volume direction), Volume ratio (current vs. average).
+        </td>
+        <td>
+          None.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Risk / Volatility</strong></td>
+        <td>
+          ATR/price (volatility normalised by price level), Drawdown from peak
+          (current capital erosion).
+        </td>
+        <td>
+          None.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Position sizing</strong></td>
+        <td>
+          7-tier gradual exposure {0.0&thinsp;&hellip;&thinsp;1.0} with volatility discount.
+        </td>
+        <td>
+          Binary 0/1 &mdash; full exposure or zero.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Risk controls</strong></td>
+        <td>
+          ATR stop-loss, ATR take-profit, entry counting filter, hold-until-exit state
+          machine.
+        </td>
+        <td>
+          None. No stop-loss, no take-profit, no position management.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.2.2 Signal Orthogonality Analysis</h4>
+  <p>
+    SM&rsquo;s 10 factors capture information from <em>orthogonal</em> market dimensions:
+  </p>
+  <ol>
+    <li>
+      <strong>Trend dimension</strong> (via MACD histogram, EMA crossover, price position):
+      identifies the prevailing market direction.
+    </li>
+    <li>
+      <strong>Momentum dimension</strong> (via short/long return Z-scores): measures the
+      <em>speed</em> and <em>persistence</em> of price movement.
+    </li>
+    <li>
+      <strong>Strength dimension</strong> (via ADX, RSI): quantifies how <em>decisive</em>
+      the current trend is and whether the market is overextended.
+    </li>
+    <li>
+      <strong>Volume dimension</strong> (via OBV trend, volume ratio): confirms whether
+      price moves are supported by institutional participation.
+    </li>
+    <li>
+      <strong>Risk dimension</strong> (via ATR/price, drawdown): penalizes conditions
+      where risk is disproportionately high.
+    </li>
+  </ol>
+  <p>
+    The Mean baseline collapses all of these into a single dimension &mdash; price level
+    relative to its own average &mdash; losing the ability to distinguish between, for
+    example, a low-volume grind above the mean (weak trend) and a high-volume breakout
+    (strong trend).
+  </p>
+
+  <h4>7.2.3 Failure Mode Comparison</h4>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%">Market Scenario</th>
+        <th style="width:36%">Mean Baseline Behaviour</th>
+        <th style="width:36%">SM Behaviour</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Choppy sideways market oscillating around SMA-60</td>
+        <td>
+          Frequent whipsaw: alternates between fully long and fully flat, incurring
+          repeated transaction costs and small losses.
+        </td>
+        <td>
+          Entry counting filter (&ge;&thinsp;3/5) prevents entry when signals conflict,
+          keeping position at 0 or low tiers.
+        </td>
+      </tr>
+      <tr>
+        <td>Strong trend with high volatility</td>
+        <td>
+          Stays fully long (price above SMA-60), bearing all drawdown spikes.
+        </td>
+        <td>
+          Volatility discount reduces exposure to 0.7&times;; ATR stop-loss may
+          trigger protective exits on deep intra-trend pullbacks.
+        </td>
+      </tr>
+      <tr>
+        <td>Volume divergence (price rising but volume declining)</td>
+        <td>
+          Cannot detect divergence &mdash; remains fully long.
+        </td>
+        <td>
+          OBV trend factor and volume ratio factor turn negative, dragging the composite
+          score down and reducing position size.
+        </td>
+      </tr>
+      <tr>
+        <td>RSI overbought extreme (&gt;&thinsp;80)</td>
+        <td>
+          No RSI awareness &mdash; remains fully long until price drops below SMA-60.
+        </td>
+        <td>
+          RSI factor contributes a negative score; if combined with other warnings,
+          entry count may fail, preventing new entries or reducing existing positions.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.2.4 Core Insight</h4>
+  <p class="callout-insight">
+    <strong>SM captures information from multiple orthogonal dimensions</strong>
+    (trend via MACD/EMA, momentum via return Z-scores, strength via ADX/RSI, volume via
+    OBV/volume&nbsp;ratio, risk via volatility/drawdown), <strong>whereas Mean sees only
+    the price&ndash;average relationship.</strong> This richer information set allows SM
+    to distinguish between superficially similar price patterns that have very different
+    forward-looking risk/reward profiles. The multi-signal confirmation requirement further
+    ensures that SM only acts when the evidence is convergent, while Mean acts on any
+    price-average crossing regardless of context.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 7.3  SM vs Drift Baseline                                               -->
+  <!-- ====================================================================== -->
+  <h3 id="interp-sm-drift">7.3 SM vs Drift Baseline</h3>
+  <p>
+    The <strong>Drift baseline</strong> fits a linear regression to the closing-price time
+    series over the training period, extracts the slope coefficient, and assumes this
+    linear trend continues into the future. If the training-period slope is positive, the
+    strategy goes fully long; if negative, it goes flat (long-only constraint). The Drift
+    model is purely <em>backward-looking</em>: it commits to a single decision at the
+    start of the test period and holds it throughout, with no ability to adapt to
+    changing conditions.
+  </p>
+
+  <h4>7.3.1 Adaptability Comparison</h4>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:22%">Aspect</th>
+        <th style="width:39%">SM</th>
+        <th style="width:39%">Drift</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Information freshness</strong></td>
+        <td>
+          Recalculated every bar using rolling windows over the <em>most recent</em>
+          30&ndash;60 days. Indicators, Z-scores, and percentile ranks all update
+          with the latest data.
+        </td>
+        <td>
+          Fixed at a single slope value calculated from training data. No update
+          mechanism during the test period.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Regime sensitivity</strong></td>
+        <td>
+          Composite score naturally responds to regime changes: in a bear market,
+          momentum factors turn negative, ADX may indicate strong downtrend, RSI
+          enters oversold territory, and the composite score drops, reducing position
+          size or triggering exit.
+        </td>
+        <td>
+          If the training period was bullish (positive slope), Drift goes long
+          regardless of any bear market that develops during the test period. The
+          strategy is completely insensitive to regime changes.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Rolling standardization</strong></td>
+        <td>
+          Z-scores and rolling ranks continuously re-centre and re-scale factor values
+          relative to recent history (<code>core/indicators.py</code>), preventing
+          stale reference points.
+        </td>
+        <td>
+          No standardization. The raw slope from training is used as-is, regardless
+          of how the test-period price distribution compares to training.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Multi-indicator cross-validation</strong></td>
+        <td>
+          10 factors and 5-condition entry count provide internal cross-checks.
+          A trend factor may be positive while volume divergence and RSI overbought
+          provide counterbalancing signals, resulting in a cautious net position.
+        </td>
+        <td>
+          Single indicator (linear slope). No ability to cross-validate the signal
+          against other information sources.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.3.2 Scenario Analysis: Where Drift Fails</h4>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:25%">Market Scenario</th>
+        <th style="width:37%">Drift Outcome</th>
+        <th style="width:38%">SM Outcome</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Mean-reverting / Sideways market</strong></td>
+        <td>
+          If training had a slight positive drift, Drift stays fully long through
+          extended sideways action. Accumulated opportunity cost from holding a
+          non-trending asset without any signal to exit.
+        </td>
+        <td>
+          Low ADX indicates no clear trend; momentum factors near zero; entry count
+          likely below threshold. SM stays flat or at minimal tiers, avoiding the
+          drag of holding in a non-directional market.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Trend reversal (bull &rarr; bear)</strong></td>
+        <td>
+          Training-period positive slope keeps Drift fully long as the market declines.
+          Drift has <em>no exit mechanism</em>, leading to catastrophic drawdowns.
+        </td>
+        <td>
+          Momentum factors flip negative rapidly (short-term momentum responds within
+          5&ndash;20 days). MACD histogram turns negative. ATR stop-loss triggers if
+          the decline is sufficiently sharp. SM exits or reduces to minimal position.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Structural break (e.g., new regulation, pandemic)</strong></td>
+        <td>
+          Historical slope becomes completely irrelevant. Drift continues the pre-break
+          assumption with no correction mechanism.
+        </td>
+        <td>
+          Rolling indicators adapt within 1&ndash;2 window lengths (&asymp;&thinsp;30&ndash;60
+          days). While there is an adaptation lag, SM eventually recalibrates to the
+          new regime, unlike Drift which never adjusts.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.3.3 Core Insight</h4>
+  <p class="callout-insight">
+    <strong>In mean-reverting or sideways markets, Drift&rsquo;s linear extrapolation
+    fails completely</strong>, while SM&rsquo;s multi-factor approach can still identify
+    selective entry opportunities by detecting short-term momentum bursts, volume
+    confirmations, and favourable risk conditions even within a trendless macro
+    environment. The fundamental limitation of Drift is its <em>stationarity
+    assumption</em> &mdash; that the training-period trend will persist &mdash; which is
+    violated precisely when the information would be most valuable (i.e., at regime
+    transitions). SM&rsquo;s rolling-window indicators and real-time multi-signal
+    confirmation provide a mechanism, however imperfect, for adapting to regime changes
+    that Drift cannot even detect.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 7.4  FSM vs SM                                                          -->
+  <!-- ====================================================================== -->
+  <h3 id="interp-fsm-sm">7.4 FSM vs SM</h3>
+  <p>
+    The <strong>Factor-Analysis Scoring Model (FSM)</strong>
+    (<code>core/fa_filter.py</code>) replaces SM&rsquo;s manually assigned factor weights
+    with data-driven loadings learned by scikit-learn&rsquo;s
+    <code>FactorAnalysis(n_components=3)</code>. During training, FA decomposes the
+    10&times;T factor matrix into 3 latent factors and learns the loading matrix that
+    best explains factor covariance. The resulting latent-factor scores are then used
+    for position sizing in place of SM&rsquo;s weighted composite score.
+  </p>
+
+  <h4>7.4.1 Structural Advantages of FSM over SM</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Advantage</th><th>Explanation</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Cross-factor correlation learning</strong></td>
+        <td>
+          FA explicitly models the covariance structure among the 10 factors. If, for
+          example, short-term momentum and MACD histogram are highly correlated for a
+          given stock (which is plausible since MACD is a filtered momentum signal), FA
+          can assign them to the same latent factor, effectively down-weighting the
+          redundant contribution. SM&rsquo;s manual weights treat them independently,
+          double-counting correlated information.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Optimal factor combination</strong></td>
+        <td>
+          The loading matrix is fit to maximise the explained covariance of the factor
+          returns. This means the combination weights are, in a maximum-likelihood sense,
+          the best linear combination for capturing the shared information structure of
+          the factors. SM&rsquo;s heuristic weights have no such optimality guarantee.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Dimensionality reduction</strong></td>
+        <td>
+          By projecting 10 factors onto 3 latent components, FSM reduces the effective
+          dimensionality of the signal space. This can improve noise robustness: the
+          idiosyncratic noise in individual factors (captured by FA&rsquo;s uniqueness
+          terms) is separated from the shared systematic signal.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Redundancy detection</strong></td>
+        <td>
+          If some factors carry no unique information beyond what is already captured
+          by others, FA effectively zeros out their contribution by assigning near-zero
+          loadings. SM cannot perform this detection without manual analysis.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.4.2 When FSM Underperforms SM</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Scenario</th><th>Explanation</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Distribution shift</strong></td>
+        <td>
+          FA loadings are learned from the training data. If the test period exhibits a
+          significantly different factor correlation structure (e.g., a regime change
+          where RSI and momentum decouple), the learned loadings may produce suboptimal
+          or even misleading scores. SM&rsquo;s fixed weights, while suboptimal, are at
+          least <em>stable</em> and do not degrade further under distribution shift.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Small training samples</strong></td>
+        <td>
+          FA requires sufficient data to estimate the 10&times;3 loading matrix plus
+          10 uniqueness terms (40 parameters). With fewer than ~200 training observations,
+          the covariance matrix estimate becomes noisy, and the learned loadings may
+          reflect sample-specific artefacts rather than true factor structure.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Non-stationarity of factor relationships</strong></td>
+        <td>
+          The covariance structure among factors is not constant over time. A loading
+          matrix fit on a trending market may not transfer to a mean-reverting market.
+          SM&rsquo;s weights, being heuristic, do not degrade in this specific way
+          (though they may be suboptimal in either regime).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Overfitting to training covariance</strong></td>
+        <td>
+          FA maximises in-sample fit. If the training period has an unusual correlation
+          pattern (e.g., an idiosyncratic event causing temporary factor co-movement),
+          the loadings will overfit to that pattern. This is the classic bias-variance
+          tradeoff: FSM has lower bias but higher variance than SM&rsquo;s fixed weights.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.4.3 Core Insight</h4>
+  <p class="callout-insight">
+    <strong>FSM&rsquo;s advantage lies in discovering the actual covariance structure of
+    the factor space and eliminating redundancy,</strong> whereas SM treats all factors
+    as independent inputs with manually assigned importance. However, this data-driven
+    advantage is a double-edged sword: the learned loadings are only as reliable as the
+    training data&rsquo;s representativeness. <strong>When training and test distributions
+    diverge significantly, SM&rsquo;s fixed heuristic weights may prove more robust than
+    FSM&rsquo;s learned weights,</strong> because the heuristic weights encode general
+    domain knowledge (e.g., &ldquo;momentum matters&rdquo;) that remains directionally
+    correct even when the precise covariance structure changes.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 7.5  Optimized SM (Bayesian/Random/Genetic) vs Default SM               -->
+  <!-- ====================================================================== -->
+  <h3 id="interp-optimized-sm">7.5 Optimized SM (Bayesian / Random / Genetic) vs Default SM</h3>
+  <p>
+    The parameter optimization module (<code>core/optimization.py</code>) searches a
+    23+&thinsp;dimensional parameter space to find settings that maximise a composite
+    objective for a specific stock. Three search strategies are available: Bayesian
+    optimization (TPE via Optuna), Random search, and Genetic algorithm. The
+    <strong>default SM</strong> uses hand-tuned parameters designed to be reasonable
+    across a broad range of stocks, whereas the <strong>optimized SM</strong> tailors
+    parameters to the specific characteristics of the target asset.
+  </p>
+
+  <h4>7.5.1 Optimization Mechanism</h4>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:22%">Component</th>
+        <th>Detail</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Search space</strong></td>
+        <td>
+          Includes factor weights (<code>weight_bb, weight_obv, weight_volume,
+          weight_price, weight_drawdown</code>), scoring thresholds
+          (<code>score_mid_pct, score_high_pct</code>), momentum windows
+          (<code>momentum_short, momentum_long</code>), indicator periods
+          (<code>rsi_period, adx_period, bb_period, atr_period</code>), entry/exit
+          counts (<code>entry_min_signals, exit_min_signals</code>), stop-loss/take-profit
+          multipliers (<code>stop_loss_mult, take_profit_mult</code>), and EMA periods
+          (<code>ema_fast, ema_slow</code>). Total &ge;&thinsp;23 hyperparameters.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Objective function</strong></td>
+        <td>
+          A composite score combining Sharpe ratio, total return, and maximum drawdown
+          penalty, with explicit anti-overfitting terms:
+          <ul>
+            <li>
+              <strong>Train&ndash;validation gap penalty:</strong>
+              <code>0.3 &times; |train_score &minus; val_score|</code> &mdash;
+              discourages parameter sets that perform well in-sample but degrade
+              out-of-sample.
+            </li>
+            <li>
+              <strong>Parameter regularization:</strong>
+              <code>0.02 &times; &Sigma;((param &minus; default) / range)&sup2;</code> &mdash;
+              penalises deviation from the hand-tuned defaults, acting as an L2
+              regularizer in parameter space that favours modest adjustments over
+              extreme departures.
+            </li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Bayesian optimization (TPE)</strong></td>
+        <td>
+          Tree-structured Parzen Estimator models the objective surface as a function
+          of hyperparameters, proposing new trials in regions with high expected
+          improvement. This efficiently navigates the 23-dimensional space, typically
+          converging in 100&ndash;300 trials. It is the recommended optimizer for
+          most use cases.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Random search</strong></td>
+        <td>
+          Uniform sampling across the search space. Serves as a baseline for optimizer
+          evaluation and can be surprisingly effective in high dimensions due to the
+          &ldquo;blessing of random projections.&rdquo; Generally requires more trials
+          than Bayesian to achieve comparable results.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Genetic algorithm</strong></td>
+        <td>
+          Population-based search with crossover and mutation operators. Can escape local
+          optima through recombination but convergence is slower. Most useful when the
+          objective landscape has multiple modes or when Bayesian optimization gets
+          trapped in a local basin.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.5.2 Why Optimized SM Outperforms Default SM</h4>
+  <ul>
+    <li>
+      <strong>Stock-specific tuning:</strong> Default parameters assume a &ldquo;generic
+      stock.&rdquo; In practice, optimal momentum windows, stop-loss multipliers, and
+      scoring thresholds vary significantly across assets. A high-beta tech stock may
+      benefit from shorter momentum windows and tighter stops, while a low-volatility
+      utility stock may need longer windows and wider stops. The optimizer discovers
+      these asset-specific relationships.
+    </li>
+    <li>
+      <strong>Factor weight rebalancing:</strong> Default factor weights may over-weight
+      or under-weight certain factors for a given stock. The optimizer can shift weight
+      toward factors that are actually predictive for the target asset (e.g., increasing
+      volume weight for liquid large-caps where volume is informative, or decreasing it
+      for illiquid small-caps where volume is noisy).
+    </li>
+    <li>
+      <strong>Entry/exit threshold calibration:</strong> The scoring percentile thresholds
+      (<code>score_mid_pct, score_high_pct</code>) and entry signal counts determine how
+      aggressively the strategy trades. Default settings may be too conservative for
+      trending assets (missing profits) or too aggressive for choppy assets (incurring
+      whipsaw losses). Optimization calibrates these thresholds to the observed
+      behaviour of the specific stock.
+    </li>
+  </ul>
+
+  <h4>7.5.3 Overfitting Risk and Mitigations</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Risk</th><th>Mitigation</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Curve fitting to historical patterns</strong></td>
+        <td>
+          The train&ndash;validation gap penalty (<code>0.3 &times; |gap|</code>)
+          directly penalises parameter sets whose in-sample performance does not
+          generalise. Additionally, the optimizer evaluates on a held-out validation
+          window that the model has never seen during training.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Extreme parameter values</strong></td>
+        <td>
+          The L2 regularization term (<code>0.02 &times; &Sigma;(deviation&sup2;)</code>)
+          anchors parameters near the hand-tuned defaults, preventing the optimizer from
+          finding pathological configurations (e.g., a 1-bar momentum window or a
+          0.1&times; stop-loss multiplier that trigger on every tick).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Look-ahead bias</strong></td>
+        <td>
+          The <code>model-test</code> pipeline enforces a strict train/validate/test
+          temporal split. The optimizer only sees training and validation data; the test
+          set is held out for final evaluation. Rolling robustness analysis in
+          <code>model-test</code> Stage B further tests whether optimized parameters
+          generalise across multiple time windows.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Optimizer search randomness</strong></td>
+        <td>
+          Random seeds are fixed (<code>random_state=42</code>) for reproducibility.
+          Multiple optimization runs can be compared to assess result stability.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.5.4 Optimizer Comparison: Bayesian vs Random vs Genetic</h4>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:20%">Criterion</th>
+        <th style="width:27%">Bayesian (TPE)</th>
+        <th style="width:27%">Random</th>
+        <th style="width:26%">Genetic</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Sample efficiency</strong></td>
+        <td>High &mdash; models the objective surface, focuses trials on promising regions.</td>
+        <td>Low &mdash; explores uniformly, many trials may land in poor regions.</td>
+        <td>Medium &mdash; population-based selection improves over generations.</td>
+      </tr>
+      <tr>
+        <td><strong>Handling of multi-modality</strong></td>
+        <td>Moderate &mdash; TPE uses mixture models, can represent multiple modes.</td>
+        <td>Good &mdash; uniform sampling naturally covers all modes.</td>
+        <td>Good &mdash; crossover can combine solutions from different basins.</td>
+      </tr>
+      <tr>
+        <td><strong>Scalability (23+ dims)</strong></td>
+        <td>Good &mdash; TPE handles high dimensions effectively with tree structure.</td>
+        <td>Degrades &mdash; curse of dimensionality means coverage becomes sparse.</td>
+        <td>Moderate &mdash; larger populations needed as dimensions increase.</td>
+      </tr>
+      <tr>
+        <td><strong>Convergence speed</strong></td>
+        <td>Fast &mdash; typically 100&ndash;300 trials for good results.</td>
+        <td>Slow &mdash; may need 500+ trials to match Bayesian quality.</td>
+        <td>Medium &mdash; 200&ndash;500 trials depending on population size.</td>
+      </tr>
+      <tr>
+        <td><strong>Typical ranking</strong></td>
+        <td>1st (best risk-adjusted scores in most evaluations).</td>
+        <td>3rd (baseline, but occasionally competitive).</td>
+        <td>2nd (good diversity, slightly slower convergence).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.5.5 Core Insight</h4>
+  <p class="callout-insight">
+    <strong>Parameter optimization tailors the strategy to the specific statistical
+    properties of the target asset,</strong> bridging the gap between generic defaults
+    and stock-specific optimal behaviour. <strong>The primary risk is overfitting</strong>,
+    which the pipeline mitigates through train&ndash;validation gap penalty
+    (<code>0.3&nbsp;&times;&nbsp;|gap|</code>), L2 parameter regularization
+    (<code>0.02&nbsp;&times;&nbsp;&Sigma;(dev&sup2;)</code>), and rolling robustness
+    validation. Among the three optimizers, <strong>Bayesian (TPE) typically dominates</strong>
+    due to its superior sample efficiency in navigating the 23+&thinsp;dimensional
+    parameter space, followed by Genetic and then Random. However, this ranking is not
+    universal: for stocks with noisy, multi-modal objective landscapes, Random and Genetic
+    may occasionally outperform Bayesian by avoiding local-optimum traps.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 7.6  SM + ML Filter vs SM alone                                         -->
+  <!-- ====================================================================== -->
+  <h3 id="interp-ml-filter">7.6 SM + ML Filter vs SM Alone</h3>
+  <p>
+    The <strong>ML filter layer</strong> (<code>core/ml_filter.py</code>) adds a
+    machine-learning classification stage on top of SM&rsquo;s signal generation. When SM
+    produces a buy signal, the ML filter evaluates whether the predicted trade is likely
+    to be profitable, and vetoes low-confidence entries. Two classifier options are
+    available: <strong>Logistic Regression</strong> and <strong>LightGBM</strong>.
+  </p>
+
+  <h4>7.6.1 ML Filter Architecture</h4>
+  <table>
+    <thead>
+      <tr><th style="width:22%">Component</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Feature set</strong></td>
+        <td>
+          28 features comprising: the 10 normalised factor scores, the 10 raw indicator
+          values (RSI, ADX, MACD, etc.), the 5 entry-count condition flags, the
+          composite factor score, the factor-score percentile, and the current
+          volatility percentile.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Label definition</strong></td>
+        <td>
+          Binary label: 1 if the trade initiated at bar <var>t</var> would have yielded
+          a positive return over the subsequent holding period (determined by SM&rsquo;s
+          exit logic); 0 otherwise. Labels are constructed using forward-looking returns
+          from the training period only (no test-period leakage).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Logistic Regression</strong></td>
+        <td>
+          Linear model with L2 regularization. Fast to train, highly interpretable
+          (coefficient signs indicate feature importance). Well-suited for capturing
+          linear interactions between features. Cannot capture non-linear feature
+          interactions.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>LightGBM</strong></td>
+        <td>
+          Gradient-boosted decision tree ensemble. Can capture non-linear interactions
+          (e.g., &ldquo;high RSI AND low volume ratio &rarr; likely reversal&rdquo;)
+          that linear models miss. Higher capacity but greater overfitting risk.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Decision threshold</strong></td>
+        <td>
+          The ML filter vetoes entries where <code>P(profitable) &lt; threshold</code>.
+          The threshold balances precision (fraction of allowed trades that are winners)
+          against recall (fraction of all potential winning trades that are allowed).
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.6.2 Why ML Filter Improves SM</h4>
+  <ul>
+    <li>
+      <strong>Non-linear interaction capture:</strong> SM&rsquo;s composite score is a
+      linear weighted sum. The ML filter (especially LightGBM) can learn non-linear
+      decision boundaries, such as &ldquo;enter only when momentum is positive AND
+      volatility is below the 60th percentile AND volume ratio &gt;&thinsp;1.2&rdquo;,
+      which are conjunction rules that a linear score cannot represent.
+    </li>
+    <li>
+      <strong>Feature-level precision:</strong> The ML model has access to the raw
+      feature values (not just the normalised scores), enabling it to detect regime-
+      specific patterns that normalization may obscure. For example, the raw ADX level
+      (20 vs. 40) carries information about trend strength that the Z-score version
+      may compress.
+    </li>
+    <li>
+      <strong>Trade-level selectivity:</strong> SM generates signals at the bar level
+      (position size per bar); the ML filter operates at the <em>trade initiation</em>
+      level, asking &ldquo;should we start this specific trade?&rdquo; This additional
+      layer of selectivity can eliminate the lowest-quality entries without affecting
+      the management of trades that are allowed through.
+    </li>
+    <li>
+      <strong>Learned from outcome data:</strong> Unlike SM&rsquo;s rule-based approach,
+      the ML filter is trained on <em>actual trade outcomes</em>. It learns from the
+      historical record which combinations of entry conditions led to profitable trades
+      and which did not, providing an empirical rather than theoretical basis for entry
+      decisions.
+    </li>
+  </ul>
+
+  <h4>7.6.3 When ML Filter Hurts Performance</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Failure Mode</th><th>Explanation</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Over-aggressive filtering</strong></td>
+        <td>
+          If the probability threshold is set too high, the filter vetoes too many trades,
+          including profitable ones. This manifests as high precision but low recall: the
+          few trades that pass are mostly winners, but total return suffers because too
+          many opportunities are missed. This is the <em>precision&ndash;recall
+          tradeoff</em>.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Training sample imbalance</strong></td>
+        <td>
+          If the training period has a disproportionate number of winning or losing trades
+          (e.g., a strong bull market where nearly all entries are profitable), the
+          classifier may learn a trivially permissive or restrictive rule that does not
+          generalise.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Overfitting to training patterns</strong></td>
+        <td>
+          LightGBM&rsquo;s high capacity allows it to memorise idiosyncratic training-
+          period patterns. Without proper regularization (early stopping, max depth
+          limits, min child weight), the learned model may not transfer to the test
+          period.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Interaction with SM changes</strong></td>
+        <td>
+          The ML filter is trained on features generated by a <em>specific</em> SM
+          parameterization. If SM parameters are subsequently optimized (Section&nbsp;7.5),
+          the feature distribution shifts, potentially degrading ML filter accuracy. The
+          correct workflow is to train the ML filter <em>after</em> parameter
+          optimization, using the optimized SM&rsquo;s features.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.6.4 Precision&ndash;Recall Analysis</h4>
+  <p>
+    The fundamental tradeoff of the ML filter can be visualised as a precision&ndash;recall
+    curve. Key operating points include:
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:18%">Threshold</th>
+        <th style="width:18%">Precision</th>
+        <th style="width:18%">Recall</th>
+        <th style="width:46%">Effect on Strategy</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Low (0.3)</td>
+        <td>Low</td>
+        <td>High</td>
+        <td>
+          Filter is permissive &mdash; most SM entries are allowed. Minimal
+          improvement over SM alone, but also minimal opportunity cost.
+        </td>
+      </tr>
+      <tr>
+        <td>Medium (0.5)</td>
+        <td>Moderate</td>
+        <td>Moderate</td>
+        <td>
+          Balanced operating point. Filter removes the weakest entries,
+          improving win rate and Sharpe, while retaining most profitable trades.
+        </td>
+      </tr>
+      <tr>
+        <td>High (0.7)</td>
+        <td>High</td>
+        <td>Low</td>
+        <td>
+          Filter is aggressive &mdash; only high-confidence entries pass. Win rate
+          is excellent but total return may suffer from too few trades. Best
+          suited for risk-averse objectives.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.6.5 Core Insight</h4>
+  <p class="callout-insight">
+    <strong>The ML filter adds a learned, non-linear decision layer on top of SM&rsquo;s
+    rule-based signal,</strong> capturing feature interactions that the linear composite
+    score cannot represent. Its value lies in selectively <em>removing</em> low-quality
+    entries rather than generating new signals. However, <strong>the filter&rsquo;s
+    effectiveness is bounded by the precision&ndash;recall tradeoff</strong>: too
+    aggressive, and it eliminates profitable trades along with unprofitable ones; too
+    permissive, and it adds computational overhead without meaningful improvement. The
+    optimal threshold depends on the investor&rsquo;s risk preference and the
+    base rate of profitable signals in SM&rsquo;s output.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 7.7  Adaptive Regime Router vs Static Strategy                          -->
+  <!-- ====================================================================== -->
+  <h3 id="interp-adaptive-regime">7.7 Adaptive Regime Router vs Static Strategy</h3>
+  <p>
+    The <strong>Adaptive Regime Router</strong>
+    (<code>core/adaptive_regime.py</code>) represents the highest level of strategy
+    sophistication in the pipeline. Rather than applying a single strategy uniformly
+    across all market conditions, it dynamically selects from a pool of candidate
+    strategies based on the detected market regime. This approach is grounded in the
+    empirical observation that no single strategy dominates across all market conditions.
+  </p>
+
+  <h4>7.7.1 Regime Router Architecture</h4>
+  <table>
+    <thead>
+      <tr><th style="width:22%">Component</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>State features</strong></td>
+        <td>
+          19 features characterising the current market state, including: trend indicators
+          (EMA slope, price momentum at multiple horizons), volatility measures
+          (realised volatility, ATR percentile, volatility regime flag), volume profile
+          (volume ratio, OBV trend), oscillator readings (RSI level, ADX strength),
+          and structural indicators (drawdown depth, Bollinger Band position,
+          mean-reversion probability).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>State clustering</strong></td>
+        <td>
+          <code>MiniBatchKMeans(n_clusters=6)</code> groups historical bars into 6
+          distinct market states based on the 19-feature state vector. The 6 states
+          typically correspond to: strong uptrend, moderate uptrend, sideways/choppy,
+          moderate downtrend, strong downtrend, and high-volatility crisis. The use
+          of MiniBatchKMeans (rather than full KMeans) enables incremental updates
+          as new data arrives.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>State classifier</strong></td>
+        <td>
+          <code>LogisticRegression(multi_class=&rsquo;multinomial&rsquo;)</code> is
+          trained to predict the cluster label from the 19-feature vector. At inference
+          time, the classifier assigns the current bar to one of the 6 states,
+          determining which strategy to route to. Logistic regression is chosen for
+          its speed, interpretability, and resistance to overfitting (relative to
+          tree-based alternatives).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Per-state strategy routing</strong></td>
+        <td>
+          Each of the 6 states is mapped to the strategy variant (from the candidate
+          pool) that achieved the best risk-adjusted performance during training
+          periods when that state was active. Candidate strategies include: default SM,
+          optimized SM (various optimizer outputs), FSM, and conservative (flat)
+          positions.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Routing logic</strong></td>
+        <td>
+          On each bar: (1)&nbsp;compute the 19 state features; (2)&nbsp;classify the
+          current state via the logistic regression classifier; (3)&nbsp;look up the
+          routed strategy for that state; (4)&nbsp;apply the routed strategy&rsquo;s
+          signal generation and position sizing. This creates a dynamic, state-contingent
+          composite strategy.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.7.2 Why Adaptive Routing Outperforms Static Strategies</h4>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%">Market Condition</th>
+        <th style="width:36%">Static Strategy Behaviour</th>
+        <th style="width:36%">Adaptive Router Behaviour</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Strong uptrend</strong></td>
+        <td>
+          Default SM may be too conservative (volatility discount, cautious entry counts).
+          Misses a portion of the move.
+        </td>
+        <td>
+          Routes to an aggressive, trend-following SM variant with wider stops
+          and lower entry thresholds. Captures more of the trend.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Choppy sideways</strong></td>
+        <td>
+          SM generates conflicting signals, may whipsaw between small positions.
+          Accumulated small losses erode capital.
+        </td>
+        <td>
+          Routes to a conservative or flat strategy for the sideways state,
+          avoiding whipsaw. Alternatively, may route to a mean-reversion
+          variant if range-bound oscillations are tradeable.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>High-volatility crisis</strong></td>
+        <td>
+          SM&rsquo;s 0.7&times; volatility discount provides partial protection,
+          but the strategy is still partially invested and exposed to tail risk.
+        </td>
+        <td>
+          Routes to a defensive strategy (possibly fully flat) during crisis
+          states, providing complete capital preservation during the most
+          dangerous periods.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Post-crash recovery</strong></td>
+        <td>
+          SM&rsquo;s momentum factors are deeply negative from the crash, entry
+          counts fail, and the strategy remains flat during the initial recovery
+          &mdash; a costly miss.
+        </td>
+        <td>
+          The state classifier detects the shift from crisis to moderate-uptrend
+          as volatility normalises and momentum turns, routing to a trend-following
+          strategy that participates in the recovery.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Regime transition</strong></td>
+        <td>
+          SM adapts slowly via rolling windows (30&ndash;60 day lag). Position sizing
+          changes gradually, potentially holding losing positions during the transition.
+        </td>
+        <td>
+          The logistic classifier can detect state transitions within a few bars
+          (since it uses point-in-time features, not rolling averages). Strategy
+          routing can change immediately, potentially reducing transition losses.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.7.3 Limitations of the Adaptive Router</h4>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Limitation</th><th>Impact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>State classification error</strong></td>
+        <td>
+          The logistic regression classifier is not perfect. Misclassifying a trending
+          market as sideways (or vice versa) leads to routing the wrong strategy,
+          potentially worse than a static approach that is at least consistently
+          applied.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Transition whipsaw</strong></td>
+        <td>
+          At state boundaries, the classifier may oscillate between adjacent states on
+          consecutive bars, causing rapid strategy switching. Each switch incurs a
+          virtual &ldquo;cost&rdquo; as the new strategy&rsquo;s parameters and signals
+          may conflict with the outgoing strategy&rsquo;s positions.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Training data requirements</strong></td>
+        <td>
+          The router requires sufficient historical data in <em>each</em> of the 6
+          states to evaluate candidate strategies per state. If a state is rare in the
+          training data (e.g., a crisis state), the per-state strategy selection is
+          based on limited evidence and may be unreliable.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Increased model complexity</strong></td>
+        <td>
+          The adaptive router adds two models (KMeans + LogisticRegression) and a routing
+          table on top of the already complex SM/FSM pipeline. This increases the
+          potential for unexpected interactions, makes debugging harder, and requires
+          more careful serialization/deserialization of artefacts
+          (<code>regime_artifacts/</code>).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Non-stationarity of states</strong></td>
+        <td>
+          The 6 states are learned from training data. In genuinely novel market
+          conditions (e.g., a market event unlike anything in training), the current
+          bar&rsquo;s feature vector may fall far from any known cluster centroid,
+          leading to arbitrary state assignment.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.7.4 Core Insight</h4>
+  <p class="callout-insight">
+    <strong>No single strategy is optimal across all market conditions.</strong> The
+    adaptive regime router&rsquo;s value comes not from any individual strategy being
+    universally superior, but from the ability to <strong>switch</strong> between
+    strategies as conditions change. Trend-following strategies excel in directional
+    markets; conservative strategies protect in crises; mean-reversion variants can
+    extract value in range-bound markets. By using 19 state features and 6 clustered
+    regimes to match conditions to strategies, the adaptive router <strong>turns the
+    strategy selection problem from a static, one-time decision into a dynamic,
+    continuous optimization</strong>. This meta-level adaptivity is the single largest
+    source of improvement in the pipeline hierarchy, because it addresses the most
+    fundamental limitation of any static strategy: the assumption that one set of rules
+    works everywhere.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 7.8  Cross-Model Performance Hierarchy                                  -->
+  <!-- ====================================================================== -->
+  <h3 id="interp-hierarchy">7.8 Cross-Model Performance Hierarchy</h3>
+  <p>
+    Synthesizing the pairwise comparisons above, we can construct a <strong>typical
+    performance hierarchy</strong> observed across offline research runs in
+    <code>model-test/</code>. This ranking represents the <em>expected</em> ordering
+    based on observed patterns; individual stocks or market periods may produce
+    deviations.
+  </p>
+
+  <h4>7.8.1 Typical Performance Ranking</h4>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:6%">Rank</th>
+        <th style="width:30%">Model / Variant</th>
+        <th style="width:18%">Typical Sharpe</th>
+        <th style="width:46%">Key Driver</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>1</strong></td>
+        <td>Adaptive Regime Router</td>
+        <td>Highest risk-adjusted</td>
+        <td>
+          Dynamic strategy selection matched to current market state. Captures
+          regime-specific alpha while avoiding regime-mismatched losses. The meta-level
+          switching provides the largest marginal improvement over any static strategy.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>2</strong></td>
+        <td>Optimized FSM/SM + ML Filter</td>
+        <td>High</td>
+        <td>
+          Combines stock-specific parameter tuning (Section&nbsp;7.5), data-driven factor
+          weighting (Section&nbsp;7.4), and learned trade selection (Section&nbsp;7.6) into
+          a multi-layered improvement stack. Each layer addresses a different source of
+          suboptimality.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>3</strong></td>
+        <td>Optimized SM (Bayesian &gt; Genetic &gt; Random)</td>
+        <td>Above average</td>
+        <td>
+          Stock-specific parameter tuning captures asset-specific dynamics that default
+          parameters miss. Bayesian TPE is the most sample-efficient optimizer, followed
+          by Genetic and Random. The gap between optimizers is typically smaller than the
+          gap between optimized and default.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>4</strong></td>
+        <td>Default SM / Default FSM</td>
+        <td>Moderate</td>
+        <td>
+          Multi-factor signal generation, entry filtering, position sizing, and risk
+          management provide a solid foundation. Default parameters are reasonable but not
+          stock-specific. FSM and SM are roughly comparable on average, with FSM having an
+          edge when factor correlations are stable and SM having an edge when they shift.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>5</strong></td>
+        <td>Mean Baseline</td>
+        <td>Low&ndash;moderate</td>
+        <td>
+          Single-signal trend following provides some value over buy-and-hold by exiting
+          during sustained downtrends. However, whipsaw in sideways markets and lack of
+          risk management cap its risk-adjusted performance.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>6</strong></td>
+        <td>Drift Baseline</td>
+        <td>Variable (market-dependent)</td>
+        <td>
+          Performance is entirely dependent on whether the test period continues the
+          training-period trend. In trend-continuation scenarios, Drift can match or
+          exceed Mean. In trend-reversal scenarios, Drift fails catastrophically.
+          Its variance across evaluations is typically the highest of all models.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>7</strong></td>
+        <td>Naive Baseline (Buy-and-Hold)</td>
+        <td>Market &beta; dependent</td>
+        <td>
+          Returns equal the underlying market return. Useful only as a reference point.
+          In strong bull markets, Naive may outperform some active strategies on total
+          return, but its Sharpe ratio is typically lower due to bearing all market risk.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.8.2 Marginal Improvement Analysis</h4>
+  <p>
+    The ranking above reflects not only absolute performance but the <em>marginal
+    contribution</em> of each architectural enhancement:
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30%">Enhancement Layer</th>
+        <th style="width:20%">Compared To</th>
+        <th style="width:50%">Source of Marginal Improvement</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Multi-factor scoring (SM)</td>
+        <td>Naive / Mean / Drift</td>
+        <td>
+          Richer information set (10 factors vs. 0&ndash;1), entry filtering, gradual
+          position sizing, ATR risk management, volatility discount. Primary gain: loss
+          avoidance via selective participation.
+        </td>
+      </tr>
+      <tr>
+        <td>Factor Analysis (FSM)</td>
+        <td>Default SM</td>
+        <td>
+          Learned factor weights that account for correlation structure and eliminate
+          redundancy. Primary gain: better signal extraction from the existing factor set
+          without adding new information.
+        </td>
+      </tr>
+      <tr>
+        <td>Parameter optimization</td>
+        <td>Default SM/FSM</td>
+        <td>
+          Stock-specific calibration of windows, thresholds, weights, and stops. Primary
+          gain: adapting the strategy&rsquo;s operating parameters to the target
+          asset&rsquo;s statistical properties.
+        </td>
+      </tr>
+      <tr>
+        <td>ML filter</td>
+        <td>Optimized SM/FSM</td>
+        <td>
+          Non-linear trade-level selection. Primary gain: removing the lowest-quality
+          entries that linear scoring admits, improving win rate at potential cost of
+          missed opportunities.
+        </td>
+      </tr>
+      <tr>
+        <td>Adaptive regime routing</td>
+        <td>All static variants</td>
+        <td>
+          State-contingent strategy selection. Primary gain: matching strategy behaviour
+          to current market conditions, addressing the fundamental limitation that no
+          single strategy dominates all regimes.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>7.8.3 Conditions Under Which the Hierarchy Inverts</h4>
+  <p>
+    While the ranking above holds in the <em>majority</em> of observed cases, specific
+    conditions can cause inversions:
+  </p>
+  <ul>
+    <li>
+      <strong>Strong, uninterrupted bull market:</strong> Naive outperforms SM on total
+      return because SM&rsquo;s conservative entry filtering and position sizing cause
+      it to miss portions of the rally. However, SM still typically wins on risk-adjusted
+      metrics.
+    </li>
+    <li>
+      <strong>Training &ne; test distribution:</strong> Optimized and ML-filtered variants
+      can underperform their default counterparts if the test period is structurally
+      different from the training period. The learned parameters and decision boundaries
+      may not transfer.
+    </li>
+    <li>
+      <strong>Very short test period:</strong> With fewer than ~60 trading days, the
+      adaptive router has insufficient bars to demonstrate its regime-switching advantage.
+      In short windows dominated by a single regime, a static strategy matched to that
+      regime may outperform the router (which incurs overhead from the classification
+      step).
+    </li>
+    <li>
+      <strong>Extremely low-liquidity assets:</strong> Volume-based factors (OBV trend,
+      volume ratio) become noisy for illiquid stocks, degrading SM&rsquo;s composite
+      score quality. In extreme cases, the simpler Mean baseline (which ignores volume)
+      may be more reliable.
+    </li>
+    <li>
+      <strong>Novel market regimes:</strong> If the test period contains a market
+      condition truly unlike anything in training (e.g., unprecedented regulatory event),
+      all learned models (FSM, optimized SM, ML filter, adaptive router) may degrade,
+      and the simplest rules (Naive, Mean) may be the most resilient by virtue of making
+      no data-dependent assumptions.
+    </li>
+  </ul>
+
+  <h4>7.8.4 Summary of Interpretation Framework</h4>
+  <p>
+    The performance differences across the model hierarchy are explained by four
+    fundamental mechanisms:
+  </p>
+  <ol>
+    <li>
+      <strong>Information richness:</strong> Models that consume more orthogonal
+      information sources (10 factors vs. 1 signal vs. 0) make better-informed decisions.
+      SM &gt; Mean &gt; Drift &gt; Naive on this dimension.
+    </li>
+    <li>
+      <strong>Risk management intensity:</strong> Models with more layers of risk control
+      (ATR stops, entry filtering, volatility discount, position sizing) better preserve
+      capital during adverse conditions. The compounding benefit of capital preservation
+      is the primary driver of long-term outperformance. SM &gt; Mean &gt; Naive &cong; Drift
+      on this dimension.
+    </li>
+    <li>
+      <strong>Adaptability:</strong> Models that can adjust their behaviour to current
+      conditions outperform those that apply a fixed rule. Adaptive Router &gt;
+      Optimized SM &gt; Default SM &gt; Baselines on this dimension.
+    </li>
+    <li>
+      <strong>Learning from data:</strong> Models that learn from historical outcomes
+      (FSM, ML filter, optimizer) can capture patterns that hand-crafted rules miss, at
+      the cost of potential overfitting. This is the classic bias-variance tradeoff:
+      more learning capacity improves in-distribution performance but increases
+      out-of-distribution risk.
+    </li>
+  </ol>
+  <p>
+    The optimal model choice depends on the investor&rsquo;s beliefs about the
+    stationarity of market dynamics, the amount of available training data, and the
+    acceptable level of model complexity. For most practical purposes, the
+    <strong>Bayesian-optimized SM with ML filter, deployed within an adaptive regime
+    router</strong>, represents the best-available configuration in this pipeline,
+    provided sufficient training data is available and the user is prepared to accept
+    the additional complexity and monitoring requirements.
+  </p>
+
+</section>

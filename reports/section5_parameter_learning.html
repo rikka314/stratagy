@@ -1,0 +1,967 @@
+<section id="section-5-parameter-learning">
+  <h2>5. Parameter Learning &amp; WebApp Adjustability</h2>
+  <p>
+    This section addresses <strong>Requirement&nbsp;5</strong> of the AIE1902 course project: <em>&ldquo;Briefly
+    describe how the parameters of the models are learned. Some important parameters should be adjustable in
+    your webapp.&rdquo;</em> We provide an exhaustive treatment covering (i)&nbsp;the full search parameter space
+    and its validity constraints, (ii)&nbsp;the composite objective function with regularization, (iii)&nbsp;three
+    distinct optimization methods (Bayesian, Random Search, Genetic Algorithm), (iv)&nbsp;factor analysis and ML
+    filter training, (v)&nbsp;adaptive regime model training, and (vi)&nbsp;how every key parameter is exposed to
+    the end user through the Streamlit web application&rsquo;s interactive sidebar.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 5.1  Strategy Parameter Space                                           -->
+  <!-- ====================================================================== -->
+  <h3 id="param-space">5.1 Strategy Parameter Search Space (30+ Parameters)</h3>
+  <p>
+    <strong>Implementation:</strong> <code>core/optimizer.py</code> &mdash; constant
+    <code>SEARCH_PARAM_SPACE</code> (lines&nbsp;56&ndash;68), which extends
+    <code>LEGACY_SEARCH_PARAM_SPACE</code> (lines&nbsp;30&ndash;54).
+  </p>
+  <p>
+    Each entry in the search space is a 4-tuple
+    <code>(default, lo, hi, type)</code> where <code>default</code> is the initial value,
+    <code>lo</code> and <code>hi</code> define the search bounds, and <code>type &isin; {int, float, bool}</code>
+    specifies the parameter data type.
+    The optimizer samples candidate vectors from this space and evaluates them via
+    the backtest pipeline. The table below lists every parameter, organized by functional group.
+  </p>
+
+  <h4>5.1.1 Complete Parameter Table</h4>
+  <table>
+    <thead>
+      <tr>
+        <th>Group</th>
+        <th>Parameter</th>
+        <th>Type</th>
+        <th>Default</th>
+        <th>Min</th>
+        <th>Max</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Trend -->
+      <tr><td rowspan="2"><strong>EMA Trend</strong></td>
+        <td><code>ema_fast</code></td><td>int</td><td>12</td><td>5</td><td>50</td>
+        <td>Fast EMA period for trend detection; a shorter value increases sensitivity to recent price action.</td></tr>
+      <tr><td><code>ema_slow</code></td><td>int</td><td>60</td><td>20</td><td>200</td>
+        <td>Slow EMA period; defines the longer-term trend baseline against which the fast EMA is compared.</td></tr>
+      <!-- MACD -->
+      <tr><td rowspan="3"><strong>MACD</strong></td>
+        <td><code>macd_fast</code></td><td>int</td><td>12</td><td>5</td><td>20</td>
+        <td>Short-period EMA used in MACD line calculation.</td></tr>
+      <tr><td><code>macd_slow</code></td><td>int</td><td>26</td><td>10</td><td>40</td>
+        <td>Long-period EMA used in MACD line calculation.</td></tr>
+      <tr><td><code>macd_signal</code></td><td>int</td><td>9</td><td>5</td><td>20</td>
+        <td>Signal-line EMA period applied to the MACD line.</td></tr>
+      <!-- RSI -->
+      <tr><td rowspan="3"><strong>RSI</strong></td>
+        <td><code>rsi_period</code></td><td>int</td><td>14</td><td>5</td><td>30</td>
+        <td>Wilder-style RSI look-back window (EWMA, &alpha; = 1/period).</td></tr>
+      <tr><td><code>rsi_lower</code></td><td>float</td><td>30.0</td><td>10</td><td>50</td>
+        <td>RSI threshold below which the market is considered oversold (entry filter).</td></tr>
+      <tr><td><code>rsi_upper</code></td><td>float</td><td>70.0</td><td>50</td><td>90</td>
+        <td>RSI threshold above which the market is considered overbought (exit filter).</td></tr>
+      <!-- ADX -->
+      <tr><td rowspan="2"><strong>ADX</strong></td>
+        <td><code>adx_period</code></td><td>int</td><td>14</td><td>5</td><td>30</td>
+        <td>ADX calculation period; measures trend strength irrespective of direction.</td></tr>
+      <tr><td><code>adx_threshold</code></td><td>float</td><td>20.0</td><td>10</td><td>35</td>
+        <td>Minimum ADX value to confirm a trend is &ldquo;strong enough&rdquo; for entry.</td></tr>
+      <!-- ATR / Risk -->
+      <tr><td rowspan="3"><strong>ATR &amp; Risk</strong></td>
+        <td><code>atr_period</code></td><td>int</td><td>14</td><td>5</td><td>30</td>
+        <td>Average True Range look-back window used for volatility-based stop/take-profit.</td></tr>
+      <tr><td><code>stop_loss_mult</code></td><td>float</td><td>2.0</td><td>0.5</td><td>4.0</td>
+        <td>Multiplier applied to ATR to set the stop-loss distance: <code>stop = entry &minus; stop_loss_mult &times; ATR</code>.</td></tr>
+      <tr><td><code>take_profit_mult</code></td><td>float</td><td>4.0</td><td>1.0</td><td>6.0</td>
+        <td>Multiplier applied to ATR to set the take-profit distance: <code>target = entry + take_profit_mult &times; ATR</code>.</td></tr>
+      <!-- Bollinger -->
+      <tr><td rowspan="3"><strong>Bollinger Bands</strong></td>
+        <td><code>bb_period</code></td><td>int</td><td>20</td><td>5</td><td>50</td>
+        <td>Moving-average window for Bollinger Band center line.</td></tr>
+      <tr><td><code>bb_std</code></td><td>float</td><td>2.0</td><td>1.0</td><td>3.0</td>
+        <td>Standard-deviation multiplier for upper/lower Bollinger bands.</td></tr>
+      <tr><td><code>indicator_period</code></td><td>int</td><td>20</td><td>5</td><td>60</td>
+        <td>Common look-back window for OBV, volume-ratio and price-position rank indicators.</td></tr>
+      <!-- Scoring -->
+      <tr><td rowspan="5"><strong>Factor Scoring</strong></td>
+        <td><code>momentum_short</code></td><td>int</td><td>5</td><td>3</td><td>15</td>
+        <td>Short-term return look-back for Factor&nbsp;1 (short momentum Z-score).</td></tr>
+      <tr><td><code>momentum_long</code></td><td>int</td><td>20</td><td>10</td><td>60</td>
+        <td>Mid-term return look-back for Factor&nbsp;2 (long momentum Z-score).</td></tr>
+      <tr><td><code>score_lookback</code></td><td>int</td><td>30</td><td>10</td><td>80</td>
+        <td>Rolling window used for Z-score and rank normalization of all 10 factors.</td></tr>
+      <tr><td><code>score_mid_pct</code></td><td>float</td><td>0.6</td><td>0.40</td><td>0.75</td>
+        <td>Percentile threshold above which position sizing begins to increase from zero.</td></tr>
+      <tr><td><code>score_high_pct</code></td><td>float</td><td>0.8</td><td>0.60</td><td>0.95</td>
+        <td>Percentile threshold above which the model assigns full (1.0) position.</td></tr>
+      <!-- Entry / Exit -->
+      <tr><td rowspan="4"><strong>Entry &amp; Exit Rules</strong></td>
+        <td><code>entry_min_signals</code></td><td>int</td><td>3</td><td>1</td><td>5</td>
+        <td>Minimum number of confirming conditions (trend, strength, RSI, MACD, factor score) required to open a position.</td></tr>
+      <tr><td><code>exit_min_signals</code></td><td>int</td><td>2</td><td>1</td><td>4</td>
+        <td>Minimum number of deterioration signals required to close a position.</td></tr>
+      <tr><td><code>entry_threshold</code></td><td>float</td><td>0.5</td><td>&minus;1.0</td><td>2.0</td>
+        <td>Composite factor score threshold above which a position may be entered.</td></tr>
+      <tr><td><code>exit_threshold</code></td><td>float</td><td>&minus;0.5</td><td>&minus;2.0</td><td>0.5</td>
+        <td>Composite factor score threshold below which a position is exited.</td></tr>
+      <!-- Factor Weights -->
+      <tr><td rowspan="5"><strong>Phase-1 Factor Weights</strong></td>
+        <td><code>weight_bb</code></td><td>float</td><td>0.8</td><td>0.0</td><td>2.0</td>
+        <td>Contribution weight of Bollinger Band position in the composite factor score.</td></tr>
+      <tr><td><code>weight_obv</code></td><td>float</td><td>1.0</td><td>0.0</td><td>2.0</td>
+        <td>Contribution weight of On-Balance Volume trend rank.</td></tr>
+      <tr><td><code>weight_volume</code></td><td>float</td><td>0.6</td><td>0.0</td><td>1.5</td>
+        <td>Contribution weight of volume-ratio rank.</td></tr>
+      <tr><td><code>weight_price</code></td><td>float</td><td>0.7</td><td>0.0</td><td>1.5</td>
+        <td>Contribution weight of price-position rank (52-week range context).</td></tr>
+      <tr><td><code>weight_drawdown</code></td><td>float</td><td>0.5</td><td>0.0</td><td>1.5</td>
+        <td>Contribution weight of drawdown penalty rank.</td></tr>
+      <!-- Boolean Filters -->
+      <tr><td rowspan="3"><strong>Boolean Filters</strong></td>
+        <td><code>use_strength_filter</code></td><td>bool</td><td>True</td><td>False</td><td>True</td>
+        <td>Enable/disable ADX trend-strength confirmation in entry counting.</td></tr>
+      <tr><td><code>use_rsi_filter</code></td><td>bool</td><td>True</td><td>False</td><td>True</td>
+        <td>Enable/disable RSI-zone check in entry counting.</td></tr>
+      <tr><td><code>use_macd_filter</code></td><td>bool</td><td>True</td><td>False</td><td>True</td>
+        <td>Enable/disable MACD-above-signal confirmation in entry counting.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    In total this yields <strong>33 searchable parameters</strong> spanning 24 continuous
+    (int/float) and 3 boolean dimensions. An additional 5 factor weights
+    (<code>weight_mom_short</code>, <code>weight_mom_long</code>, <code>weight_macd</code>,
+    <code>weight_rsi</code>, <code>weight_vol</code>) are adjustable in the sidebar but
+    are passed through as fixed common arguments (not part of the optimization search space)
+    to reduce dimensionality during automated search.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 5.1.2  Validity Constraints                                             -->
+  <!-- ====================================================================== -->
+  <h4 id="validity-constraints">5.1.2 Validity Constraints</h4>
+  <p>
+    <strong>Implementation:</strong> <code>core/optimizer.py</code> &mdash; function
+    <code>_is_valid_candidate()</code> (lines&nbsp;208&ndash;226).
+  </p>
+  <p>
+    Not all combinations of parameter values produce a logically coherent strategy.
+    The optimizer enforces six structural constraints; any candidate violating one or more
+    is immediately rejected (returns <code>None</code>) without running the backtest:
+  </p>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Constraint</th><th>Formula</th><th>Rationale</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>C1</td>
+        <td>Fast EMA &lt; Slow EMA</td>
+        <td><code>ema_fast &lt; ema_slow</code></td>
+        <td>Without this ordering the trend filter (fast&nbsp;EMA crosses above slow&nbsp;EMA) is semantically undefined.</td></tr>
+      <tr><td>C2</td>
+        <td>MACD fast &lt; MACD slow</td>
+        <td><code>macd_fast &lt; macd_slow</code></td>
+        <td>The MACD line is defined as the difference of a shorter and longer EMA; reversed periods yield a mirror signal.</td></tr>
+      <tr><td>C3</td>
+        <td>Entry score &gt; Exit score</td>
+        <td><code>entry_threshold &gt; exit_threshold</code></td>
+        <td>Ensures a hysteresis band between entry and exit to prevent immediate flip-flop.</td></tr>
+      <tr><td>C4</td>
+        <td>Short momentum &lt; Long momentum</td>
+        <td><code>momentum_short &lt; momentum_long</code></td>
+        <td>The short-term momentum window must be strictly shorter than the medium-term window to capture different time-scale signals.</td></tr>
+      <tr><td>C5</td>
+        <td>Mid percentile &lt; High percentile</td>
+        <td><code>score_mid_pct &lt; score_high_pct</code></td>
+        <td>The tiered position sizing requires a monotonically increasing percentile boundary.</td></tr>
+      <tr><td>C6</td>
+        <td>Exit signals &le; Entry signals</td>
+        <td><code>exit_min_signals &le; entry_min_signals</code></td>
+        <td>The entry gate should be at least as strict as the exit gate to avoid an asymmetry where positions are easier to open than to close.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 5.2  Objective Function                                                 -->
+  <!-- ====================================================================== -->
+  <h3 id="objective-function">5.2 Composite Objective Function</h3>
+  <p>
+    <strong>Implementation:</strong> <code>core/optimizer.py</code> &mdash; functions
+    <code>_score_metrics()</code> (line&nbsp;295),
+    <code>_evaluate_candidate_frame()</code> (line&nbsp;382), and
+    <code>_regularization_penalty()</code> (line&nbsp;229).
+  </p>
+  <p>
+    The optimization objective is a multi-component scalar score designed to balance
+    risk-adjusted returns with out-of-sample generalization and parameter parsimony.
+    It is constructed in three layers:
+  </p>
+
+  <h4>5.2.1 Per-Period Score</h4>
+  <p>
+    For any contiguous slice of the backtest (training sub-period or validation sub-period),
+    the per-period score <var>S</var> is computed from the simulation metrics as:
+  </p>
+  <pre><code>S = Sharpe + 2.0 &times; ExcessReturn &minus; 0.5 &times; |MaxDrawdown| &minus; 0.25 &times; Turnover</code></pre>
+  <p>Where:</p>
+  <ul>
+    <li><strong>Sharpe</strong>: annualized Sharpe ratio of strategy returns (risk-free rate assumed zero).</li>
+    <li><strong>ExcessReturn</strong>: strategy total return minus buy-and-hold total return over the same period.</li>
+    <li><strong>|MaxDrawdown|</strong>: absolute value of the maximum peak-to-trough drawdown, penalizing large losses.</li>
+    <li><strong>Turnover</strong>: fraction of trading days on which a new position is entered, penalizing excessive trading.</li>
+  </ul>
+
+  <h4>5.2.2 Train&ndash;Validation Combination</h4>
+  <p>
+    The in-sample data (up to <code>split_idx</code>) is further divided at
+    <code>sub_train_end = 0.7 &times; split_idx</code> (minimum 50 rows).
+    Sub-scores <var>S<sub>train</sub></var> and <var>S<sub>val</sub></var> are computed on
+    [0,&thinsp;sub_train_end) and [sub_train_end,&thinsp;split_idx) respectively, and then
+    blended with a generalization penalty:
+  </p>
+  <pre><code>raw_score = 0.25 &times; S<sub>train</sub> + 0.75 &times; S<sub>val</sub> &minus; 0.20 &times; |S<sub>train</sub> &minus; S<sub>val</sub>|</code></pre>
+  <p>
+    The 0.75 weighting on the validation score strongly favors out-of-sample performance.
+    The <code>0.20 &times; |&Delta;S|</code> gap penalty discourages parameter combinations where
+    training performance diverges from validation performance&mdash;a direct signal of overfitting.
+    If the sub-training split would be too short (&lt;&thinsp;50 rows), the system
+    falls back to a single-period score: <code>raw_score = S<sub>train</sub></code>.
+  </p>
+
+  <h4>5.2.3 Regularization</h4>
+  <p>
+    A parameter-distance regularization term further restrains the optimizer from selecting
+    exotic parameter combinations far from the expert-chosen defaults:
+  </p>
+  <pre><code>final_score = raw_score &minus; &lambda; &times; &sum;<sub>i</sub> ((param<sub>i</sub> &minus; default<sub>i</sub>) / (hi<sub>i</sub> &minus; lo<sub>i</sub>))<sup>2</sup></code></pre>
+  <p>Where:</p>
+  <ul>
+    <li><var>&lambda;</var> = 0.02 for the standard search space (SM mode) or 0.03 for the extended space (hold-until-exit / FSM mode).
+        See <code>SearchEvaluationCache.__init__()</code> (line&nbsp;464).</li>
+    <li>The sum runs over all continuous (non-boolean) parameters. Each term is the squared
+        normalized deviation of the candidate value from its default, ensuring that the penalty
+        is scale-invariant across parameters with different units and ranges.</li>
+    <li>For boolean parameters, the penalty is <code>float(candidate &ne; default)</code>&mdash;a unit step.</li>
+  </ul>
+  <p>
+    This L2-style regularization biases the search toward the neighbourhood of known-good
+    defaults, reducing the risk of fitting to noise in short or volatile training windows.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 5.3  Three Optimization Methods                                         -->
+  <!-- ====================================================================== -->
+  <h3 id="optimization-methods">5.3 Three Optimization Methods</h3>
+  <p>
+    <strong>Implementation:</strong> <code>core/optimizer.py</code> &mdash; three public entry points,
+    all sharing the same <code>SearchEvaluationCache</code> and objective function.
+    Before any optimizer runs, the three built-in strategy presets (Conservative, Balanced, Aggressive)
+    are evaluated via <code>evaluate_presets_for_optimization()</code> and the best preset is
+    used as a warm-start seed for each method.
+  </p>
+
+  <!-- 5.3.1  Bayesian -->
+  <h4 id="bayesian-opt">5.3.1 Bayesian Optimization (Optuna TPE)</h4>
+  <p>
+    <strong>Entry point:</strong> <code>bayesian_optimize_params()</code> (line&nbsp;750).<br>
+    <strong>Sampler:</strong> Tree-structured Parzen Estimator (TPE) &mdash;
+    <code>optuna.samplers.TPESampler(seed=random_seed)</code> (line&nbsp;838).
+  </p>
+  <p>
+    Bayesian optimization builds a probabilistic surrogate model of the objective function
+    and uses it to <em>intelligently</em> choose the next candidate to evaluate, rather than
+    sampling blindly. The Optuna TPE sampler specifically:
+  </p>
+  <ol>
+    <li><strong>Partitions trials into &ldquo;good&rdquo; and &ldquo;bad&rdquo; sets</strong> based on
+        a quantile threshold of observed scores.</li>
+    <li><strong>Fits independent kernel density estimators</strong> (KDE) to each set, yielding
+        <var>l(x)</var> (good) and <var>g(x)</var> (bad) distributions.</li>
+    <li><strong>Maximizes the ratio <var>l(x)/g(x)</var></strong> (an approximation of the
+        Expected Improvement acquisition function) to propose the next candidate.</li>
+    <li><strong>Handles mixed types natively</strong>: <code>suggest_int</code>,
+        <code>suggest_float</code>, and <code>suggest_categorical</code> (for booleans) are called
+        per-parameter via <code>_suggest_candidate()</code> (line&nbsp;571).</li>
+  </ol>
+  <p><strong>Warm-start:</strong> The best preset parameters are injected into the Optuna study
+    as the first trial using <code>study.enqueue_trial()</code> (line&nbsp;843), ensuring that
+    the surrogate model starts from a known-good region of the search space.</p>
+  <p><strong>Evaluation:</strong> Each trial calls <code>cache.evaluate()</code>, which runs
+    the full pipeline (indicators &rarr; signals &rarr; backtest) and caches results by
+    normalized parameter key, preventing redundant evaluation of duplicate candidates.
+    The per-trial score is <code>raw_score &minus; regularization_penalty</code>.</p>
+  <p><strong>Advantages:</strong> TPE is significantly more sample-efficient than random search
+    in high-dimensional mixed-type spaces. It concentrates evaluations in promising regions
+    while still exploring under-sampled areas, making it the recommended default method
+    when computation budget is limited.</p>
+
+  <!-- 5.3.2  Random Search -->
+  <h4 id="random-search">5.3.2 Random Search</h4>
+  <p>
+    <strong>Entry point:</strong> <code>random_search_params()</code> (line&nbsp;658).<br>
+    <strong>Sampling:</strong> Uniform random sampling via <code>numpy.random.Generator</code>
+    with a fixed seed (<code>DEFAULT_SEARCH_RANDOM_SEED = 42</code>).
+  </p>
+  <p>
+    Random search generates <var>n_trials</var> candidate parameter vectors independently
+    from the uniform distribution over the valid search bounds. Each candidate is clipped to
+    bounds via <code>_clip_candidate_params()</code> and checked against the six validity constraints.
+    Invalid candidates are silently skipped (no retry logic), so the effective number of evaluated
+    trials may be smaller than <var>n_trials</var>.
+  </p>
+  <p>
+    The first trial (index&nbsp;0) uses the warm-start seed parameters directly
+    (line&nbsp;724&ndash;725), ensuring that the random search never performs worse than
+    the best preset. All subsequent trials are purely random.
+  </p>
+  <p><strong>Purpose:</strong> Random search serves as a robust baseline and sanity-check
+    comparator. In practice it provides surprisingly good coverage due to the
+    &ldquo;blessing of dimensionality&rdquo;&mdash;in 33-dimensional space, random samples
+    tend to cover corners that grid search would miss entirely. It also provides a lower
+    bound on expected optimization performance against which Bayesian and Genetic methods
+    are measured.</p>
+
+  <!-- 5.3.3  Genetic Algorithm -->
+  <h4 id="genetic-alg">5.3.3 Genetic Algorithm (GA)</h4>
+  <p>
+    <strong>Entry point:</strong> <code>genetic_algorithm_optimize_params()</code> (line&nbsp;861).<br>
+    <strong>Defaults:</strong> <code>population_size = 30</code>,
+    <code>generations = 20</code>,
+    <code>crossover_rate = 0.8</code>,
+    <code>mutation_rate = 0.2</code>.
+  </p>
+  <p>
+    The Genetic Algorithm implements a population-based evolutionary strategy inspired by
+    natural selection. The GA operates as follows:
+  </p>
+  <table>
+    <thead>
+      <tr><th>Phase</th><th>Operator</th><th>Implementation Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Initialization</strong></td>
+        <td>Random population + seed injection</td>
+        <td>
+          If warm-start <code>seed_params</code> are provided, the seed and 3 Gaussian-mutated
+          variants are prepended to the initial population (lines&nbsp;977&ndash;984).
+          Remaining slots are filled with uniform random individuals. Up to
+          <code>population_size &times; 10</code> attempts are made to satisfy validity constraints.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Fitness evaluation</strong></td>
+        <td>Multi-threaded parallel evaluation</td>
+        <td>
+          Each individual is evaluated via <code>_evaluate()</code> using
+          <code>ThreadPoolExecutor(max_workers)</code> where
+          <code>max_workers = min(cpu_count, population_size, 8)</code> (line&nbsp;974).
+          This exploits GIL-releasing NumPy/pandas operations for significant speedup.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Selection</strong></td>
+        <td>Tournament selection (<var>k</var>=3)</td>
+        <td>
+          <code>_tournament_select()</code> (line&nbsp;938) randomly picks 3 individuals and
+          selects the one with the highest fitness. This applies moderate selection pressure
+          while maintaining genetic diversity.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Crossover</strong></td>
+        <td>BLX-&alpha; blend crossover (&alpha;&nbsp;=&nbsp;0.5)</td>
+        <td>
+          <code>_blx_alpha_crossover()</code> (line&nbsp;947): for each continuous parameter,
+          the child value is sampled uniformly from
+          [min(<var>p</var><sub>1</sub>,&thinsp;<var>p</var><sub>2</sub>) &minus; &alpha;&middot;&Delta;,&ensp;
+          max(<var>p</var><sub>1</sub>,&thinsp;<var>p</var><sub>2</sub>) + &alpha;&middot;&Delta;],
+          where &Delta; is the parent range. Boolean parameters are inherited from a random parent.
+          Applied with probability <code>crossover_rate</code> (default 0.8).
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Mutation</strong></td>
+        <td>Gaussian perturbation</td>
+        <td>
+          <code>_gaussian_mutate()</code> (line&nbsp;927): each parameter is independently perturbed
+          with probability <code>mutation_rate</code> (default 0.2).
+          For continuous parameters: <code>value += Normal(0, 0.1 &times; (hi &minus; lo))</code>.
+          For booleans: the value is flipped.
+          The mutated candidate is clipped to bounds via <code>_clip_candidate_params()</code>.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Elitism</strong></td>
+        <td>Top-2 preservation</td>
+        <td>
+          The 2 highest-fitness individuals from each generation are copied unchanged
+          into the next generation (line&nbsp;1009&ndash;1021), guaranteeing that the best
+          discovered solution is never lost.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Repair</strong></td>
+        <td>Constraint satisfaction retry</td>
+        <td>
+          After crossover + mutation, if the child violates validity constraints, up to 5
+          retries are attempted with fresh random mutation (lines&nbsp;1034&ndash;1042).
+          If all retries fail, a completely random valid individual is substituted.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    <strong>Total evaluations:</strong> <code>population_size + generations &times; population_size</code>
+    = 30 + 20&thinsp;&times;&thinsp;30 = <strong>630</strong> evaluations with default settings.
+    Each evaluation is cached in the shared <code>SearchEvaluationCache</code> (keyed by
+    normalized parameter tuple), so repeated encounters of the same candidate are free.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 5.3.4  Shared Evaluation Cache                                          -->
+  <!-- ====================================================================== -->
+  <h4 id="eval-cache">5.3.4 Shared Evaluation Cache</h4>
+  <p>
+    <strong>Implementation:</strong> <code>core/optimizer.py</code> &mdash; class
+    <code>SearchEvaluationCache</code> (line&nbsp;443).
+  </p>
+  <p>
+    All three optimizers share a request-scoped evaluation cache that deduplicates
+    backtests by normalized parameter key. The cache key is a tuple of
+    <code>(normalized_params, fsm_mode, split_signature)</code>.
+    Thread safety is achieved via a <code>threading.Lock</code> combined with per-key
+    <code>threading.Event</code> objects that block concurrent evaluations of the
+    same candidate until the first evaluation completes (lines&nbsp;503&ndash;534).
+    The cache reports <code>hits</code> and <code>misses</code> counters for monitoring.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 5.4  Factor Analysis Learning                                           -->
+  <!-- ====================================================================== -->
+  <h3 id="fa-learning">5.4 Factor Analysis Learning (FSM Model)</h3>
+  <p>
+    <strong>Implementation:</strong> <code>core/fa_filter.py</code> &mdash; functions
+    <code>fit_fa()</code> (line&nbsp;71) and <code>transform_fa()</code> (line&nbsp;115).
+  </p>
+  <p>
+    The Factor Score Model (FSM) augments the deterministic SM by replacing the hand-weighted
+    factor combination with a statistically learned latent-factor decomposition. The learning
+    procedure is as follows:
+  </p>
+  <ol>
+    <li><strong>Feature construction</strong> (<code>_build_fa_feature_frame()</code>):
+        The 10 standardized factor columns from <code>compute_signals()</code> are transformed
+        into a feature matrix:
+        <ul>
+          <li>Z-score factors (mom_short, mom_long, macd, rsi) are used directly.</li>
+          <li>Volatility is sign-flipped: <code>&minus;vol_z</code> (higher volatility = lower score).</li>
+          <li>Rank factors (bb_position, obv_trend, volume_ratio, price_position, drawdown) are
+              linearly rescaled from [0,&thinsp;1] to [&minus;1,&thinsp;+1] via
+              <code>(rank &minus; 0.5) &times; 2</code>; drawdown is additionally sign-flipped.</li>
+        </ul>
+    </li>
+    <li><strong>Standardization</strong>:
+        <code>sklearn.preprocessing.StandardScaler</code> is fit <em>only</em> on the
+        training period to avoid look-ahead bias, then applied to both training and test data.</li>
+    <li><strong>Factor Analysis fitting</strong>:
+        <code>sklearn.decomposition.FactorAnalysis(n_components=3, random_state=42)</code>
+        is fit on the scaled training features. The model learns a factor loadings matrix
+        <strong>&Lambda;</strong> &isin; &reals;<sup>10&times;3</sup> that decomposes the observed
+        10-dimensional data into 3 latent common factors plus idiosyncratic noise:
+        <pre><code>X = &Lambda; &middot; F + &epsilon;,   where F ~ N(0, I),  &epsilon; ~ N(0, &Psi;)</code></pre>
+    </li>
+    <li><strong>Sign correction</strong> (lines&nbsp;89&ndash;100):
+        Each latent component&rsquo;s sign is adjusted so that its Pearson correlation with
+        the equal-weight average of the input features is positive. This prevents the
+        arbitrary sign ambiguity inherent in factor analysis from producing a semantically
+        inverted FSM score.</li>
+    <li><strong>FSM score computation</strong>:
+        The sign-corrected latent scores are averaged across the 3 components, then
+        standardized using the training-period mean and standard deviation:
+        <pre><code>fsm_raw<sub>t</sub>   = mean(F<sub>t,1</sub> &times; s<sub>1</sub>,  F<sub>t,2</sub> &times; s<sub>2</sub>,  F<sub>t,3</sub> &times; s<sub>3</sub>)
+fsm_score<sub>t</sub> = (fsm_raw<sub>t</sub> &minus; &mu;<sub>train</sub>) / &sigma;<sub>train</sub></code></pre>
+        where <var>s<sub>k</sub></var> &isin; {&minus;1, +1} are the sign-correction factors.</li>
+  </ol>
+  <p>
+    The resulting <code>fsm_score</code> replaces the hand-weighted factor score in the SM
+    pipeline. All downstream position sizing, entry/exit counting, and backtest logic remain
+    identical, meaning that the FSM is a strict superset of SM that only differs in how the
+    composite score is constructed.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 5.5  ML Signal Filter Training                                          -->
+  <!-- ====================================================================== -->
+  <h3 id="ml-learning">5.5 ML Signal Filter Training</h3>
+  <p>
+    <strong>Implementation:</strong> <code>core/ml_filter.py</code> &mdash; functions
+    <code>fit_ml_filter()</code> (line&nbsp;493),
+    <code>build_feature_bundle()</code> (line&nbsp;339),
+    <code>apply_filter()</code> (line&nbsp;597).
+  </p>
+  <p>
+    The ML filter is an optional secondary gate that acts on top of SM/FSM buy signals.
+    It learns to predict, at each buy signal, whether the subsequent trade will generate
+    positive excess return over the buy-and-hold benchmark. Two model architectures are
+    available:
+  </p>
+
+  <h4>5.5.1 Feature Engineering (29 Features)</h4>
+  <p>
+    Feature extraction is performed by <code>build_feature_bundle()</code>, which samples only
+    at buy-signal positions to avoid data leakage from non-signal days. The 29 features
+    (defined in <code>ML_FEATURE_COLUMNS</code>, lines&nbsp;37&ndash;67) include:
+  </p>
+  <table>
+    <thead>
+      <tr><th>Category</th><th>Features</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Factor scores</td><td><code>factor_score</code>, <code>factor_percentile</code>, <code>target_position</code></td></tr>
+      <tr><td>Z-score factors</td><td><code>mom_short_z</code>, <code>mom_long_z</code>, <code>macd_z</code>, <code>rsi_z</code>, <code>vol_z</code></td></tr>
+      <tr><td>Rank factors</td><td><code>bb_position_rank</code>, <code>obv_trend_rank</code>, <code>volume_ratio_rank</code>, <code>price_position_rank</code>, <code>drawdown_rank</code></td></tr>
+      <tr><td>Raw indicators</td><td><code>rsi</code>, <code>macd</code>, <code>signal</code>, <code>adx</code>, <code>atr_pct</code>, <code>volume_ratio</code>, <code>bb_position</code>, <code>bb_width</code>, <code>price_position</code>, <code>drawdown</code></td></tr>
+      <tr><td>Boolean signals</td><td><code>trend_ok</code>, <code>strength_ok</code>, <code>rsi_ok</code>, <code>macd_above</code> (cast to float 0/1)</td></tr>
+      <tr><td>Derived</td><td><code>entry_count</code> (sum of confirming conditions), <code>ema_spread_pct</code> (<code>(ema_fast &minus; ema_slow) / close</code>)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>5.5.2 Label Construction</h4>
+  <p>
+    For each buy signal at position <var>t</var>, the label is computed by looking forward
+    <code>horizon</code> days (default 10):
+  </p>
+  <pre><code>future_strategy_return = &prod;<sub>i=1..h</sub>(1 + w<sub>t+i-1</sub> &middot; r<sub>t+i</sub>) &minus; 1
+future_naive_return    = &prod;<sub>i=1..h</sub>(1 + r<sub>t+i</sub>) &minus; 1
+future_excess_return   = future_strategy_return &minus; future_naive_return
+ml_label               = 1{future_excess_return &gt; 0}    (primary: excess return mode)</code></pre>
+  <p>
+    where <var>w<sub>t</sub></var> is the target position weight and <var>r<sub>t</sub></var> is the close-to-close
+    return. If the number of valid excess-return samples with both classes is below
+    <code>min_excess_samples</code> (default 20), the label falls back to absolute strategy return:
+    <code>ml_label = 1{future_strategy_return &gt; 0}</code> (absolute return mode).
+  </p>
+
+  <h4>5.5.3 Logistic Regression</h4>
+  <p>
+    <strong>Configuration</strong> (lines&nbsp;548&ndash;554):
+  </p>
+  <pre><code>StandardScaler  &rarr;  LogisticRegression(
+    max_iter=1000, solver="liblinear",
+    class_weight="balanced", random_state=42
+)</code></pre>
+  <ul>
+    <li><code>StandardScaler</code> is fit exclusively on training-period buy signals.</li>
+    <li><code>class_weight="balanced"</code> automatically upweights the minority class to handle
+        label imbalance (typically more losing trades than winning trades at the margin).</li>
+    <li>L2 regularization (default <var>C</var>=1.0) prevents overfitting to small sample sizes.</li>
+    <li>Output: probability of positive excess return <var>P</var>(label=1|<var>x</var>).</li>
+  </ul>
+
+  <h4>5.5.4 LightGBM Classifier</h4>
+  <p>
+    <strong>Configuration</strong> (lines&nbsp;556&ndash;571):
+  </p>
+  <pre><code>LGBMClassifier(
+    objective="binary", n_estimators=200,
+    learning_rate=0.05, num_leaves=15,
+    min_child_samples=10, subsample=0.9,
+    colsample_bytree=0.9, reg_alpha=0.1,
+    reg_lambda=0.1, class_weight="balanced",
+    random_state=42
+)</code></pre>
+  <ul>
+    <li>No scaler needed&mdash;gradient-boosted trees are invariant to monotonic feature transforms.</li>
+    <li><code>num_leaves=15</code> and <code>min_child_samples=10</code> keep individual trees shallow,
+        serving as an implicit regularizer against small training sets.</li>
+    <li>L1 (<code>reg_alpha=0.1</code>) and L2 (<code>reg_lambda=0.1</code>) leaf regularization further
+        constrain model complexity.</li>
+    <li><code>subsample=0.9</code> and <code>colsample_bytree=0.9</code> add stochasticity to reduce variance.</li>
+  </ul>
+
+  <h4>5.5.5 Degenerate Case Handling</h4>
+  <p>
+    When training samples degenerate to a single class (all labels 0 or all labels 1) or
+    fewer than 8 samples exist, the system does <em>not</em> raise an exception. Instead it
+    returns a <code>_ConstantProbabilityModel</code> (line&nbsp;126) that outputs the training-set
+    positive rate as a fixed probability for all inputs. This guarantees that the downstream
+    <code>apply_filter()</code> always receives a valid probability vector, maintaining pipeline
+    robustness even under extreme data conditions.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 5.6  Adaptive Regime Model Training                                     -->
+  <!-- ====================================================================== -->
+  <h3 id="regime-learning">5.6 Adaptive Regime Model Training</h3>
+  <p>
+    <strong>Implementation:</strong> <code>core/adaptive_regime.py</code> &mdash; functions
+    <code>build_adaptive_feature_frame()</code> (line&nbsp;211),
+    <code>train_adaptive_state_model()</code> (line&nbsp;341),
+    <code>_fit_state_classifier()</code> (line&nbsp;296),
+    <code>predict_adaptive_states()</code> (line&nbsp;387).
+  </p>
+  <p>
+    The adaptive regime router dynamically selects the best strategy variant conditioned on
+    the current market state. Its training has three distinct phases:
+  </p>
+
+  <h4>5.6.1 State Feature Engineering (19 Features)</h4>
+  <p>
+    The feature set (<code>ADAPTIVE_STATE_FEATURE_COLUMNS</code>, lines&nbsp;84&ndash;104) captures
+    multi-scale market dynamics:
+  </p>
+  <table>
+    <thead>
+      <tr><th>Category</th><th>Features</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Stock returns</strong></td>
+        <td><code>ret_5</code>, <code>ret_20</code>, <code>ret_60</code></td>
+        <td>5-, 20-, 60-day price returns capturing short/medium/long momentum.</td>
+      </tr>
+      <tr>
+        <td><strong>Market proxy returns</strong></td>
+        <td><code>spy_ret_5</code>, <code>spy_ret_20</code>, <code>spy_ret_60</code></td>
+        <td>Same look-backs applied to SPY (or market proxy), providing macro context.</td>
+      </tr>
+      <tr>
+        <td><strong>Volatility</strong></td>
+        <td><code>realized_vol_20</code>, <code>realized_vol_60</code></td>
+        <td>Rolling realized volatility (annualized) at 20- and 60-day horizons.</td>
+      </tr>
+      <tr>
+        <td><strong>Technical indicators</strong></td>
+        <td><code>atr_pct</code>, <code>ema_spread_pct</code>, <code>adx</code>, <code>rsi</code></td>
+        <td>ATR-to-price ratio, EMA spread as percentage of price, trend strength, momentum oscillator.</td>
+      </tr>
+      <tr>
+        <td><strong>Rank features</strong></td>
+        <td><code>drawdown_rank</code>, <code>bb_width_rank</code>, <code>volume_ratio_rank</code></td>
+        <td>Rolling-rank normalized indicators providing relative context.</td>
+      </tr>
+      <tr>
+        <td><strong>Cross-asset</strong></td>
+        <td><code>efficiency_ratio_20</code>, <code>relative_strength_vs_spy_20</code>, <code>beta_60</code>, <code>corr_60</code></td>
+        <td>Market-efficiency ratio, relative performance vs.&nbsp;benchmark, rolling beta and correlation to SPY.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>5.6.2 Unsupervised State Discovery (MiniBatchKMeans)</h4>
+  <p>
+    Market states are discovered by clustering the 19-dimensional feature vectors into
+    <code>ADAPTIVE_STATE_COUNT = 6</code> clusters using
+    <code>sklearn.cluster.MiniBatchKMeans</code>:
+  </p>
+  <pre><code>MiniBatchKMeans(
+    n_clusters=6,
+    batch_size=max(64, 6 &times; 16),
+    random_state=42,
+    n_init=10
+)</code></pre>
+  <p>
+    The mini-batch variant is chosen for computational efficiency on large feature matrices.
+    The resulting state IDs partition the historical timeline into 6 qualitatively distinct
+    market regimes (e.g., low-volatility uptrend, high-volatility drawdown, range-bound).
+    Cluster centroids and per-state sample counts are stored as artifacts for offline inspection.
+  </p>
+
+  <h4>5.6.3 Supervised State Classifier</h4>
+  <p>
+    Once states are assigned, a supervised classifier is trained to predict state labels from
+    real-time features (enabling online state classification without re-running KMeans). The
+    classifier selection follows a cascading strategy (<code>_fit_state_classifier()</code>, line&nbsp;296):
+  </p>
+  <ol>
+    <li><strong>If &ge; 60 samples and LightGBM available</strong>:
+      <pre><code>LGBMClassifier(
+    objective="multiclass", num_class=6,
+    n_estimators=160, learning_rate=0.05,
+    min_child_samples=10, subsample=0.9,
+    colsample_bytree=0.9, random_state=42
+)</code></pre>
+    </li>
+    <li><strong>Otherwise (fallback)</strong>:
+      <pre><code>Pipeline([
+    StandardScaler(),
+    LogisticRegression(
+        max_iter=1200,
+        multi_class="multinomial",
+        random_state=42
+    )
+])</code></pre>
+    </li>
+    <li><strong>Degenerate case (&le; 1 unique state)</strong>:
+        <code>DummyClassifier(strategy="most_frequent")</code> is used to maintain API
+        compatibility without meaningful predictions.</li>
+  </ol>
+
+  <h4>5.6.4 Routing Policy Selection</h4>
+  <p>
+    For each discovered state, the system evaluates all candidate strategy variants
+    (defined in <code>ADAPTIVE_OFFLINE_CANDIDATE_MODEL_IDS</code>, 11 candidates including
+    naive, mean, drift, SM, FSM, and all optimized variants) and selects the one with
+    the best weighted performance metric on that state&rsquo;s historical days.
+    The per-state best candidate forms the <em>routing policy</em>: a lookup table from
+    state ID to strategy variant. This offline-learned routing policy is stored as
+    <code>routing_policy.csv</code> and <code>routing_policy_summary.json</code>
+    within the <code>regime_artifacts/</code> directory.
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 5.7  WebApp Adjustability                                               -->
+  <!-- ====================================================================== -->
+  <h3 id="webapp-adjustability">5.7 WebApp Adjustability</h3>
+  <p>
+    <strong>Implementation:</strong> <code>ui/sidebar.py</code> &mdash; function
+    <code>render_sidebar()</code> (line&nbsp;111). All parameters are returned in a single
+    dictionary that is consumed by the analysis pipeline.
+  </p>
+  <p>
+    The Streamlit web application exposes a comprehensive set of interactive controls in
+    the sidebar, enabling users to modify strategy parameters in real time and immediately
+    observe the impact on backtest results, equity curves, and performance metrics.
+    Changes are propagated to the core pipeline on every interaction&mdash;no explicit
+    &ldquo;Run&rdquo; button is required. The adjustable parameters are organized into the
+    following groups:
+  </p>
+
+  <h4>5.7.1 Strategy Presets</h4>
+  <table>
+    <thead>
+      <tr><th>Control</th><th>Widget</th><th>Effect</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Strategy Preset</strong></td>
+        <td><code>st.selectbox</code></td>
+        <td>
+          Selects from <em>Conservative</em>, <em>Balanced</em> (default), <em>Aggressive</em>,
+          or <em>Custom</em> presets. Each preset simultaneously sets all 13+ indicator
+          parameters and 5 factor weights plus entry/exit thresholds via the
+          <code>STRATEGY_PRESETS</code> dictionary (defined in <code>core/config.py</code>).
+          Switching a preset instantly updates all slider positions in the &ldquo;Advanced
+          Settings&rdquo; expander.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>5.7.2 Data Parameters</h4>
+  <table>
+    <thead>
+      <tr><th>Control</th><th>Widget</th><th>Range / Options</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Market</td><td><code>st.radio</code></td><td>US / A</td><td>Select U.S. stock market or Chinese A-share market.</td></tr>
+      <tr><td>Date Range</td><td><code>st.date_input</code></td><td>2015-01-01 to today</td><td>Defines the historical data window for analysis.</td></tr>
+      <tr><td>Adjust Type</td><td><code>st.selectbox</code></td><td>qfq / hfq / none</td><td>Forward-adjusted, backward-adjusted, or unadjusted price series.</td></tr>
+      <tr><td>Stock Selection</td><td><code>st.multiselect</code> + live search</td><td>All available tickers</td><td>Select one or more stocks for analysis; supports live search with debounce.</td></tr>
+    </tbody>
+  </table>
+
+  <h4>5.7.3 Entry &amp; Exit Rules</h4>
+  <table>
+    <thead>
+      <tr><th>Control</th><th>Widget</th><th>Range</th><th>Default</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Minimum Entry Signals</td><td><code>st.slider</code></td><td>1&ndash;5</td><td>3 (Balanced)</td></tr>
+      <tr><td>Minimum Exit Signals</td><td><code>st.slider</code></td><td>1&ndash;4</td><td>2 (Balanced)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>5.7.4 Technical Indicator Parameters (Advanced Settings Expander)</h4>
+  <p>
+    The &ldquo;Advanced Settings&rdquo; expander reveals fine-grained control over every
+    indicator used by the signal model. All sliders are pre-populated with the current
+    preset values and dynamically update when the preset is changed.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Group</th><th>Parameter</th><th>Widget</th><th>Range</th><th>Default</th></tr>
+    </thead>
+    <tbody>
+      <tr><td rowspan="2">EMA Trend</td>
+        <td>EMA Fast Period</td><td><code>st.slider</code></td><td>5&ndash;50</td><td>20</td></tr>
+      <tr><td>EMA Slow Period</td><td><code>st.slider</code></td><td>20&ndash;200</td><td>60</td></tr>
+      <tr><td rowspan="3">MACD</td>
+        <td>MACD Fast Period</td><td><code>st.slider</code></td><td>5&ndash;20</td><td>12</td></tr>
+      <tr><td>MACD Slow Period</td><td><code>st.slider</code></td><td>10&ndash;40</td><td>26</td></tr>
+      <tr><td>MACD Signal Period</td><td><code>st.slider</code></td><td>5&ndash;20</td><td>9</td></tr>
+      <tr><td rowspan="3">RSI</td>
+        <td>RSI Period</td><td><code>st.slider</code></td><td>5&ndash;30</td><td>14</td></tr>
+      <tr><td>RSI Lower Threshold</td><td><code>st.slider</code></td><td>10&ndash;50</td><td>30</td></tr>
+      <tr><td>RSI Upper Threshold</td><td><code>st.slider</code></td><td>50&ndash;90</td><td>70</td></tr>
+      <tr><td rowspan="2">ADX</td>
+        <td>ADX Period</td><td><code>st.slider</code></td><td>5&ndash;30</td><td>14</td></tr>
+      <tr><td>ADX Threshold</td><td><code>st.slider</code></td><td>10&ndash;40</td><td>20</td></tr>
+      <tr><td rowspan="3">Bollinger</td>
+        <td>BB Period</td><td><code>st.slider</code></td><td>5&ndash;50</td><td>20</td></tr>
+      <tr><td>BB Std Multiplier</td><td><code>st.slider</code></td><td>1.0&ndash;3.0 (step 0.1)</td><td>2.0</td></tr>
+      <tr><td>Indicator Period</td><td><code>st.slider</code></td><td>5&ndash;60</td><td>20</td></tr>
+      <tr><td rowspan="2">ATR Stop/Profit</td>
+        <td>Stop-Loss Multiplier</td><td><code>st.slider</code></td><td>0.0&ndash;5.0 (step 0.5)</td><td>2.0</td></tr>
+      <tr><td>Take-Profit Multiplier</td><td><code>st.slider</code></td><td>0.0&ndash;8.0 (step 0.5)</td><td>4.0</td></tr>
+    </tbody>
+  </table>
+
+  <h4>5.7.5 Factor Scoring Parameters</h4>
+  <table>
+    <thead>
+      <tr><th>Parameter</th><th>Widget</th><th>Range</th><th>Default</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Short Momentum Window</td><td><code>st.slider</code></td><td>2&ndash;20</td><td>5</td></tr>
+      <tr><td>Mid-term Momentum Window</td><td><code>st.slider</code></td><td>10&ndash;60</td><td>20</td></tr>
+      <tr><td>Z-Score Normalization Window</td><td><code>st.slider</code></td><td>10&ndash;120</td><td>30</td></tr>
+      <tr><td>Mid Percentile Threshold</td><td><code>st.slider</code></td><td>0.50&ndash;0.90 (step 0.05)</td><td>0.6</td></tr>
+      <tr><td>High Percentile Threshold</td><td><code>st.slider</code></td><td>0.60&ndash;0.95 (step 0.05)</td><td>0.8</td></tr>
+    </tbody>
+  </table>
+
+  <h4>5.7.6 Factor Weight Sliders</h4>
+  <p>
+    All 10 factor weights are individually adjustable, split into two groups reflecting
+    the two-phase scoring architecture:
+  </p>
+  <table>
+    <thead>
+      <tr><th>Phase</th><th>Weight Parameter</th><th>Range</th><th>Default</th></tr>
+    </thead>
+    <tbody>
+      <tr><td rowspan="5">Phase 0 (Z-score factors)</td>
+        <td><code>weight_mom_short</code></td><td>0.0&ndash;3.0 (step 0.1)</td><td>1.0</td></tr>
+      <tr><td><code>weight_mom_long</code></td><td>0.0&ndash;3.0 (step 0.1)</td><td>1.0</td></tr>
+      <tr><td><code>weight_macd</code></td><td>0.0&ndash;3.0 (step 0.1)</td><td>1.0</td></tr>
+      <tr><td><code>weight_rsi</code></td><td>0.0&ndash;3.0 (step 0.1)</td><td>0.5</td></tr>
+      <tr><td><code>weight_vol</code></td><td>0.0&ndash;3.0 (step 0.1)</td><td>0.5</td></tr>
+      <tr><td rowspan="5">Phase 1 (rank factors)</td>
+        <td><code>weight_bb</code></td><td>0.0&ndash;2.0 (step 0.1)</td><td>0.8</td></tr>
+      <tr><td><code>weight_obv</code></td><td>0.0&ndash;2.0 (step 0.1)</td><td>1.0</td></tr>
+      <tr><td><code>weight_volume</code></td><td>0.0&ndash;1.5 (step 0.1)</td><td>0.6</td></tr>
+      <tr><td><code>weight_price</code></td><td>0.0&ndash;1.5 (step 0.1)</td><td>0.7</td></tr>
+      <tr><td><code>weight_drawdown</code></td><td>0.0&ndash;1.5 (step 0.1)</td><td>0.5</td></tr>
+    </tbody>
+  </table>
+
+  <h4>5.7.7 Entry/Exit Score Thresholds</h4>
+  <table>
+    <thead>
+      <tr><th>Parameter</th><th>Range</th><th>Default</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>entry_threshold</code></td><td>&minus;2.0 to 2.0 (step 0.1)</td><td>0.5</td>
+        <td>Factor score must exceed this value before a position entry is considered.</td>
+      </tr>
+      <tr>
+        <td><code>exit_threshold</code></td><td>&minus;2.0 to 2.0 (step 0.1)</td><td>&minus;0.5</td>
+        <td>Factor score falling below this value triggers a position exit consideration.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====================================================================== -->
+  <!-- 5.7.8  Model & Optimization Selection                                   -->
+  <!-- ====================================================================== -->
+  <h4>5.7.8 Model &amp; Optimization Selection</h4>
+  <p>
+    Beyond parameter sliders, the webapp sidebar (and the single-stock analysis workflow at
+    <code>ui/single_stock.py</code> and <code>ui/single_stock_workflow.py</code>) provides
+    controls for selecting:
+  </p>
+  <ul>
+    <li><strong>Signal Model</strong>: SM (Simple Model, hand-weighted factors) or FSM (Factor
+        Score Model, learned factor analysis weights).</li>
+    <li><strong>ML Filter Toggle</strong>: Enable/disable the ML signal filter overlay
+        (Logistic Regression or LightGBM) on top of SM/FSM signals.</li>
+    <li><strong>Optimization Method</strong>: Bayesian (Optuna TPE), Random Search, or Genetic
+        Algorithm for parameter optimization.</li>
+    <li><strong>Regime Model</strong>: Legacy dual-state router or Adaptive Router v1 (with
+        automatic degradation fallback if offline artifacts are missing).</li>
+  </ul>
+
+  <!-- ====================================================================== -->
+  <!-- 5.7.9  End-to-End Reactivity                                            -->
+  <!-- ====================================================================== -->
+  <h4>5.7.9 End-to-End Reactivity</h4>
+  <p>
+    Streamlit&rsquo;s reactive execution model means that any sidebar parameter change
+    triggers a complete re-execution of the analysis pipeline:
+    <code>data &rarr; indicators &rarr; signals &rarr; backtest &rarr; evaluation &rarr; visualization</code>.
+    The user sees updated equity curves, performance tables, and diagnostic charts within
+    seconds. This tight feedback loop enables hands-on exploration of the relationship between
+    parameter choices and strategy performance&mdash;directly fulfilling the course requirement
+    that &ldquo;important parameters should be adjustable in your webapp.&rdquo;
+  </p>
+
+  <!-- ====================================================================== -->
+  <!-- 5.8  Summary Diagram                                                    -->
+  <!-- ====================================================================== -->
+  <h3 id="param-summary">5.8 Parameter Learning Pipeline Summary</h3>
+  <p>
+    The following diagram summarizes the complete parameter learning and adjustment flow,
+    from offline optimization through online user interaction:
+  </p>
+  <pre style="font-family: Consolas, monospace; font-size: 13px; line-height: 1.35; overflow-x: auto;">
+┌──────────────────────────────────────────────────────────────────────────┐
+│                      PARAMETER LEARNING PIPELINE                        │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────┐   ┌──────────────────────────────────────────────┐  │
+│  │  Strategy Preset │──▶│  Warm-Start Seed for Optimization            │  │
+│  │  (Conservative / │   │  evaluate_presets_for_optimization()          │  │
+│  │   Balanced /     │   └──────────────┬───────────────────────────────┘  │
+│  │   Aggressive)    │                  │                                  │
+│  └─────────────────┘                  ▼                                  │
+│                          ┌─────────────────────────┐                     │
+│                          │  Optimization Methods    │                     │
+│                          │  ┌───────────────────┐   │                    │
+│                          │  │ Bayesian (TPE)    │   │                    │
+│                          │  │ Random Search     │   │                    │
+│                          │  │ Genetic Algorithm │   │                    │
+│                          │  └───────────────────┘   │                    │
+│                          │  Shared Objective:       │                    │
+│                          │  0.25·S_train +          │                    │
+│                          │  0.75·S_val −            │                    │
+│                          │  0.20·|ΔS| − λ·reg      │                    │
+│                          └────────────┬────────────┘                     │
+│                                       │                                  │
+│     ┌──────────────────┐              ▼                                  │
+│     │ Factor Analysis  │    ┌──────────────────┐                         │
+│     │ fit_fa(train)    │───▶│  Best Parameters │                         │
+│     │ Λ ∈ ℝ^{10×3}    │    └────────┬─────────┘                         │
+│     └──────────────────┘             │                                   │
+│     ┌──────────────────┐             ▼                                   │
+│     │ ML Filter        │    ┌──────────────────┐                         │
+│     │ LogReg / LightGBM│───▶│  Pipeline        │                         │
+│     │ 28 features      │    │  Execution       │                         │
+│     └──────────────────┘    └────────┬─────────┘                         │
+│     ┌──────────────────┐             │                                   │
+│     │ Adaptive Regime  │             ▼                                   │
+│     │ KMeans(6 states) │    ┌──────────────────┐                         │
+│     │ + Classifier     │───▶│  Results &amp;        │                         │
+│     │ + Routing Policy │    │  Visualization   │                         │
+│     └──────────────────┘    └──────────────────┘                         │
+│                                       ▲                                  │
+│                          ┌────────────┴────────────┐                     │
+│                          │  Streamlit Sidebar       │                    │
+│                          │  (ui/sidebar.py)         │                    │
+│                          │  30+ interactive sliders  │                    │
+│                          │  ─ Presets               │                    │
+│                          │  ─ Indicators            │                    │
+│                          │  ─ Factor weights        │                    │
+│                          │  ─ Entry/exit rules      │                    │
+│                          │  ─ Score thresholds      │                    │
+│                          │  ─ Model selection       │                    │
+│                          └──────────────────────────┘                    │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+  </pre>
+</section>
