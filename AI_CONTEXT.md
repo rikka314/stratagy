@@ -1,6 +1,6 @@
 # AI 快速上下文（薄路由版）
 
-> 最近更新：2026-04-09
+> 最近更新：2026-04-14
 > 用途：项目级路由文档。先读本文件，再按任务跳到对应 skill 和接口文档。
 > 约定：详细接口统一维护在 `document/interfaces/`，本文件只保存 durable project facts。
 
@@ -65,6 +65,8 @@
 - `rsm_adaptive_v1` 不参加 rolling robustness；`robustness_summary.csv` 不包含它，`report.json` / `report.md` 额外包含 adaptive state / routing 摘要。
 - 仓库现已包含 `reports/Final_Report.html` 作为最终提交 ZIP 的离线报告入口，`scripts/prepare_final_zip.ps1` 用于生成清理后的 `Final_gpXX.zip` 提交包。
 - 站点 UI 语言现固定为英文；顶部中英切换已移除，路由不再传播 `lang` 查询参数。
+- **参数可调性（W9）**：单股 Search 模型和多股策略面板均内联了关键参数 slider（入场/出场阈值、止损/止盈、因子权重）。单股使用 `search_adj_` 前缀 key，多股使用 `multi_adj_` 前缀 key，均与 sidebar 高级设置的 key 互不冲突。单股通过 `_apply_search_adj_overrides()` 在 pipeline 调用前覆盖 `params_snapshot`；多股直接写回 `params` dict。
+- **HTML 导出增强（W9）**：单股导出新增 Stock Profile section（代码、名称、市场、币种、价格区间）和 Model Comparison Analysis section（当 ≥2 模型时自动分析优劣势、underperformance 原因）。多股导出新增 Stock Pool Summary 和 Per-Stock Performance Analysis（vs 组合平均的收益/夏普/回撤对比）。相关 helper：`_build_model_analysis_html()`、`_build_portfolio_stock_analysis_html()`。
 
 ## 默认阅读路线
 

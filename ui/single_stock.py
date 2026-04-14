@@ -572,6 +572,35 @@ def _render_basic_info_section(
     return candle, ind_fig, score_fig, indicator_title
 
 
+# ── Search 模型内联参数覆盖 ──────────────────────────
+
+_SEARCH_ADJ_KEY_MAP: dict[str, str] = {
+    "search_adj_entry_threshold": "entry_threshold",
+    "search_adj_exit_threshold": "exit_threshold",
+    "search_adj_stop_loss_mult": "stop_loss_mult",
+    "search_adj_take_profit_mult": "take_profit_mult",
+    "search_adj_weight_mom_short": "weight_mom_short",
+    "search_adj_weight_mom_long": "weight_mom_long",
+    "search_adj_weight_macd": "weight_macd",
+    "search_adj_weight_rsi": "weight_rsi",
+    "search_adj_weight_bb": "weight_bb",
+    "search_adj_weight_obv": "weight_obv",
+}
+
+
+def _apply_search_adj_overrides(params_snapshot: dict[str, Any]) -> dict[str, Any]:
+    """If the user adjusted params in the search-model inline panel, overlay
+    those values onto *params_snapshot* (shallow copy, original untouched)."""
+    overrides: dict[str, Any] = {}
+    for adj_key, param_key in _SEARCH_ADJ_KEY_MAP.items():
+        if adj_key in st.session_state:
+            overrides[param_key] = float(st.session_state[adj_key])
+    if not overrides:
+        return params_snapshot
+    merged = {**params_snapshot, **overrides}
+    return merged
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 公共入口
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -792,11 +821,16 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                     render_status_note(tr("action.generateArtifact.note"), tone="positive")
 
                 if st.button(tr("strategy.generate"), type="primary", disabled=generate_disabled, key="single_stock_generate_strategy"):
+                    effective_snapshot = (
+                        _apply_search_adj_overrides(params_snapshot)
+                        if request.family == "search"
+                        else params_snapshot
+                    )
                     with st.spinner(tr("strategy.workflowGenerating")):
                         pipeline_result = run_strategy_pipeline(
                             context_key=context_key,
                             request=request,
-                            request_params_snapshot=params_snapshot,
+                            request_params_snapshot=effective_snapshot,
                             df_raw=df_raw,
                             split_idx=split_idx,
                         )
@@ -905,6 +939,9 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                         signal_dataset_split=signal_dataset_split,
                     )
 
+                    _export_market = p.get("market", "")
+                    _export_identity = _resolve_symbol_identity(symbol, _export_market)
+                    _export_currency = "CNY" if _normalize_market_key(_export_market) == "A" else "USD"
                     _render_single_stock_export(
                         symbol=symbol,
                         df=current_artifact.full_signal_df,
@@ -918,6 +955,9 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                         signal_fig=signal_fig,
                         suggestion=suggestion,
                         indicator_title=indicator_title,
+                        stock_name=_export_identity["display_name"],
+                        market=_export_market,
+                        currency=_export_currency,
                     )
 
 
@@ -1330,6 +1370,82 @@ def _build_strategy_request(family: str) -> StrategyRequest:
     if search_base:
         if search_base == "fsm":
             st.caption(tr("fsm.path.description"))
+
+        with st.expander(tr("params.adjustable"), expanded=False):
+            st.caption(tr("params.adjust.description"))
+
+            st.markdown(f"**{tr('params.entry_exit')}**")
+            _pe_col1, _pe_col2 = st.columns(2)
+            with _pe_col1:
+                st.slider(
+                    tr("strategy.entryScoreThreshold"), -2.0, 2.0,
+                    value=float(st.session_state.get("entry_threshold", 0.5)),
+                    step=0.1,
+                    key="search_adj_entry_threshold",
+                    help=tr("param.entryThreshold.description"),
+                )
+            with _pe_col2:
+                st.slider(
+                    tr("threshold.exitScore"), -2.0, 2.0,
+                    value=float(st.session_state.get("exit_threshold", -0.5)),
+                    step=0.1,
+                    key="search_adj_exit_threshold",
+                    help=tr("factor.exit_threshold"),
+                )
+
+            st.markdown(f"**{tr('params.risk_control')}**")
+            _pr_col1, _pr_col2 = st.columns(2)
+            with _pr_col1:
+                st.slider(
+                    tr("param.atrStopLossMultiplier"), 0.0, 5.0,
+                    value=float(st.session_state.get("stop_loss_mult", 2.0)),
+                    step=0.5,
+                    key="search_adj_stop_loss_mult",
+                    help=tr("param.stopLoss.formula"),
+                )
+            with _pr_col2:
+                st.slider(
+                    tr("strategy.atr.takeProfitMultiplier"), 0.0, 8.0,
+                    value=float(st.session_state.get("take_profit_mult", 4.0)),
+                    step=0.5,
+                    key="search_adj_take_profit_mult",
+                    help=tr("param.takeProfit.formula"),
+                )
+
+            st.markdown(f"**{tr('params.factor_weights')}**")
+            _fw_col1, _fw_col2 = st.columns(2)
+            with _fw_col1:
+                st.slider(
+                    tr("weight.short_term_momentum"), 0.0, 3.0,
+                    value=float(st.session_state.get("weight_mom_short", 1.0)),
+                    step=0.1, key="search_adj_weight_mom_short",
+                )
+                st.slider(
+                    tr("parameter.macdWeight"), 0.0, 3.0,
+                    value=float(st.session_state.get("weight_macd", 1.0)),
+                    step=0.1, key="search_adj_weight_macd",
+                )
+                st.slider(
+                    tr("weight.bollinger_position"), 0.0, 2.0,
+                    value=float(st.session_state.get("weight_bb", 0.8)),
+                    step=0.1, key="search_adj_weight_bb",
+                )
+            with _fw_col2:
+                st.slider(
+                    tr("parameter.midTermMomentumWeight"), 0.0, 3.0,
+                    value=float(st.session_state.get("weight_mom_long", 1.0)),
+                    step=0.1, key="search_adj_weight_mom_long",
+                )
+                st.slider(
+                    tr("param.rsi_weight"), 0.0, 3.0,
+                    value=float(st.session_state.get("weight_rsi", 0.5)),
+                    step=0.1, key="search_adj_weight_rsi",
+                )
+                st.slider(
+                    tr("parameter.obvTrendWeight"), 0.0, 2.0,
+                    value=float(st.session_state.get("weight_obv", 1.0)),
+                    step=0.1, key="search_adj_weight_obv",
+                )
 
         use_search = st.checkbox(tr("parameterSearch.enable"), value=False, key="single_stock_workflow_use_search")
         if use_search:
@@ -2829,6 +2945,9 @@ def _render_single_stock_export(
     signal_fig: go.Figure,
     suggestion: str,
     indicator_title: str = tr("chart.indicatorsMini"),
+    stock_name: str = "",
+    market: str = "",
+    currency: str = "",
 ) -> None:
     """report.exportAreaDescription"""
     st.markdown("---")
@@ -2854,6 +2973,9 @@ def _render_single_stock_export(
         full_html = build_single_stock_export_html(
             title=single_export_title,
             symbol=symbol,
+            stock_name=stock_name,
+            market=market,
+            currency=currency,
             df=df,
             test_df=test_df,
             model_payload=model_payload,

@@ -331,6 +331,125 @@ tbody tr:last-child td {{ border-bottom: none; }}
   table {{ min-width: 620px; }}
   .plot-host, .plot-host.tall {{ min-height: 320px; }}
 }}
+.model-analysis-grid {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}}
+.model-analysis-card {{
+  border: 1px solid var(--surface-line);
+  border-radius: 22px;
+  background: var(--surface-sheet);
+  padding: 1rem 1.1rem;
+}}
+.model-analysis-header {{
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+  font-size: 1.05rem;
+}}
+.model-badge {{
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}}
+.model-badge.best {{
+  background: var(--accent-warm);
+  color: #fff;
+}}
+.model-analysis-body {{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}}
+.analysis-column h4 {{
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}}
+.strength-list, .weakness-list {{
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}}
+.strength-list li {{ color: #4a8c5c; }}
+.weakness-list li {{ color: #b85c3a; }}
+.underperform-block {{
+  margin-top: 0.8rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--surface-line);
+}}
+.underperform-block h4 {{
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}}
+.underperform-block ul {{
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}}
+@media (max-width: 680px) {{
+  .model-analysis-body {{ grid-template-columns: 1fr; }}
+  .model-analysis-grid {{ grid-template-columns: 1fr; }}
+}}
+/* ── Stock insight cards (per-stock portfolio analysis) ────────────── */
+.stock-insight-card {{
+  padding: 1.1rem 1.2rem;
+  border-radius: 18px;
+  background: var(--surface-sheet);
+  border: 1px solid var(--surface-line);
+}}
+.stock-insight-card.insight-positive {{ border-left: 4px solid #22c55e; }}
+.stock-insight-card.insight-negative {{ border-left: 4px solid #ef4444; }}
+.stock-insight-card.insight-neutral  {{ border-left: 4px solid #94a3b8; }}
+.stock-insight-header {{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}}
+.stock-weight-badge {{
+  display: inline-block;
+  padding: 0.18rem 0.65rem;
+  font-size: 0.78rem;
+  border-radius: 999px;
+  background: var(--surface-main);
+  color: var(--text-muted);
+}}
+.stock-insight-list {{
+  margin: 0.4rem 0 0.6rem 1.1rem;
+  padding: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--text-main);
+}}
+.stock-insight-list li {{ margin-bottom: 0.3rem; }}
+.stock-insight-metrics {{
+  display: flex;
+  gap: 1.2rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--surface-line);
+  padding-top: 0.5rem;
+  margin-top: 0.3rem;
+}}
 """
 
 
@@ -451,10 +570,142 @@ Plotly.newPlot("{plot_id}", {js_var}.data, {js_var}.layout, {{
 """
 
 
+def _build_model_analysis_html(export_payloads: list[dict], language: str) -> str:
+    """Generate comparative model analysis HTML with strengths/weaknesses."""
+    if not export_payloads or len(export_payloads) < 2:
+        return ""
+
+    # Find best model by Sharpe
+    best_idx = 0
+    best_sharpe = -999.0
+    for i, p in enumerate(export_payloads):
+        ev = p.get("eval") or {}
+        s = _safe_float(ev.get("sharpe"))
+        if s is not None and s > best_sharpe:
+            best_sharpe = s
+            best_idx = i
+
+    analysis_cards = []
+    for i, payload in enumerate(export_payloads):
+        ev = payload.get("eval") or {}
+        label = str(payload.get("short_label") or "Model")
+        color = _esc(payload.get("color") or "#ba7349")
+        is_best = (i == best_idx)
+
+        cumret = _safe_float(ev.get("cumret"))
+        annret = _safe_float(ev.get("annret"))
+        maxdd = _safe_float(ev.get("maxdd"))
+        sharpe = _safe_float(ev.get("sharpe"))
+        winrate = _safe_float(ev.get("winrate"))
+        pnl = _safe_float(ev.get("pnl_ratio"))
+
+        strengths: list[str] = []
+        weaknesses: list[str] = []
+        underperform_reasons: list[str] = []
+
+        # Sharpe analysis
+        if sharpe is not None:
+            if sharpe > 1.0:
+                strengths.append(_t(language, "夏普比率优异 (>1.0)，风险调整后回报出色", "Excellent Sharpe ratio (>1.0), outstanding risk-adjusted returns"))
+            elif sharpe > 0.5:
+                strengths.append(_t(language, "夏普比率良好 (>0.5)，风险调整后回报合理", "Good Sharpe ratio (>0.5), reasonable risk-adjusted returns"))
+            elif sharpe > 0:
+                weaknesses.append(_t(language, "夏普比率偏低 (<0.5)，风险调整后回报不理想", "Low Sharpe ratio (<0.5), suboptimal risk-adjusted returns"))
+            else:
+                weaknesses.append(_t(language, "夏普比率为负，策略亏损", "Negative Sharpe ratio, strategy is losing"))
+
+        # Win rate analysis
+        if winrate is not None:
+            if winrate > 0.55:
+                strengths.append(_t(language, f"胜率较高 ({winrate:.0%})，交易一致性好", f"High win rate ({winrate:.0%}), good trading consistency"))
+            elif winrate < 0.4:
+                weaknesses.append(_t(language, f"胜率偏低 ({winrate:.0%})，多数交易亏损", f"Low win rate ({winrate:.0%}), majority of trades are losses"))
+
+        # Max drawdown analysis
+        if maxdd is not None:
+            if abs(maxdd) < 0.1:
+                strengths.append(_t(language, f"最大回撤较小 ({maxdd:.1%})，风险控制良好", f"Small max drawdown ({maxdd:.1%}), good risk control"))
+            elif abs(maxdd) > 0.3:
+                weaknesses.append(_t(language, f"最大回撤较大 ({maxdd:.1%})，存在较大亏损风险", f"Large max drawdown ({maxdd:.1%}), significant loss risk"))
+
+        # Cumulative return analysis
+        if cumret is not None:
+            if cumret > 0.2:
+                strengths.append(_t(language, f"累计收益可观 ({cumret:.1%})", f"Substantial cumulative return ({cumret:.1%})"))
+            elif cumret < 0:
+                weaknesses.append(_t(language, f"累计收益为负 ({cumret:.1%})", f"Negative cumulative return ({cumret:.1%})"))
+
+        # PnL ratio
+        if pnl is not None:
+            if pnl > 1.5:
+                strengths.append(_t(language, f"盈亏比优秀 ({pnl:.2f})，盈利交易平均收益远大于亏损", f"Excellent PnL ratio ({pnl:.2f}), average gain far exceeds average loss"))
+            elif pnl < 1.0:
+                weaknesses.append(_t(language, f"盈亏比不足 ({pnl:.2f})，需要更高胜率弥补", f"Poor PnL ratio ({pnl:.2f}), requires higher win rate to compensate"))
+
+        # Underperformance reasons vs best
+        if not is_best and best_sharpe > -999:
+            best_ev = (export_payloads[best_idx].get("eval") or {})
+            best_label = str(export_payloads[best_idx].get("short_label") or "Best")
+
+            if sharpe is not None and best_sharpe is not None and best_sharpe > sharpe:
+                diff = best_sharpe - sharpe
+                underperform_reasons.append(_t(language,
+                    f"夏普比率低于 {best_label} {diff:.2f}，风险调整后回报差距明显",
+                    f"Sharpe ratio is {diff:.2f} lower than {best_label}, notable gap in risk-adjusted returns"))
+
+            best_cumret = _safe_float(best_ev.get("cumret"))
+            if cumret is not None and best_cumret is not None and best_cumret > cumret:
+                underperform_reasons.append(_t(language,
+                    f"累计收益落后 {best_label} {(best_cumret - cumret):.1%}",
+                    f"Cumulative return trails {best_label} by {(best_cumret - cumret):.1%}"))
+
+            best_maxdd = _safe_float(best_ev.get("maxdd"))
+            if maxdd is not None and best_maxdd is not None and abs(maxdd) > abs(best_maxdd) * 1.2:
+                underperform_reasons.append(_t(language,
+                    f"回撤控制不如 {best_label}，最大回撤更深 {abs(maxdd) - abs(best_maxdd):.1%}",
+                    f"Weaker drawdown control than {best_label}, max drawdown deeper by {abs(maxdd) - abs(best_maxdd):.1%}"))
+
+        badge = f"<span class='model-badge best'>{_t(language, '最佳', 'Best')}</span>" if is_best else ""
+        strengths_html = "".join(f"<li>{_esc(s)}</li>" for s in strengths) if strengths else f"<li>{_t(language, '无显著优势', 'No notable strengths')}</li>"
+        weaknesses_html = "".join(f"<li>{_esc(w)}</li>" for w in weaknesses) if weaknesses else f"<li>{_t(language, '无明显劣势', 'No notable weaknesses')}</li>"
+        underperform_html = ""
+        if underperform_reasons:
+            reasons = "".join(f"<li>{_esc(r)}</li>" for r in underperform_reasons)
+            underperform_html = f"""
+            <div class="underperform-block">
+              <h4>{_t(language, '为什么该模型表现较弱', 'Why this model underperforms')}</h4>
+              <ul>{reasons}</ul>
+            </div>"""
+
+        analysis_cards.append(f"""
+        <div class="model-analysis-card">
+          <div class="model-analysis-header">
+            <span class="swatch" style="background:{color}"></span>
+            <strong>{_esc(label)}</strong> {badge}
+          </div>
+          <div class="model-analysis-body">
+            <div class="analysis-column">
+              <h4>{_t(language, '优势', 'Strengths')}</h4>
+              <ul class="strength-list">{strengths_html}</ul>
+            </div>
+            <div class="analysis-column">
+              <h4>{_t(language, '劣势', 'Weaknesses')}</h4>
+              <ul class="weakness-list">{weaknesses_html}</ul>
+            </div>
+          </div>
+          {underperform_html}
+        </div>""")
+
+    return "".join(analysis_cards)
+
+
 def build_single_stock_export_html(
     *,
     title: str,
     symbol: str,
+    stock_name: str = "",
+    market: str = "",
+    currency: str = "",
     df: pd.DataFrame,
     test_df: pd.DataFrame | None,
     model_payload: dict[str, dict],
@@ -619,6 +870,46 @@ def build_single_stock_export_html(
     </section>
 """)
 
+    # ── Stock profile section ─────────────────────────────────────────────────
+    market_display = {"US": "US Stock (NYSE/NASDAQ)", "CN_A": "A-Share (SSE/SZSE)", "A": "A-Share (SSE/SZSE)"}.get(market, market or "N/A")
+    currency_display = currency or ("USD" if market == "US" else "CNY" if market in ("A", "CN_A") else "N/A")
+    avg_volume = _fmt_compact_number(df["volume"].mean() if "volume" in df.columns and not df.empty else None)
+    high_52w = _fmt_decimal(df["high"].max() if "high" in df.columns and not df.empty else None)
+    low_52w = _fmt_decimal(df["low"].min() if "low" in df.columns and not df.empty else None)
+
+    stock_profile_items = [
+        {"label": _t(language, "代码", "Symbol"), "value": symbol, "meta": stock_name or ""},
+        {"label": _t(language, "市场", "Market"), "value": market_display, "meta": _t(language, f"币种：{currency_display}", f"Currency: {currency_display}")},
+        {"label": _t(language, "数据区间", "Data Range"), "value": f"{date_min} – {date_max}", "meta": _t(language, f"共 {len(df)} 个交易日", f"{len(df)} trading days")},
+        {"label": _t(language, "价格区间", "Price Range"), "value": f"{low_52w} – {high_52w}", "meta": _t(language, f"均量 {avg_volume}", f"Avg volume {avg_volume}")},
+    ]
+
+    html_parts.append(f"""
+    <section class="section-stack">
+      <article class="paper-block">
+        <div class="section-kicker">{_esc(_t(language, "股票概览", "Stock Profile"))}</div>
+        <h2 class="section-title">{_esc(_t(language, "标的基本信息", "Instrument Information"))}</h2>
+        <div class="kv-grid">{_build_kv_items(stock_profile_items)}</div>
+      </article>
+    </section>
+""")
+
+    # ── Model comparison analysis ─────────────────────────────────────────────
+    model_analysis_html = _build_model_analysis_html(export_payloads, language)
+    if model_analysis_html:
+        html_parts.append(f"""
+    <section class="section-stack">
+      <article class="paper-block">
+        <div class="section-kicker">{_esc(_t(language, "模型分析", "Model Analysis"))}</div>
+        <h2 class="section-title">{_esc(_t(language, "模型对比分析", "Model Comparison Analysis"))}</h2>
+        <p class="section-copy">{_esc(_t(language, "基于各模型的回测评估指标，自动分析每个模型的优势、劣势及表现差异原因。", "Automated analysis of each model's strengths, weaknesses, and performance difference based on backtest metrics."))}</p>
+        <div class="model-analysis-grid">
+          {model_analysis_html}
+        </div>
+      </article>
+    </section>
+""")
+
     # Charts section — only render cards for figures that have traces
     chart_cards_html = ""
     chart_scripts = []
@@ -679,6 +970,101 @@ def build_single_stock_export_html(
     return "".join(html_parts)
 
 
+def _build_portfolio_stock_analysis_html(portfolio_result: dict, language: str) -> str:
+    """Generate per-stock strategy analysis for multi-stock portfolio."""
+    if not portfolio_result:
+        return ""
+
+    individual = portfolio_result.get("individual_results") or {}
+    weights = portfolio_result.get("weights") or {}
+    if len(individual) < 2:
+        return ""
+
+    # Compute averages
+    returns = [r.get("total_return", 0) for r in individual.values()]
+    sharpes = [r.get("sharpe", 0) for r in individual.values()]
+    avg_ret = sum(returns) / len(returns) if returns else 0
+    avg_sharpe = sum(sharpes) / len(sharpes) if sharpes else 0
+
+    cards: list[str] = []
+    for sym, res in individual.items():
+        ret = res.get("total_return", 0)
+        sharpe = res.get("sharpe", 0)
+        maxdd = res.get("max_dd", 0)
+        weight = weights.get(sym, 0)
+
+        insights: list[str] = []
+        tone = "neutral"
+
+        if ret > avg_ret * 1.2:
+            insights.append(_t(language,
+                f"收益率 ({ret:.1%}) 显著高于组合平均 ({avg_ret:.1%})，是组合收益的主要贡献者",
+                f"Return ({ret:.1%}) significantly above portfolio average ({avg_ret:.1%}), major contributor to portfolio gains"))
+            tone = "positive"
+        elif ret < avg_ret * 0.5 or ret < 0:
+            insights.append(_t(language,
+                f"收益率 ({ret:.1%}) 明显低于组合平均 ({avg_ret:.1%})，拖累组合表现",
+                f"Return ({ret:.1%}) well below portfolio average ({avg_ret:.1%}), drags portfolio performance"))
+            tone = "negative"
+
+        if sharpe > avg_sharpe * 1.2:
+            insights.append(_t(language,
+                f"夏普比率 ({sharpe:.2f}) 优于组合平均 ({avg_sharpe:.2f})，风险调整后回报出色",
+                f"Sharpe ({sharpe:.2f}) above portfolio average ({avg_sharpe:.2f}), strong risk-adjusted returns"))
+        elif sharpe < 0:
+            insights.append(_t(language,
+                f"夏普比率为负 ({sharpe:.2f})，该标的策略在样本期内亏损",
+                f"Negative Sharpe ({sharpe:.2f}), strategy lost money in sample period"))
+            tone = "negative"
+
+        if abs(maxdd) > 0.3:
+            insights.append(_t(language,
+                f"最大回撤较深 ({maxdd:.1%})，需要关注极端行情下的风险暴露",
+                f"Deep max drawdown ({maxdd:.1%}), monitor risk exposure in extreme conditions"))
+        elif abs(maxdd) < 0.1:
+            insights.append(_t(language,
+                f"回撤控制良好 ({maxdd:.1%})，波动较小",
+                f"Good drawdown control ({maxdd:.1%}), low volatility"))
+
+        if not insights:
+            insights.append(_t(language, "表现接近组合平均水平", "Performance close to portfolio average"))
+
+        tone_class = {"positive": "insight-positive", "negative": "insight-negative"}.get(tone, "insight-neutral")
+        insight_html = "".join(f"<li>{_esc(ins)}</li>" for ins in insights)
+
+        cards.append(f"""
+        <div class="stock-insight-card {tone_class}">
+          <div class="stock-insight-header">
+            <strong>{_esc(sym)}</strong>
+            <span class="stock-weight-badge">{_t(language, '权重', 'Weight')} {weight:.1%}</span>
+          </div>
+          <ul class="stock-insight-list">{insight_html}</ul>
+          <div class="stock-insight-metrics">
+            <span>{_t(language, '收益', 'Return')} {ret:.2%}</span>
+            <span>{_t(language, '夏普', 'Sharpe')} {sharpe:.2f}</span>
+            <span>{_t(language, '回撤', 'DD')} {maxdd:.2%}</span>
+          </div>
+        </div>""")
+
+    return "".join(cards)
+
+
+def _build_portfolio_stock_analysis_section(portfolio_result: dict, language: str) -> str:
+    """Wrap per-stock analysis cards in a titled section block."""
+    stock_analysis_html = _build_portfolio_stock_analysis_html(portfolio_result, language)
+    if not stock_analysis_html:
+        return ""
+    return f"""
+      <article class="paper-block">
+        <div class="section-kicker" style="margin-top:1.5rem">{_esc(_t(language, "个股分析", "Per-Stock Analysis"))}</div>
+        <h3 style="margin:0.5rem 0 1rem">{_esc(_t(language, "各标的策略表现解读", "Individual Stock Strategy Performance Analysis"))}</h3>
+        <p class="section-copy">{_esc(_t(language, "基于各标的在组合策略中的回测表现，自动分析其对组合的贡献与风险。", "Automated analysis of each stock's contribution and risk based on portfolio backtest performance."))}</p>
+        <div class="model-analysis-grid">
+          {stock_analysis_html}
+        </div>
+      </article>"""
+
+
 def build_multi_stock_export_html(
     *,
     title: str,
@@ -693,6 +1079,7 @@ def build_multi_stock_export_html(
     periodic_heatmap_fig: go.Figure | None,
     portfolio_result: dict[str, Any] | None,
     include_date: bool,
+    market: str = "",
     language: str = "zh",
     theme: str = "light",
     generated_at: datetime | None = None,
@@ -796,6 +1183,23 @@ def build_multi_stock_export_html(
     if corr_fig is not None:
         html_parts.append(_plot_script("multi-corr-chart", corr_fig))
 
+    # ── Stock pool summary ────────────────────────────────────────────────────
+    market_display = {"US": "US Stock (NYSE/NASDAQ)", "CN_A": "A-Share (SSE/SZSE)"}.get(market, market or "N/A")
+    pool_profile_items = [
+        {"label": _t(language, "市场", "Market"), "value": market_display, "meta": ""},
+        {"label": _t(language, "标的数量", "Symbol Count"), "value": str(total_stocks), "meta": _t(language, f"平均 {avg_days} 个交易日", f"Average {avg_days} trading days")},
+        {"label": _t(language, "最佳表现", "Top Performer"), "value": best_symbol, "meta": _fmt_pct(best_return, signed=True)},
+    ]
+    html_parts.append(f"""
+    <section class="section-stack">
+      <article class="paper-block">
+        <div class="section-kicker">{_esc(_t(language, "Stock Pool", "Stock Pool"))}</div>
+        <h2 class="section-title">{_esc(_t(language, "标的池概览", "Stock Pool Overview"))}</h2>
+        <div class="kv-grid">{_build_kv_items(pool_profile_items)}</div>
+      </article>
+    </section>
+""")
+
     if portfolio_result:
         portfolio_cards = [
             {"label": _t(language, tr("portfolio.totalReturn"), "Portfolio return"), "value": _fmt_pct(portfolio_result.get("port_total_return"), signed=True), "meta": _t(language, f"夏普 {_fmt_ratio(portfolio_result.get('port_sharpe'))}", f"Sharpe {_fmt_ratio(portfolio_result.get('port_sharpe'))}")},
@@ -813,6 +1217,7 @@ def build_multi_stock_export_html(
         <div class="stat-grid">{_build_stat_cards(portfolio_cards)}</div>
         {_build_table([_t(language, tr("instrument.type.stock"), "Stock"), _t(language, tr("common.weight"), "Weight"), _t(language, tr("metric.strategyReturn"), "Strategy return"), _t(language, tr("metric.sharpe_ratio"), "Sharpe ratio"), _t(language, tr("metrics.max_drawdown"), "Max drawdown")], strategy_rows or [[_esc(_t(language, tr("common.noData"), "N/A")), "N/A", "N/A", "N/A", "N/A"]])}
       </article>
+      {_build_portfolio_stock_analysis_section(portfolio_result, language)}
       <div class="chart-grid">
         {_plot_card_markup(plot_id="multi-portfolio-chart", title=_t(language, tr("simulation.portfolio"), "Portfolio simulation"), copy=_t(language, tr("chart.reusePortfolioChart"), "The main chart continues to reuse the portfolio equity view from the result board."), wide=True, tall=True)}
         {(_plot_card_markup(plot_id="multi-periodic-heatmap-chart", title=_t(language, tr("chart.periodReturnHeatmap"), "Periodic return heatmap"), copy=_t(language, tr("chart.periodHeatmapLayout"), "The periodic heatmap is separated from the main chart so both desktop and mobile remain readable."), wide=True) if periodic_heatmap_fig is not None else "")}

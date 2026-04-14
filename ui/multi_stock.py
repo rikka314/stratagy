@@ -977,6 +977,90 @@ def _render_multi_stock_strategy_section(
                             st.error(tr("portfolio.insufficientData"))
 
                 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
+                with st.expander(tr("params.multi_stock_adjust"), expanded=False):
+                    st.caption(tr("params.multi_stock_adjust.description"))
+
+                    st.markdown(f"**{tr('params.entry_exit')}**")
+                    _me_col1, _me_col2 = st.columns(2)
+                    with _me_col1:
+                        _adj_entry = st.slider(
+                            tr("strategy.entryScoreThreshold"), -2.0, 2.0,
+                            value=float(params.get("entry_threshold", 0.5)),
+                            step=0.1,
+                            key="multi_adj_entry_threshold",
+                        )
+                    with _me_col2:
+                        _adj_exit = st.slider(
+                            tr("threshold.exitScore"), -2.0, 2.0,
+                            value=float(params.get("exit_threshold", -0.5)),
+                            step=0.1,
+                            key="multi_adj_exit_threshold",
+                        )
+
+                    st.markdown(f"**{tr('params.risk_control')}**")
+                    _mr_col1, _mr_col2 = st.columns(2)
+                    with _mr_col1:
+                        _adj_sl = st.slider(
+                            tr("param.atrStopLossMultiplier"), 0.0, 5.0,
+                            value=float(params.get("stop_loss_mult", 2.0)),
+                            step=0.5,
+                            key="multi_adj_stop_loss",
+                        )
+                    with _mr_col2:
+                        _adj_tp = st.slider(
+                            tr("strategy.atr.takeProfitMultiplier"), 0.0, 8.0,
+                            value=float(params.get("take_profit_mult", 4.0)),
+                            step=0.5,
+                            key="multi_adj_take_profit",
+                        )
+
+                    st.markdown(f"**{tr('params.factor_weights')}**")
+                    _mw_col1, _mw_col2 = st.columns(2)
+                    with _mw_col1:
+                        _adj_wbb = st.slider(
+                            tr("weight.bollinger_position"), 0.0, 2.0,
+                            value=float(params.get("weight_bb", 0.8)),
+                            step=0.1,
+                            key="multi_adj_weight_bb",
+                        )
+                        _adj_wvol = st.slider(
+                            tr("weight.volume_ratio"), 0.0, 1.5,
+                            value=float(params.get("weight_volume", 0.6)),
+                            step=0.1,
+                            key="multi_adj_weight_volume",
+                        )
+                        _adj_wdd = st.slider(
+                            tr("parameter.drawdownPenaltyWeight"), 0.0, 1.5,
+                            value=float(params.get("weight_drawdown", 0.5)),
+                            step=0.1,
+                            key="multi_adj_weight_drawdown",
+                        )
+                    with _mw_col2:
+                        _adj_wobv = st.slider(
+                            tr("parameter.obvTrendWeight"), 0.0, 2.0,
+                            value=float(params.get("weight_obv", 1.0)),
+                            step=0.1,
+                            key="multi_adj_weight_obv",
+                        )
+                        _adj_wprice = st.slider(
+                            tr("strategy.pricePositionWeight"), 0.0, 1.5,
+                            value=float(params.get("weight_price", 0.7)),
+                            step=0.1,
+                            key="multi_adj_weight_price",
+                        )
+
+                    # Write adjusted values back to params for downstream use
+                    params["entry_threshold"] = _adj_entry
+                    params["exit_threshold"] = _adj_exit
+                    params["stop_loss_mult"] = _adj_sl
+                    params["take_profit_mult"] = _adj_tp
+                    params["weight_bb"] = _adj_wbb
+                    params["weight_obv"] = _adj_wobv
+                    params["weight_volume"] = _adj_wvol
+                    params["weight_price"] = _adj_wprice
+                    params["weight_drawdown"] = _adj_wdd
+
+                st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
                 st.markdown(tr("section.title.comboParamSearch"))
                 portfolio_n_trials = st.slider(
                     tr("param.optimization_trials"),
@@ -1409,6 +1493,7 @@ def _render_multi_stock_export(
             periodic_heatmap_fig=periodic_heatmap_fig,
             portfolio_result=portfolio_result,
             include_date=include_date,
+            market=params.get("market", ""),
             language=get_ui_language(),
             theme=get_ui_theme(),
             generated_at=generated_at,

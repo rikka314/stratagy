@@ -4390,7 +4390,87 @@ LOCALES: dict[str, dict[str, str]] = {
     "modelEvaluation.runMeta": {
         "zh": "???{run_id}",
         "en": "Run: {run_id}"
-    }
+    },
+    "params.adjustable": {
+        "zh": "可调参数",
+        "en": "Adjustable Parameters"
+    },
+    "params.adjust.description": {
+        "zh": "调整策略核心参数。修改后点击「生成策略」重新运行。",
+        "en": "Adjust core strategy parameters. Click 'Generate Strategy' to re-run after changes."
+    },
+    "params.indicator_settings": {
+        "zh": "指标设置",
+        "en": "Indicator Settings"
+    },
+    "params.factor_weights": {
+        "zh": "因子权重",
+        "en": "Factor Weights"
+    },
+    "params.entry_exit": {
+        "zh": "入场/出场阈值",
+        "en": "Entry / Exit Thresholds"
+    },
+    "params.risk_control": {
+        "zh": "风险控制",
+        "en": "Risk Control"
+    },
+    "export.stock_profile": {
+        "zh": "股票概览",
+        "en": "Stock Profile"
+    },
+    "export.model_analysis": {
+        "zh": "模型对比分析",
+        "en": "Model Comparison Analysis"
+    },
+    "export.model_strengths": {
+        "zh": "优势",
+        "en": "Strengths"
+    },
+    "export.model_weaknesses": {
+        "zh": "劣势",
+        "en": "Weaknesses"
+    },
+    "export.model_verdict": {
+        "zh": "综合评价",
+        "en": "Overall Verdict"
+    },
+    "export.why_underperform": {
+        "zh": "为什么该模型表现欠佳",
+        "en": "Why this model underperforms"
+    },
+    "export.stock_info": {
+        "zh": "基本信息",
+        "en": "Basic Information"
+    },
+    "export.data_coverage": {
+        "zh": "数据覆盖",
+        "en": "Data Coverage"
+    },
+    "export.price_range": {
+        "zh": "价格区间",
+        "en": "Price Range"
+    },
+    "export.model_interpretation": {
+        "zh": "模型差异解读",
+        "en": "Model Difference Interpretation"
+    },
+    "export.best_model": {
+        "zh": "最佳模型",
+        "en": "Best Model"
+    },
+    "export.ranking_explanation": {
+        "zh": "排名解读",
+        "en": "Ranking Explanation"
+    },
+    "params.multi_stock_adjust": {
+        "zh": "策略参数调整",
+        "en": "Strategy Parameter Adjustment"
+    },
+    "params.multi_stock_adjust.description": {
+        "zh": "调整组合策略的信号权重和阈值参数。修改后点击「生成组合策略」重新运行。",
+        "en": "Adjust signal weights and threshold parameters for portfolio strategy. Click 'Generate Portfolio' to re-run."
+    },
 }
 
 def set_ui_language(language: str) -> None:
