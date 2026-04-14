@@ -46,7 +46,7 @@ US_FAMOUS_CATEGORY_CONFIG = (
 DEFAULT_RECOMMENDATION_LABEL = "实时涨幅前十"
 MARKET_CONTEXT_SESSION_KEY = "market_context_snapshot_cache"
 MARKET_CONTEXT_SESSION_TTL_SECONDS = 900
-MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS = 6.0
+MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS = 3.0
 
 
 def _coerce_float(value: Any) -> float | None:
@@ -333,20 +333,36 @@ def _format_pct_change(value: float | None) -> str:
 
 
 def build_market_context(market: str, limit: int = 10) -> dict[str, Any]:
-    """构建入口页所需的大盘和推荐股票上下文。"""
-    market_key = "A" if str(market).strip().upper() in {"A", "CN", "CN_A"} else "US"
-    try:
-        indices = get_market_indices(market_key)
-    except Exception:
-        indices = []
+    """构建入口页所需的大盘和推荐股票上下文。
 
+    指数快照和推荐股票通过线程池并行获取，将冷启动延迟从
+    ~12 s（串行 2×6 s）降至 ~3 s（并行 1×3 s 超时）。
+    """
+    market_key = "A" if str(market).strip().upper() in {"A", "CN", "CN_A"} else "US"
+
+    # ── 并行获取指数 + 推荐 ──
+    indices: list[dict[str, Any]] = []
+    recommendations: dict[str, Any] = {
+        "source_label": "默认股票池兜底",
+        "items": _fallback_recommendations(market_key, limit),
+    }
+
+    executor = ThreadPoolExecutor(max_workers=2)
     try:
-        recommendations = get_recommended_stocks(market_key, limit=limit)
-    except Exception:
-        recommendations = {
-            "source_label": "默认股票池兜底",
-            "items": _fallback_recommendations(market_key, limit),
-        }
+        future_indices = executor.submit(get_market_indices, market_key)
+        future_recs = executor.submit(get_recommended_stocks, market_key, limit)
+
+        try:
+            indices = future_indices.result(timeout=MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS + 1)
+        except Exception:
+            indices = []
+
+        try:
+            recommendations = future_recs.result(timeout=MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS + 1)
+        except Exception:
+            pass  # keep fallback
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
     for item in indices:
         item["close_text"] = _format_index_value(item.get("close"))

@@ -251,7 +251,7 @@ def render_sidebar(
                             fail_count += 1
 
                     load_csv.clear()
-                    st.cache_data.clear()
+                    get_available_stocks.clear()
 
                     if success_count > 0:
                         st.success(
