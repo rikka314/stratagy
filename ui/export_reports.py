@@ -721,6 +721,7 @@ def build_single_stock_export_html(
     language: str = "zh",
     theme: str = "light",
     generated_at: datetime | None = None,
+    ticker_info: dict | None = None,
 ) -> str:
     language = _lang(language)
     theme = _theme(theme)
@@ -871,25 +872,93 @@ def build_single_stock_export_html(
 """)
 
     # ── Stock profile section ─────────────────────────────────────────────────
+    info = ticker_info or {}
     market_display = {"US": "US Stock (NYSE/NASDAQ)", "CN_A": "A-Share (SSE/SZSE)", "A": "A-Share (SSE/SZSE)"}.get(market, market or "N/A")
     currency_display = currency or ("USD" if market == "US" else "CNY" if market in ("A", "CN_A") else "N/A")
     avg_volume = _fmt_compact_number(df["volume"].mean() if "volume" in df.columns and not df.empty else None)
-    high_52w = _fmt_decimal(df["high"].max() if "high" in df.columns and not df.empty else None)
-    low_52w = _fmt_decimal(df["low"].min() if "low" in df.columns and not df.empty else None)
 
-    stock_profile_items = [
+    # 52-week high/low: last 252 trading rows (not full dataset max/min)
+    rows_252 = df.tail(252) if len(df) >= 252 else df
+    high_52w = _fmt_decimal(rows_252["high"].max() if "high" in rows_252.columns and not rows_252.empty else None)
+    low_52w = _fmt_decimal(rows_252["low"].min() if "low" in rows_252.columns and not rows_252.empty else None)
+
+    # Computed OHLCV statistics
+    total_return: float | None = None
+    ann_return: float | None = None
+    ann_vol: float | None = None
+    max_dd_val: float | None = None
+    if not df.empty and "close" in df.columns and len(df) > 2:
+        closes = df["close"].dropna()
+        if len(closes) > 2 and float(closes.iloc[0]) != 0:
+            total_return = float(closes.iloc[-1]) / float(closes.iloc[0]) - 1.0
+            n_days = len(closes)
+            ann_return = (1.0 + total_return) ** (252.0 / n_days) - 1.0
+        daily_ret = closes.pct_change().dropna()
+        if len(daily_ret) > 1:
+            ann_vol = float(daily_ret.std()) * (252 ** 0.5)
+        roll_max = closes.cummax()
+        drawdown = closes / roll_max - 1.0
+        max_dd_val = float(drawdown.min())
+
+    # Base profile items (always shown)
+    stock_profile_items: list[dict] = [
         {"label": _t(language, "代码", "Symbol"), "value": symbol, "meta": stock_name or ""},
         {"label": _t(language, "市场", "Market"), "value": market_display, "meta": _t(language, f"币种：{currency_display}", f"Currency: {currency_display}")},
         {"label": _t(language, "数据区间", "Data Range"), "value": f"{date_min} – {date_max}", "meta": _t(language, f"共 {len(df)} 个交易日", f"{len(df)} trading days")},
-        {"label": _t(language, "价格区间", "Price Range"), "value": f"{low_52w} – {high_52w}", "meta": _t(language, f"均量 {avg_volume}", f"Avg volume {avg_volume}")},
+        {"label": _t(language, "最新收盘价", "Latest Close"), "value": _fmt_decimal(latest_close), "meta": _t(language, f"涨跌 {_fmt_pct(change_pct, signed=True)}", f"Move {_fmt_pct(change_pct, signed=True)}")},
+        {"label": _t(language, "52周高/低", "52-Week H/L"), "value": f"{high_52w} / {low_52w}", "meta": _t(language, f"均量 {avg_volume}", f"Avg vol {avg_volume}")},
+        {"label": _t(language, "区间总回报", "Period Return"), "value": _fmt_pct(total_return, signed=True), "meta": _t(language, f"年化 {_fmt_pct(ann_return, signed=True)}", f"Annualized {_fmt_pct(ann_return, signed=True)}")},
+        {"label": _t(language, "年化波动率", "Ann. Volatility"), "value": _fmt_pct(ann_vol), "meta": ""},
+        {"label": _t(language, "最大回撤", "Max Drawdown"), "value": _fmt_pct(max_dd_val, signed=True), "meta": _t(language, "区间内最大峰谷跌幅", "Peak-to-trough over data period")},
     ]
+
+    # Optional fundamental items from ticker_info (yfinance / caller-supplied)
+    sector = str(info.get("sector") or "").strip()
+    industry = str(info.get("industry") or "").strip()
+    market_cap = info.get("market_cap") or info.get("marketCap")
+    pe_ratio = info.get("pe_ratio") or info.get("trailingPE")
+    beta = info.get("beta")
+    div_yield = info.get("dividend_yield") or info.get("dividendYield")
+    country = str(info.get("country") or "").strip()
+    employees = info.get("employees") or info.get("fullTimeEmployees")
+    description = str(info.get("description") or info.get("longBusinessSummary") or "").strip()
+
+    if sector or industry:
+        stock_profile_items.append({
+            "label": _t(language, "所属行业", "Sector / Industry"),
+            "value": sector or "N/A",
+            "meta": industry or "",
+        })
+    if market_cap is not None:
+        stock_profile_items.append({
+            "label": _t(language, "市值", "Market Cap"),
+            "value": _fmt_compact_number(market_cap),
+            "meta": _t(language, f"P/E {_fmt_ratio(pe_ratio)}", f"P/E {_fmt_ratio(pe_ratio)}"),
+        })
+    if beta is not None or div_yield is not None:
+        stock_profile_items.append({
+            "label": _t(language, "Beta / 股息率", "Beta / Div. Yield"),
+            "value": _fmt_ratio(beta),
+            "meta": _fmt_pct(div_yield) if div_yield is not None else "N/A",
+        })
+    if country or employees is not None:
+        stock_profile_items.append({
+            "label": _t(language, "国家 / 员工数", "Country / Employees"),
+            "value": country or "N/A",
+            "meta": _fmt_compact_number(employees) if employees is not None else "",
+        })
+
+    description_block = ""
+    if description:
+        description_block = f"""
+      <p class="section-copy" style="margin-top:0.75rem;font-size:0.78rem;line-height:1.55;color:var(--text-secondary);">{_esc(description[:600] + ("…" if len(description) > 600 else ""))}</p>"""
 
     html_parts.append(f"""
     <section class="section-stack">
       <article class="paper-block">
         <div class="section-kicker">{_esc(_t(language, "股票概览", "Stock Profile"))}</div>
         <h2 class="section-title">{_esc(_t(language, "标的基本信息", "Instrument Information"))}</h2>
-        <div class="kv-grid">{_build_kv_items(stock_profile_items)}</div>
+        <div class="kv-grid">{_build_kv_items(stock_profile_items)}</div>{description_block}
       </article>
     </section>
 """)

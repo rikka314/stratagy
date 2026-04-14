@@ -27,7 +27,7 @@ from core.backtest import max_drawdown, sharpe_ratio, walk_forward_backtest
 from core.adaptive_regime import ADAPTIVE_REGIME_KIND
 from core.data import get_stock_label_map, search_stock_candidates
 from core.evaluation import build_comparison_table
-from core.indicators import add_indicators
+from core.indicators import add_indicators as _add_indicators_core
 from core.utils import format_pct
 from core.visualization import (
     _build_axis_transform,
@@ -102,6 +102,65 @@ class ArtifactLibraryEntry:
 
 def _normalize_market_key(market: str | None) -> str:
     return "A" if str(market or "US").strip().upper() in {"A", "CN", "CN_A"} else "US"
+
+
+@st.cache_data(show_spinner=False)
+def add_indicators(
+    df: pd.DataFrame,
+    rsi_period: int,
+    macd_fast: int,
+    macd_slow: int,
+    macd_signal: int,
+    ema_fast: int,
+    ema_slow: int,
+    adx_period: int,
+    atr_period: int,
+    bb_period: int = 20,
+    bb_std: float = 2.0,
+    indicator_period: int = 20,
+) -> pd.DataFrame:
+    """Cached wrapper around core add_indicators – avoids recomputing on every Streamlit rerun."""
+    return _add_indicators_core(
+        df,
+        rsi_period=rsi_period,
+        macd_fast=macd_fast,
+        macd_slow=macd_slow,
+        macd_signal=macd_signal,
+        ema_fast=ema_fast,
+        ema_slow=ema_slow,
+        adx_period=adx_period,
+        atr_period=atr_period,
+        bb_period=bb_period,
+        bb_std=bb_std,
+        indicator_period=indicator_period,
+    )
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_ticker_info(symbol: str, market: str) -> dict:
+    """Fetch fundamental info for US stocks via yfinance (optional dependency).
+
+    Returns an empty dict on any failure or for non-US markets so callers
+    never need to handle None.
+    """
+    if _normalize_market_key(market) != "US":
+        return {}
+    try:
+        import yfinance as yf  # optional dependency – not in core requirements
+        info = yf.Ticker(symbol).info or {}
+        return {
+            "sector": info.get("sector", ""),
+            "industry": info.get("industry", ""),
+            "market_cap": info.get("marketCap"),
+            "pe_ratio": info.get("trailingPE"),
+            "beta": info.get("beta"),
+            "dividend_yield": info.get("dividendYield"),
+            "country": info.get("country", ""),
+            "employees": info.get("fullTimeEmployees"),
+            "description": info.get("longBusinessSummary", ""),
+        }
+    except Exception:
+        return {}
 
 
 def _safe_float(value: object) -> float | None:
@@ -635,7 +694,20 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
         "bb_std": p["bb_std"],
         "indicator_period": p["indicator_period"],
     }
-    df_indicators = add_indicators(df_raw, **indicator_kwargs)
+    df_indicators = add_indicators(
+        df_raw,
+        rsi_period=p["rsi_period"],
+        macd_fast=p["macd_fast"],
+        macd_slow=p["macd_slow"],
+        macd_signal=p["macd_signal"],
+        ema_fast=p["ema_fast"],
+        ema_slow=p["ema_slow"],
+        adx_period=p["adx_period"],
+        atr_period=p["atr_period"],
+        bb_period=p["bb_period"],
+        bb_std=p["bb_std"],
+        indicator_period=p["indicator_period"],
+    )
 
     page_top_slot = st.container()
     train_ratio = _safe_float(st.session_state.get(TRAIN_RATIO_KEY))
@@ -719,7 +791,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
 
     with st.container(key="single-stock-strategy-section"):
         render_html(
-            """
+            f"""
 <div class="analysis-section-header">
   <div class="surface-kicker">{tr("single.strategy.workspaceKicker")}</div>
   <h2 class="analysis-section-title">策略区</h2>
@@ -759,7 +831,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                 st.divider()
                 entry_status_slot = st.empty()
                 render_html(
-                    """
+                    f"""
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">工作台入口</h4>
   <p class="analysis-callout-copy">{tr("single.strategy.entryCopy")}</p>
@@ -775,7 +847,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
 
                 st.divider()
                 render_html(
-                    """
+                    f"""
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">模型配置</h4>
   <p class="analysis-callout-copy">{tr("single.strategy.configCopy")}</p>
@@ -799,7 +871,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
 
                 st.divider()
                 render_html(
-                    """
+                    f"""
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">生成与策略库</h4>
   <p class="analysis-callout-copy">{tr("single.strategy.libraryCopy")}</p>
@@ -870,11 +942,11 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
         with result_col:
             with st.container(key="single-stock-strategy-result-board"):
                 render_html(
-                    """
+                    f"""
 <div class="analysis-section-header">
   <div class="surface-kicker">{tr("surface.resultBoard")}</div>
   <h3 class="analysis-section-title">策略结果区</h3>
-  <p class="analysis-section-copy">右侧只保留一个稳定展示板。默认查看当前策略，切到“策略比对”后保持同一布局，只替换结果内容，不再把比较图表散落到页面底部。</p>
+  <p class="analysis-section-copy">右侧只保留一个稳定展示板。默认查看当前策略，切到"策略比对"后保持同一布局，只替换结果内容，不再把比较图表散落到页面底部。</p>
 </div>
                     """
                 )
@@ -2970,6 +3042,8 @@ def _render_single_stock_export(
 
     with st.spinner(tr("report.generating_html")):
         generated_at = datetime.now()
+        # Fetch fundamental info at export time only (cached, non-blocking for non-US)
+        ticker_info = _fetch_ticker_info(symbol, market)
         full_html = build_single_stock_export_html(
             title=single_export_title,
             symbol=symbol,
@@ -2991,6 +3065,7 @@ def _render_single_stock_export(
             language=get_ui_language(),
             theme=get_ui_theme(),
             generated_at=generated_at,
+            ticker_info=ticker_info,
         )
 
         st.download_button(

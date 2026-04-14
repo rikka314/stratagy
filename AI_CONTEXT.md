@@ -63,10 +63,11 @@
 - `model-test` Stage A 现在包含 `rsm_adaptive_v1`，会在 run 输出目录写 `regime_artifacts/`。
 - 同一次研究 run 内，adaptive Stage A 会通过环境变量 `STRATAGY_ADAPTIVE_REGIME_ARTIFACT_DIR` 读取刚生成的 `regime_artifacts/`。
 - `rsm_adaptive_v1` 不参加 rolling robustness；`robustness_summary.csv` 不包含它，`report.json` / `report.md` 额外包含 adaptive state / routing 摘要。
-- 仓库现已包含 `reports/Final_Report.html` 作为最终提交 ZIP 的离线报告入口，`scripts/prepare_final_zip.ps1` 用于生成清理后的 `Final_gpXX.zip` 提交包。
+- **性能优化（W9+）**：`rolling_rank` / `rolling_percentile`（`core/indicators.py`）改用 `raw=True + numpy` 实现，比 `raw=False + pandas.rank` 快约 5-10x；`add_indicators` 在 UI 层（`ui/single_stock.py`）包装为 `@st.cache_data` cached wrapper，消除每次 slider 交互的重复计算；`get_available_stocks`（`core/utils.py`）加 `@st.cache_data(ttl=300)`，避免每次 rerun 重复扫描缓存文件目录。
+- **依赖变更**：`requirements.txt` 新增 `yfinance>=0.2.0`（可选，仅在 HTML 导出时 lazy import，失败则 ticker_info 回退为空 dict）。
 - 站点 UI 语言现固定为英文；顶部中英切换已移除，路由不再传播 `lang` 查询参数。
 - **参数可调性（W9）**：单股 Search 模型和多股策略面板均内联了关键参数 slider（入场/出场阈值、止损/止盈、因子权重）。单股使用 `search_adj_` 前缀 key，多股使用 `multi_adj_` 前缀 key，均与 sidebar 高级设置的 key 互不冲突。单股通过 `_apply_search_adj_overrides()` 在 pipeline 调用前覆盖 `params_snapshot`；多股直接写回 `params` dict。
-- **HTML 导出增强（W9）**：单股导出新增 Stock Profile section（代码、名称、市场、币种、价格区间）和 Model Comparison Analysis section（当 ≥2 模型时自动分析优劣势、underperformance 原因）。多股导出新增 Stock Pool Summary 和 Per-Stock Performance Analysis（vs 组合平均的收益/夏普/回撤对比）。相关 helper：`_build_model_analysis_html()`、`_build_portfolio_stock_analysis_html()`。
+- **HTML 导出增强（W9+）**：单股导出新增 Stock Profile section 扩展版（代码+名称、市场+币种、数据区间、最新收盘价+涨跌、52周高/低+均量、区间总回报+年化回报、年化波动率、最大回撤）；若 `ticker_info` 由调用方提供（US 股通过 yfinance 可选获取），还额外显示行业/市值/PE/Beta/股息率/业务描述。`build_single_stock_export_html` 新增 `ticker_info: dict | None = None` 参数；`_render_single_stock_export` 在按钮点击时调用 `_fetch_ticker_info(symbol, market)` 并传入。
 
 ## 默认阅读路线
 

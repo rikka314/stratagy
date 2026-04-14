@@ -119,6 +119,7 @@ def load_or_fetch_stock(symbol: str, adjust: str, market: str = "US") -> pd.Data
         return None
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def get_available_stocks(market: str = "US") -> list:
     """
     获取可用的股票列表（默认列表 + 用户添加的股票）
