@@ -1,6 +1,6 @@
 # AI 快速上下文（薄路由版）
 
-> 最近更新：2026-04-14
+> 最近更新：2026-04-15
 > 用途：项目级路由文档。先读本文件，再按任务跳到对应 skill 和接口文档。
 > 约定：详细接口统一维护在 `document/interfaces/`，本文件只保存 durable project facts。
 
@@ -10,6 +10,7 @@
 
 ## 关键运行事实
 
+- **Windows 一键启动**：双击项目根目录 `run.bat`，自动创建 venv、安装依赖、启动 Streamlit
 - 公开路径：`/strategy`、`/strategy/stock-analysis`、`/strategy/stocks-analysis`、`/strategy/model-evaluation`
 - Streamlit 配置：`server.baseUrlPath = "strategy"`
 - 服务器 SSH 别名：`stratagy`
@@ -21,6 +22,8 @@
 
 ## 仓库地图
 
+- `run.bat`
+  作用：Windows 一键安装 + 启动脚本（创建 venv → 安装依赖 → 启动 Streamlit）。
 - `app.py`
   作用：路由壳层、入口页、单股 / 多股 route state。
 - `core/`
@@ -31,14 +34,18 @@
   作用：部署脚本、Nginx 模板、远端 bootstrap。
 - `reports/`
   作用：最终提交用离线 HTML 报告与后续导出物。
+- `scripts/`
+  作用：本地 setup/start 脚本、最终打包脚本、legacy i18n/fix 工具脚本。
 - `document/`
-  作用：风格标准、数据 / 模型约定、接口文档、验收记录、归档。
+  作用：风格标准、数据 / 模型约定、接口文档、验收记录、归档（含 `archive/app_original.py` 重构前备份）。
 - `plan/`
   作用：学期计划与分周执行计划。
 - `model-test/`
   作用：离线单股策略批量研究工作区，包含 CLI 入口、研究配置、执行器、评分汇总与报告输出。
-- `app_original.py`
-  作用：重构前备份，只读，不删除。
+- `data/`
+  作用：本地样例与缓存股票 CSV 数据。
+- `tests/`
+  作用：Pytest 测试套件。
 
 ## 当前冻结模块边界
 

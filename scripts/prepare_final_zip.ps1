@@ -21,10 +21,17 @@ $topLevelExcludedPatterns = @(
     ".idea",
     ".vscode",
     ".claude",
+    ".codex",
     ".codex_pytest_tmp",
+    ".agents",
+    ".cursor",
+    ".cursorrules",
     "dist",
     "__pycache__",
-    "pytest_tmp_*"
+    "pytest_tmp_*",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "AI_CONTROL.md"
 )
 
 $excludedLeafPatterns = @(

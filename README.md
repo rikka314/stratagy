@@ -1,98 +1,110 @@
-# 量化交易策略分析应用
+# Quantitative Trading Strategy Analyzer
 
-基于 Streamlit 的模块化量化策略 WebApp，用于金融历史数据分析、策略回测、模型比较和离线 HTML 报告导出。
+A modular Streamlit-based WebApp for financial data analysis, strategy backtesting, model comparison and offline HTML report export. Covers US and A-share markets.
 
-## 最终提交入口
+## Final Submission Entry Points
 
-- WebApp 入口：`app.py`
-- 离线 HTML 报告：`reports/Final_Report.html`
-- 依赖清单：`requirements.txt`
-- 最终打包脚本：`scripts/prepare_final_zip.ps1`
+| Item | Path |
+|------|------|
+| WebApp entry | `app.py` |
+| Offline HTML report | `reports/Final_Report.html` |
+| Dependency list | `requirements.txt` |
+| Final packaging script | `scripts/prepare_final_zip.ps1` |
 
-## 本地运行
+## Quick Start (Windows One-Click)
 
-推荐环境：`Python 3.10+`
+**Prerequisites:** Python 3.10+ installed and added to PATH.
 
-1. 创建虚拟环境。
+Double-click **`run.bat`** in the project root. It will automatically:
+
+1. Create a virtual environment (`.venv/`)
+2. Install all dependencies from `requirements.txt`
+3. Launch the Streamlit app
+
+Then open your browser at: **http://localhost:8501/strategy**
+
+## Manual Setup
 
 ```bash
+# 1. Create virtual environment
 python -m venv .venv
-```
 
-2. 激活虚拟环境。
-
-```bash
+# 2. Activate (Windows)
 .venv\Scripts\activate
-```
 
-3. 安装依赖。
-
-```bash
+# 3. Install dependencies
 pip install -r requirements.txt
-```
 
-4. 启动 WebApp。
-
-```bash
+# 4. Launch
 streamlit run app.py
 ```
 
-5. 打开浏览器访问：`http://localhost:8501/strategy`
+Open browser: `http://localhost:8501/strategy`
 
-可直接使用仓库内 `data/` 的样例数据；若分析其他股票且本地无缓存，应用会通过 `AkShare` 在线拉取数据，因此需要可用网络连接。
+## Alternative Windows Scripts
 
-## Windows 快捷脚本
+| Script | Purpose |
+|--------|---------|
+| `run.bat` | One-click install + launch (recommended) |
+| `scripts\setup.bat` | Create venv and install deps only |
+| `scripts\start.bat` | Launch app (venv must exist) |
 
-- 首次安装：`scripts\setup.bat`
-- 启动应用：`scripts\start.bat`
+## Data
 
-## 功能概览
+The `data/` folder contains sample US stock CSV files (AAPL, GOOGL, META, NVDA, TSLA, etc.). For other stocks, the app fetches data online via AkShare, which requires a network connection.
 
-- 单股分析、策略信号生成与回测
-- 多股票比较、风险收益分析与组合模拟
-- Baseline / Proposed Model 对比
-- Walk-forward 验证、模型评估与指标检查
-- 单股 / 多股离线 HTML 导出
+## Features
 
-## 项目结构
+- Single-stock analysis with strategy signal generation and backtesting
+- Multi-stock comparison, risk-return analysis and portfolio simulation
+- Baseline (Naive, Mean, Drift) vs Proposed Model comparison
+- Walk-forward validation, model evaluation and metric checking
+- Adjustable parameters via UI sliders (entry/exit thresholds, stop-loss/take-profit, factor weights)
+- Single-stock and multi-stock offline HTML export
+
+## Project Structure
 
 ```text
 stratagy/
-├── app.py                    # Streamlit 入口
-├── core/                     # 数据、指标、信号、回测、评估、优化
-├── ui/                       # 页面、侧边栏、主题、HTML 导出
-├── data/                     # 本地样例与缓存数据
-├── reports/                  # 最终离线 HTML 报告
-├── scripts/                  # 本地启动与最终打包脚本
-├── deploy/                   # 服务器部署脚本
-├── document/                 # 项目文档
-├── requirements.txt          # 运行依赖
-└── AI_CONTEXT.md             # 项目级 AI 协作上下文
+├── run.bat                   # One-click install + launch (Windows)
+├── app.py                    # Streamlit entry point & route shell
+├── requirements.txt          # Python dependencies
+├── pytest.ini                # Test configuration
+├── core/                     # Data, indicators, signals, backtest, evaluation, optimization
+├── ui/                       # Pages, sidebar, theme, HTML export
+├── data/                     # Sample & cached stock CSV data
+├── reports/                  # Final offline HTML report
+├── scripts/                  # Setup, start, packaging and legacy utility scripts
+├── deploy/                   # Server deployment scripts & Nginx config
+├── model-test/               # Offline strategy research workspace
+├── tests/                    # Pytest test suite
+├── document/                 # Project documentation & archives
+├── plan/                     # Semester & weekly plans
+├── .streamlit/               # Streamlit framework config
+└── AI_CONTEXT.md             # Project-level AI collaboration context
 ```
 
-## 最终 ZIP 打包
+## Final ZIP Packaging
 
-生成课程要求的 `Final_gpXX.zip`：
+Generate the course-required `Final_gpXX.zip`:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\prepare_final_zip.ps1 -GroupNumber 01
 ```
 
-脚本会自动：
+The script automatically copies source code, excludes build artifacts (`.git`, `__pycache__`, `.venv`, temp dirs), and creates `dist/Final_gp01.zip`.
 
-- 复制运行所需源码与相关文件
-- 排除 `.git`、`__pycache__`、`.venv`、本地缓存和临时输出
-- 生成 `dist/Final_gp01.zip`
+**Smoke test:** After packaging, extract the ZIP on a clean machine and run `run.bat` to verify everything works.
 
-建议在另一台没有运行过本项目的电脑上，解压后严格按本 README 再跑一遍冒烟测试。
+## Cloud Deployment
 
-## 云端部署
+| Item | Value |
+|------|-------|
+| Public path | `/strategy` |
+| Server directory | `/opt/stratagy` |
+| Incremental sync | `deploy/sync.bat` |
+| Full deploy | `deploy/upload_and_deploy.bat` |
 
-- 对外子路径：`/strategy`
-- 服务器应用目录：`/opt/stratagy`
-- 常用同步脚本：`deploy/sync.bat`
-- 全量上传脚本：`deploy/upload_and_deploy.bat`
+## Disclaimer
 
-## 免责声明
-
-本应用仅供课程学习与研究使用，不构成任何投资建议。
+This application is for academic coursework and research only. It does not constitute investment advice.
