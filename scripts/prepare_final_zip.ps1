@@ -25,13 +25,9 @@ $topLevelExcludedPatterns = @(
     ".codex_pytest_tmp",
     ".agents",
     ".cursor",
-    ".cursorrules",
     "dist",
     "__pycache__",
-    "pytest_tmp_*",
-    "AGENTS.md",
-    "CLAUDE.md",
-    "AI_CONTROL.md"
+    "pytest_tmp_*"
 )
 
 $excludedLeafPatterns = @(
@@ -51,7 +47,11 @@ $excludedFilePatterns = @(
     "*.pyc",
     "*.pyo",
     "Thumbs.db",
-    ".DS_Store"
+    ".DS_Store",
+    ".cursorrules",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "AI_CONTROL.md"
 )
 
 function Test-ExcludedDirectory {
