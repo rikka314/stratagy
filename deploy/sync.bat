@@ -27,7 +27,7 @@ echo [sync] remote:  %REMOTE_DIR%
 if "%DRY_RUN%"=="1" echo [sync] dry-run enabled
 echo.
 
-call :run ssh %SERVER% "mkdir -p %REMOTE_DIR% %REMOTE_DIR%/core %REMOTE_DIR%/core/catalogs %REMOTE_DIR%/ui %REMOTE_DIR%/.streamlit %REMOTE_DIR%/deploy %REMOTE_DIR%/data %REMOTE_DIR%/model-test %REMOTE_DIR%/model-test/outputs" || exit /b 1
+call :run ssh %SERVER% "mkdir -p %REMOTE_DIR% %REMOTE_DIR%/core %REMOTE_DIR%/core/catalogs %REMOTE_DIR%/ui %REMOTE_DIR%/.streamlit %REMOTE_DIR%/deploy %REMOTE_DIR%/data %REMOTE_DIR%/model-test %REMOTE_DIR%/model-test/outputs %REMOTE_DIR%/reports" || exit /b 1
 
 call :run scp "%PROJECT_DIR%\app.py" "%PROJECT_DIR%\requirements.txt" %SERVER%:%REMOTE_DIR%/ || exit /b 1
 call :run scp "%PROJECT_DIR%\core\*.py" %SERVER%:%REMOTE_DIR%/core/ || exit /b 1
@@ -41,6 +41,10 @@ if exist "%PROJECT_DIR%\core\catalogs\*.csv" (
 
 if exist "%PROJECT_DIR%\data\*.csv" (
     call :run scp "%PROJECT_DIR%\data\*.csv" %SERVER%:%REMOTE_DIR%/data/ || exit /b 1
+)
+
+if exist "%PROJECT_DIR%\reports\*.html" (
+    call :run scp "%PROJECT_DIR%\reports\*.html" %SERVER%:%REMOTE_DIR%/reports/ || exit /b 1
 )
 
 if exist "%PROJECT_DIR%\model-test\outputs" (

@@ -28,6 +28,10 @@ from ui.multi_stock_entry import render_multi_stock_entry_page
 from ui.sidebar import render_sidebar
 from ui.single_stock import render_single_stock_page
 from ui.single_stock_entry import render_single_stock_entry_page
+from pathlib import Path
+
+import streamlit.components.v1 as components
+
 from ui.theme import inject_global_styles, render_route_nav
 
 
@@ -290,11 +294,23 @@ def _render_multi_stock_route() -> None:
     )
 
 
+def _render_final_report() -> None:
+    """显示 reports/Final_Report.html 的完整内容"""
+    render_route_nav("doc")
+    report_path = Path(__file__).parent / "reports" / "Final_Report.html"
+    if not report_path.exists():
+        st.error("Report file not found: reports/Final_Report.html")
+        return
+    html_content = report_path.read_text(encoding="utf-8")
+    components.html(html_content, height=4000, scrolling=True)
+
+
 pages = [
     st.Page(render_home_page, title=tr("nav.home"), icon="🏠", default=True),
     st.Page(_render_single_stock_route, title=tr("navigation.singleStock.entry"), icon="📈", url_path="stock-analysis"),
     st.Page(_render_multi_stock_route, title=tr("navigation.multiStock.entry"), icon="📚", url_path="stocks-analysis"),
     st.Page(render_model_evaluation_page, title=tr("section.model_evaluation"), icon="🧪", url_path=MODEL_EVALUATION_ROUTE),
+    st.Page(_render_final_report, title="HTML Report", icon="📄", url_path="final-report"),
 ]
 
 navigation = st.navigation(pages, position="hidden")

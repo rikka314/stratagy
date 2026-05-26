@@ -2127,6 +2127,7 @@ def render_route_nav(current: str) -> None:
         ("home", t(tr("nav.home"), "Home"), route_href("")),
         ("single", t(tr("analysis.singleInstrument"), "Single Stock"), route_href("stock-analysis")),
         ("multi", t(tr("analysis.multiStock"), "Multi Stock"), route_href("stocks-analysis")),
+        ("doc", t("报告", "Report"), route_href("final-report")),
     ]
     links_html = "".join(
         f"<a class='site-link {'active' if key == current else ''}' href='{href}'>{label}</a>"

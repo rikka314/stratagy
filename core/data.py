@@ -204,7 +204,7 @@ def _finalize_market_dataframe(
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     标准化 DataFrame 的列名
-    
+
     功能说明：
     1. 将所有列名转换为小写并去除空格
     2. 统一不同数据源的列名差异（如 trade_date → date, vol → volume）
@@ -404,7 +404,7 @@ def ensure_date_column(df: pd.DataFrame) -> pd.DataFrame:
     确保 DataFrame 有合法的日期列
     """
     df = df.copy()
-    
+
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"], errors="coerce")
         df = df.dropna(subset=["date"])
@@ -420,7 +420,7 @@ def ensure_date_column(df: pd.DataFrame) -> pd.DataFrame:
 def fetch_data(symbol: str, adjust: str) -> pd.DataFrame:
     """
     从 AkShare 下载美股日线数据
-    
+
     参数：
         symbol: 股票代码（如 'AAPL', 'TSLA'）
         adjust: 复权方式 ('qfq'=前复权, 'hfq'=后复权, 'none'=不复权)
@@ -543,9 +543,9 @@ def fetch_a_stock(symbol: str, adjust: str = "qfq") -> pd.DataFrame | None:
     return None
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@st.cache_data(show_spinner=False, ttl=82800)
 def load_csv(path: str) -> pd.DataFrame:
-    """从本地 CSV 文件加载数据（缓存1小时）"""
+    """从本地 CSV 文件加载数据（内存缓存 23 小时，与磁盘 TTL 24 小时配合）"""
     df = pd.read_csv(path)
     df = standardize_columns(df)
     df = ensure_date_column(df)

@@ -56,3 +56,7 @@ pytest_tmp_*/
 tests/.tmp_pytest/
 tests/.tmp_pytest_single/
 tests/pytest-cache-files-*/
+
+# Local planning / scratch notes not intended for public submission
+plan/d4_d6_quant_platform_tasks.md
+reports/defense.md

@@ -89,6 +89,50 @@ def _pick_column(df: pd.DataFrame, candidates: list[str]) -> str | None:
     return None
 
 
+def _fetch_us_indices_direct() -> pd.DataFrame | None:
+    """直接调用腾讯财经 API 获取美股三大指数（DJIA/Nasdaq/SPX）。
+
+    腾讯财经接口在大陆服务器上稳定可用，作为 ak.index_global_spot_em() 的备用。
+    返回与 _normalize_index_snapshot 兼容的 DataFrame（含 代码/名称/最新价/涨跌幅 列）。
+    腾讯 symbol: usDJI=道琼斯, usIXIC=纳斯达克, usINX=标普500
+    """
+    TENCENT_SYMBOLS = [
+        ("usDJI", "DJIA"),
+        ("usIXIC", "NDX"),
+        ("usINX", "SPX"),
+    ]
+    try:
+        sym_str = ",".join(s for s, _ in TENCENT_SYMBOLS)
+        url = f"https://qt.gtimg.cn/q={sym_str}"
+        resp = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        rows: list[dict] = []
+        for line in resp.text.strip().splitlines():
+            # 格式: v_usXXX="200~名称~代码~最新价~...~涨跌额~涨跌幅~..."
+            if "=" not in line or '"' not in line:
+                continue
+            key_part = line.split("=", 1)[0].strip()  # e.g. v_usDJI
+            val_part = line.split('"', 1)[1].rstrip('";')
+            fields = val_part.split("~")
+            if len(fields) < 33 or fields[0] != "200":
+                continue
+            tencent_key = key_part.replace("v_", "")  # usDJI
+            symbol = next((code for sym, code in TENCENT_SYMBOLS if sym == tencent_key), tencent_key)
+            try:
+                price = float(fields[3])
+                pct = float(fields[32])
+            except (ValueError, IndexError):
+                continue
+            rows.append({"代码": symbol, "名称": fields[1], "最新价": price, "涨跌幅": pct})
+        return pd.DataFrame(rows) if rows else None
+    except Exception:
+        return None
+
+
 def _empty_index_snapshot(configs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
@@ -220,6 +264,8 @@ def get_market_indices(market: str) -> list[dict[str, Any]]:
     market_key = "A" if str(market).strip().upper() in {"A", "CN", "CN_A"} else "US"
     if market_key == "US":
         snapshot_df = _safe_market_call(ak.index_global_spot_em)
+        if snapshot_df is None or snapshot_df.empty:
+            snapshot_df = _fetch_us_indices_direct()
         return _normalize_index_snapshot(snapshot_df, US_INDEX_CONFIG)
 
     snapshot_df = _safe_market_call(ak.stock_zh_index_spot_sina)

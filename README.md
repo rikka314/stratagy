@@ -1,110 +1,215 @@
-# Quantitative Trading Strategy Analyzer
+# 量化交易策略分析平台
 
-A modular Streamlit-based WebApp for financial data analysis, strategy backtesting, model comparison and offline HTML report export. Covers US and A-share markets.
+这是一个基于 Streamlit 的模块化量化策略分析应用，用于完成美股 / A 股数据加载、指标与因子计算、策略信号生成、参数搜索、回测评估、单股工作流、多股组合分析、离线研究结果查看和 HTML 报告导出。
 
-## Final Submission Entry Points
+项目定位是课程与研究展示系统：重点是把“数据 -> 因子 -> 信号 -> 参数搜索 -> 回测 -> 评估 -> 页面展示 / 报告导出”的闭环讲清楚、跑通并留痕，不承诺实盘收益，也不构成投资建议。
 
-| Item | Path |
-|------|------|
-| WebApp entry | `app.py` |
-| Offline HTML report | `reports/Final_Report.html` |
-| Dependency list | `requirements.txt` |
-| Final packaging script | `scripts/prepare_final_zip.ps1` |
+## 核心能力
 
-## Quick Start (Windows One-Click)
+- **双市场数据分析**：支持美股与 A 股，内置样例 CSV，并可按需通过外部数据源拉取行情。
+- **单股策略工作流**：围绕单只股票完成数据筛选、指标计算、信号生成、参数调整、回测和策略结果展示。
+- **多股组合分析**：支持多标的横向比较、风险收益分析、组合模拟和权重配置。
+- **策略增强模块**：包含基础规则策略、因子过滤、ML 过滤、legacy regime router 和 adaptive regime router。
+- **模型评估页**：读取 `model-test/outputs/` 下的离线研究结果，展示模型排名、分段表现、失败记录和可观测性信息。
+- **离线研究 runner**：`model-test/` 可批量运行单股策略研究，输出 CSV、JSON、Markdown、QuantStats 和 MLflow 相关结果。
+- **HTML 报告导出**：单股、多股页面可导出离线 HTML 报告；最终提交报告位于 `reports/Final_Report.html`。
 
-**Prerequisites:** Python 3.10+ installed and added to PATH.
+## 快速启动
 
-Double-click **`run.bat`** in the project root. It will automatically:
+### Windows 一键启动
 
-1. Create a virtual environment (`.venv/`)
-2. Install all dependencies from `requirements.txt`
-3. Launch the Streamlit app
+在项目根目录执行：
 
-Then open your browser at: **http://localhost:8501/strategy**
+```powershell
+.\run.bat
+```
 
-## Manual Setup
+也可以直接双击项目根目录下的 `run.bat`。脚本会自动完成：
 
-```bash
-# 1. Create virtual environment
+1. 创建虚拟环境 `.venv/`
+2. 安装 `requirements.txt` 中的依赖
+3. 启动 Streamlit 应用
+
+启动完成后，按终端输出的地址访问页面。本项目部署配置使用 `/strategy` 子路径，因此本地通常访问：
+
+```text
+http://localhost:8501/strategy
+```
+
+如果 Streamlit 输出了不同端口，以终端实际地址为准。
+
+### 手动启动
+
+```powershell
 python -m venv .venv
-
-# 2. Activate (Windows)
-.venv\Scripts\activate
-
-# 3. Install dependencies
+.\.venv\Scripts\activate
 pip install -r requirements.txt
-
-# 4. Launch
 streamlit run app.py
 ```
 
-Open browser: `http://localhost:8501/strategy`
+## 页面入口
 
-## Alternative Windows Scripts
+| 页面 | 本地 / 部署路径 | 作用 |
+|---|---|---|
+| 首页 | `/strategy` | 项目入口与导航，进入单股或多股分析 |
+| 单股分析 | `/strategy/stock-analysis` | 选择或上传单只股票，生成策略、回测、图表和 HTML 报告 |
+| 多股分析 | `/strategy/stocks-analysis` | 组织股票池，做横向比较、组合模拟和多股报告 |
+| 模型评估 | `/strategy/model-evaluation` | 查看 `model-test/outputs/` 生成的离线研究结果 |
+| 最终报告 | `/strategy/final-report` | 在应用内查看 `reports/Final_Report.html` |
 
-| Script | Purpose |
-|--------|---------|
-| `run.bat` | One-click install + launch (recommended) |
-| `scripts\setup.bat` | Create venv and install deps only |
-| `scripts\start.bat` | Launch app (venv must exist) |
+## 典型分析流程
 
-## Data
+### 单股策略分析
 
-The `data/` folder contains sample US stock CSV files (AAPL, GOOGL, META, NVDA, TSLA, etc.). For other stocks, the app fetches data online via AkShare, which requires a network connection.
+1. 进入 `/strategy/stock-analysis`。
+2. 选择市场与股票，或上传符合字段要求的 CSV。
+3. 设置日期范围、指标窗口、信号阈值、止损止盈、因子权重等参数。
+4. 系统加载行情数据，计算技术指标和因子分数。
+5. 生成策略信号，并可选择基础策略、搜索模型、ML 过滤或 regime 路由策略。
+6. 运行回测，查看净值、回撤、买卖点、指标卡片和模型对比。
+7. 根据需要导出单股 HTML 报告。
 
-## Features
+### 多股组合分析
 
-- Single-stock analysis with strategy signal generation and backtesting
-- Multi-stock comparison, risk-return analysis and portfolio simulation
-- Baseline (Naive, Mean, Drift) vs Proposed Model comparison
-- Walk-forward validation, model evaluation and metric checking
-- Adjustable parameters via UI sliders (entry/exit thresholds, stop-loss/take-profit, factor weights)
-- Single-stock and multi-stock offline HTML export
+1. 进入 `/strategy/stocks-analysis`。
+2. 选择多个股票，或混合使用远程数据与上传 CSV。
+3. 查看价格对比、相对强弱、风险收益、因子评分和相关性。
+4. 设置组合权重或运行组合优化。
+5. 生成组合策略结果，查看组合净值、周期收益热力图、个股贡献与风险指标。
+6. 导出多股 HTML 报告。
 
-## Project Structure
+### 离线模型研究
+
+`model-test/` 提供不依赖 Streamlit UI 的批量研究入口，复用单股策略 pipeline。常用命令：
+
+```powershell
+python model-test/run_research.py --config model-test/configs/smoke_us_v2.json
+python model-test/run_research.py --config model-test/configs/us_v2_fast.json
+```
+
+每次运行会写入 `model-test/outputs/<output_subdir>/`，主要产物包括：
+
+- `runs.csv`
+- `stocks.csv`
+- `model_summary.csv`
+- `segment_summary.csv`
+- `robustness_summary.csv`
+- `report.json`
+- `report.md`
+- `artifacts/`
+- `regime_artifacts/`
+- 可选的 QuantStats HTML 与 MLflow 文件
+
+## 主流程架构
+
+下图展示平台从数据输入到页面展示和报告导出的主链路：
+
+![Strategy platform architecture](docs/assets/architecture.png)
+
+```text
+Data Source / Cache
+        |
+        v
+Indicator & Factor Engine
+        |
+        v
+Signal Generation
+        |
+        v
+Parameter Search / ML Filter / Regime Router
+        |
+        v
+Backtest Engine
+        |
+        v
+Evaluation Metrics
+        |
+        v
+Streamlit UI / Offline HTML Reports / Model-Test Outputs
+```
+
+对应代码位置：
+
+- 数据加载：`core/data.py`、`core/utils.py`
+- 指标与因子：`core/indicators.py`
+- 信号生成：`core/signals.py`
+- 参数搜索：`core/optimizer.py`
+- 回测：`core/backtest.py`
+- 评估：`core/evaluation.py`
+- 组合模拟：`core/portfolio.py`
+- 市场状态与 regime：`core/regime_model.py`、`core/adaptive_regime.py`
+- 单股工作流：`ui/single_stock_workflow.py`
+- 页面展示与导出：`ui/`、`ui/export_reports.py`
+
+## 项目目录结构
 
 ```text
 stratagy/
-├── run.bat                   # One-click install + launch (Windows)
-├── app.py                    # Streamlit entry point & route shell
-├── requirements.txt          # Python dependencies
-├── pytest.ini                # Test configuration
-├── core/                     # Data, indicators, signals, backtest, evaluation, optimization
-├── ui/                       # Pages, sidebar, theme, HTML export
-├── data/                     # Sample & cached stock CSV data
-├── reports/                  # Final offline HTML report
-├── scripts/                  # Setup, start, packaging and legacy utility scripts
-├── deploy/                   # Server deployment scripts & Nginx config
-├── model-test/               # Offline strategy research workspace
-├── tests/                    # Pytest test suite
-├── document/                 # Project documentation & archives
-├── plan/                     # Semester & weekly plans
-├── .streamlit/               # Streamlit framework config
-└── AI_CONTEXT.md             # Project-level AI collaboration context
+├── run.bat                   # Windows 一键安装与启动
+├── app.py                    # Streamlit 路由壳层和页面入口
+├── requirements.txt          # Python 依赖
+├── core/                     # 数据、指标、信号、回测、评估、优化、组合、regime
+├── ui/                       # 首页、单股、多股、模型评估、主题、HTML 导出
+├── data/                     # 本地样例与缓存股票 CSV
+├── model-test/               # 离线策略研究 runner、配置和输出
+├── reports/                  # 最终 HTML 报告与后续导出物
+├── document/                 # 接口文档、风格标准、验收记录、限制说明
+├── deploy/                   # 部署脚本与 Nginx 子路径配置
+├── scripts/                  # 本地 setup/start、打包和工具脚本
+├── tests/                    # Pytest 测试套件
+├── plan/                     # 学期计划与执行计划
+├── .streamlit/               # Streamlit 配置，包含 baseUrlPath
+└── AI_CONTEXT.md             # 项目级上下文与模块索引
 ```
 
-## Final ZIP Packaging
+## 数据与上传要求
 
-Generate the course-required `Final_gpXX.zip`:
+- `data/` 目录包含本地样例与缓存股票数据。
+- 远程行情、指数、推荐股票和部分市场快照依赖 AkShare 等外部数据源。
+- 上传数据以 CSV 为主，需要能标准化为以下核心字段：
+
+```text
+date, open, high, low, close, volume
+```
+
+字段缺失或数据为空时，页面不会进入完整策略链路。
+
+## 打包与部署
+
+生成课程提交 ZIP：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\prepare_final_zip.ps1 -GroupNumber 01
 ```
 
-The script automatically copies source code, excludes build artifacts (`.git`, `__pycache__`, `.venv`, temp dirs), and creates `dist/Final_gp01.zip`.
+常用部署信息：
 
-**Smoke test:** After packaging, extract the ZIP on a clean machine and run `run.bat` to verify everything works.
+| 项目 | 值 |
+|---|---|
+| 公开路径 | `/strategy` |
+| Streamlit 配置 | `.streamlit/config.toml` |
+| 服务器目录 | `/opt/stratagy` |
+| 增量同步 | `deploy/sync.bat` |
+| 全量上传 | `deploy/upload_and_deploy.bat` |
+| Nginx 模板 | `deploy/nginx_strategy.conf` |
 
-## Cloud Deployment
+## 已知限制
 
-| Item | Value |
-|------|-------|
-| Public path | `/strategy` |
-| Server directory | `/opt/stratagy` |
-| Incremental sync | `deploy/sync.bat` |
-| Full deploy | `deploy/upload_and_deploy.bat` |
+- 本项目用于课程和研究展示，不是实盘交易系统，不提供投资建议。
+- 外部行情、指数与推荐股票数据依赖网络和上游接口；接口波动、限流或字段变化时，页面可能显示 `N/A` 或降级结果。
+- 服务器不作为长期全量股票 CSV 仓库，默认按需拉取或使用临时缓存。
+- 上传入口目前以 CSV 为主，且必须满足核心行情字段要求。
+- `/strategy/model-evaluation` 依赖本地或服务器上已有的 `model-test/outputs/` 输出物；没有生成或同步的研究结果不会显示。
+- Adaptive Router V1 依赖离线生成的 `regime_artifacts/`；缺失或损坏时会降级到 legacy dual-state router。
+- `/strategy` 子路径部署依赖 `app.py`、`.streamlit/config.toml` 和 `deploy/nginx_strategy.conf` 保持一致，单独修改其中一处可能导致刷新或直达链接异常。
 
-## Disclaimer
+## 参考文档
 
-This application is for academic coursework and research only. It does not constitute investment advice.
+- `AI_CONTEXT.md`：项目模块地图与当前稳定事实
+- `document/MODULE_INTERFACES.md`：模块接口总索引
+- `document/interfaces/strategy-pipeline.md`：策略主链路接口
+- `document/interfaces/single-stock-workflow.md`：单股 workflow 与 artifact 约定
+- `document/interfaces/multi-stock-portfolio.md`：多股组合接口
+- `document/interfaces/deploy-runtime.md`：部署与子路径运行约定
+- `document/KNOWN_LIMITATIONS.md`：已知限制清单
+- `model-test/docs/README.md`：离线研究 runner 说明
