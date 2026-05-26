@@ -25,6 +25,7 @@ data / utils
 增强链路：
 
 - FSM：`signals` 预处理 + `fa_filter` + `signals(fsm_mode=True)`
+- News Fusion：`signals/search` 输出 + `news_factor` residual gate + `backtest`
 - ML-SM：`signals` + `ml_filter` + `backtest`
 - Legacy Regime / RSM：`regime_model` + `backtest`
 - Adaptive Regime Router：`adaptive_regime` + workflow candidate routing + `backtest`
@@ -39,6 +40,7 @@ data / utils
 | Legacy Regime 路由 | `build_market_proxy_frame`、`compute_regime_features`、`compute_regime_signals`、`summarize_regime_diagnostics` | 标准行情 df + `split_idx` + SPY 代理规则 | `execution_regime`、`regime_score`、`regime_summary` 等列 / metadata | single-stock workflow、model-test |
 | Adaptive Regime 状态建模 | `build_adaptive_feature_frame`、`train_adaptive_state_model`、`predict_adaptive_states`、`aggregate_candidate_state_day_rows`、`score_candidate_state_metrics`、`select_routing_policy` | 标准行情 df、候选模型逐日结果、离线 main-window 训练样本 | `state_id`、state classifier、routing policy、`regime_artifacts/` | model-test、single-stock workflow |
 | FA 增强 | `fit_fa`、`transform_fa` | 训练期信号表 / 同结构信号表 | `FAModel` / `fsm_score` | FSM 路径 |
+| 新闻因子融合 | `apply_news_fusion` | search 上游 `full_signal_df` + FinGPT 日频新闻因子 CSV | `fused_factor_score`、`news_delta`、重算后的 `target_position` / metadata | 单股 search workflow |
 | ML 过滤 | `build_feature_table`、`fit_ml_filter`、`predict_filter`、`apply_filter`、`evaluate_ml_quality` | `compute_signals()` 输出表 | 过滤后的信号表、概率、质量指标 | ML-SM 路径、单股结果区 |
 | 回测 | `simulate_strategy`、`extract_trades`、`walk_forward_backtest` | 含 `target_position` 或买卖信号的 df | 净值曲线、日收益、逐笔交易表、滚动回测结果 | workflow、评估、结果区 |
 | 课程基线 | `naive_baseline`、`mean_baseline`、`drift_baseline`、`run_all_baselines` | 标准行情 df + split | `ModelResult` | 单股 workflow、对比区 |

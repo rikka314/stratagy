@@ -28,6 +28,7 @@ from core.adaptive_regime import ADAPTIVE_REGIME_KIND
 from core.data import get_stock_label_map, search_stock_candidates
 from core.evaluation import build_comparison_table
 from core.indicators import add_indicators as _add_indicators_core
+from core.news_factor import DEFAULT_NEWS_FACTOR_PATH
 from core.utils import format_pct
 from core.visualization import (
     _build_axis_transform,
@@ -82,6 +83,10 @@ WORKFLOW_REQUEST_STATE_KEYS = (
     "single_stock_workflow_regime_kind",
     "single_stock_workflow_search_base",
     "single_stock_workflow_use_search",
+    "single_stock_workflow_use_news",
+    "single_stock_workflow_news_factor_path",
+    "single_stock_workflow_news_weight",
+    "single_stock_workflow_news_lookback",
     "single_stock_workflow_search_method",
     "single_stock_workflow_search_trials",
     "single_stock_workflow_ga_population",
@@ -905,6 +910,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                             request_params_snapshot=effective_snapshot,
                             df_raw=df_raw,
                             split_idx=split_idx,
+                            symbol=symbol,
                         )
                     for info_message in pipeline_result.info_messages:
                         render_status_note(info_message, tone="info")
@@ -1436,6 +1442,10 @@ def _build_strategy_request(family: str) -> StrategyRequest:
     ga_generations = 20
     use_search = False
     search_method = None
+    use_news = False
+    news_factor_path = DEFAULT_NEWS_FACTOR_PATH
+    news_weight = 0.4
+    news_lookback = 20
     use_ml = False
     ml_model_type = None
 
@@ -1558,6 +1568,34 @@ def _build_strategy_request(family: str) -> StrategyRequest:
                     key="single_stock_workflow_search_trials",
                 )
 
+        use_news = st.checkbox("News Fusion", value=False, key="single_stock_workflow_use_news")
+        if use_news:
+            news_factor_path = st.text_input(
+                "News factor CSV",
+                value=str(st.session_state.get("single_stock_workflow_news_factor_path", DEFAULT_NEWS_FACTOR_PATH)),
+                key="single_stock_workflow_news_factor_path",
+                help="CSV produced by FinGPT-github/student_local/build_news_sentiment_factor.py",
+            )
+            _news_col1, _news_col2 = st.columns(2)
+            with _news_col1:
+                news_weight = st.slider(
+                    "News weight",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=float(st.session_state.get("single_stock_workflow_news_weight", 0.4)),
+                    step=0.05,
+                    key="single_stock_workflow_news_weight",
+                )
+            with _news_col2:
+                news_lookback = st.slider(
+                    "News lookback",
+                    min_value=5,
+                    max_value=80,
+                    value=int(st.session_state.get("single_stock_workflow_news_lookback", 20)),
+                    step=1,
+                    key="single_stock_workflow_news_lookback",
+                )
+
         use_ml = st.checkbox(tr("settings.enableMLFilter"), value=False, key="single_stock_workflow_use_ml")
         if use_ml:
             ml_model_type = st.radio(
@@ -1573,6 +1611,10 @@ def _build_strategy_request(family: str) -> StrategyRequest:
         search_base=search_base or None,
         use_search=use_search,
         search_method=search_method,
+        use_news=use_news,
+        news_factor_path=news_factor_path,
+        news_weight=news_weight,
+        news_lookback=news_lookback,
         use_ml=use_ml,
         ml_model_type=ml_model_type,
         search_trials=search_trials,
@@ -1608,6 +1650,8 @@ def _render_model_configuration_guidance(request: StrategyRequest) -> None:
     st.caption(tr("note.search_workflow"))
     if request.use_search:
         st.write(tr("parameterSearch.enabledNote"))
+    if request.use_news:
+        st.write("News Fusion enabled: daily news sentiment adjusts the search-stage factor score before ML filtering.")
     if request.use_ml:
         st.write(tr("ml.filter.enabled"))
 
@@ -1670,6 +1714,8 @@ def _get_request_missing_items(request: StrategyRequest) -> list[str]:
         missing_items.append(tr("prompt.selectParamSearchMethod"))
     if request.use_ml and request.ml_model_type is None:
         missing_items.append(tr("model.selection_prompt"))
+    if request.use_news and not request.news_factor_path:
+        missing_items.append("News factor CSV")
     return missing_items
 
 
@@ -1700,6 +1746,8 @@ def _describe_request_pipeline(request: StrategyRequest) -> str | None:
     pipeline_parts = ["FA", tr("model.fsmBase")] if request.search_base == "fsm" else [tr("model.sm_basic")]
     if request.use_search:
         pipeline_parts.append(tr("section.parameter_search"))
+    if request.use_news:
+        pipeline_parts.append("News Fusion")
     if request.use_ml:
         pipeline_parts.append(tr("ml.filter"))
     return "Search -> " + " -> ".join(pipeline_parts) + " -> 生成策略"

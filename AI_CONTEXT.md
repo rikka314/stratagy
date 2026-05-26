@@ -38,6 +38,8 @@
   作用：本地 setup/start 脚本、最终打包脚本、legacy i18n/fix 工具脚本。
 - `document/`
   作用：风格标准、数据 / 模型约定、接口文档、验收记录、归档（含 `archive/app_original.py` 重构前备份）。
+- `docs/`
+  作用：README 展示资产与交付辅助文档（如架构图、因子字典）。
 - `plan/`
   作用：学期计划与分周执行计划。
 - `model-test/`
@@ -60,7 +62,7 @@
 - 核心数据主链：`core/data.py -> core/indicators.py -> core/signals.py -> core/backtest.py`
 - Legacy Regime / RSM：`core/regime_model.py`
 - Adaptive regime helper：`core/adaptive_regime.py`
-- 增强层：`core/fa_filter.py`、`core/ml_filter.py`、`core/evaluation.py`、`core/portfolio.py`、`core/visualization.py`、`core/market_context.py`
+- 增强层：`core/fa_filter.py`、`core/news_factor.py`、`core/ml_filter.py`、`core/evaluation.py`、`core/portfolio.py`、`core/visualization.py`、`core/market_context.py`
 
 ## 当前 durable facts
 
@@ -75,6 +77,7 @@
 - 站点 UI 语言现固定为英文；顶部中英切换已移除，路由不再传播 `lang` 查询参数。
 - **参数可调性（W9）**：单股 Search 模型和多股策略面板均内联了关键参数 slider（入场/出场阈值、止损/止盈、因子权重）。单股使用 `search_adj_` 前缀 key，多股使用 `multi_adj_` 前缀 key，均与 sidebar 高级设置的 key 互不冲突。单股通过 `_apply_search_adj_overrides()` 在 pipeline 调用前覆盖 `params_snapshot`；多股直接写回 `params` dict。
 - **HTML 导出增强（W9+）**：单股导出新增 Stock Profile section 扩展版（代码+名称、市场+币种、数据区间、最新收盘价+涨跌、52周高/低+均量、区间总回报+年化回报、年化波动率、最大回撤）；若 `ticker_info` 由调用方提供（US 股通过 yfinance 可选获取），还额外显示行业/市值/PE/Beta/股息率/业务描述。`build_single_stock_export_html` 新增 `ticker_info: dict | None = None` 参数；`_render_single_stock_export` 在按钮点击时调用 `_fetch_ticker_info(symbol, market)` 并传入。
+- **News Fusion（2026-05-26）**：单股 `family="search"` 路径新增可选 `News Fusion` stage，顺序固定为 `SM/FSM base -> optional Parameter Search -> optional News Fusion -> optional ML Filter`。`core/news_factor.py` 从 FinGPT 侧 `news_sentiment_daily.csv` 读取日频新闻因子，保留原始 `factor_score`，新增 `fused_factor_score/news_delta/news_gate/news_residual` 并重算仓位；`baseline` 和 `regime/adaptive_router_v1` 不直接接入新闻。
 
 ## 默认阅读路线
 
@@ -113,6 +116,8 @@
   角色：阶段验收记录、回归结论与部署核对记录。
 - `document/DATA_SCHEMA.md`
   角色：标准行情字段约定。
+- `docs/factor_dictionary.md`
+  角色：代码确认过的技术指标、10 因子评分、信号字段、FA / ML 特征与 UI 参数字典。
 - `document/MODEL_INTERFACES.md`
   角色：`ModelResult` 统一结构。
 - `AI_CONTROL.md`

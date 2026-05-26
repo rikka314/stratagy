@@ -45,6 +45,7 @@ from core.ml_filter import (
     fit_ml_filter,
     predict_filter,
 )
+from core.news_factor import DEFAULT_NEWS_FACTOR_PATH, NEWS_FUSION_MODE, apply_news_fusion
 from core.optimizer import (
     SearchEvaluationCache,
     SearchOptimizationResult,
@@ -129,6 +130,11 @@ class StrategyRequest:
     use_search: bool = False
     search_method: Literal["bayesian", "genetic", "random"] | None = None
     use_ml: bool = False
+    use_news: bool = False
+    news_fusion_mode: Literal["residual_gate"] = NEWS_FUSION_MODE
+    news_factor_path: str | None = None
+    news_weight: float = 0.4
+    news_lookback: int = 20
     ml_model_type: Literal["logistic", "lgbm"] | None = None
     ml_horizon_days: int = 10
     ml_min_excess_samples: int = 20
@@ -1334,12 +1340,96 @@ def run_search_stage(
 
 def _build_ml_display_label(request: StrategyRequest, upstream_stage: StageResult) -> tuple[str, str]:
     base_prefix = "FSM" if request.search_base == "fsm" else "SM"
-    if upstream_stage.stage_key == "search":
+    if upstream_stage.stage_key in {"search", "news"}:
+        if upstream_stage.stage_key == "news":
+            ml_suffix = "ML-LGBM" if request.ml_model_type == "lgbm" else "ML-LR"
+            return f"{upstream_stage.display_label}+{ml_suffix}", f"{upstream_stage.short_label}+{ml_suffix}"
         base_prefix = f"{base_prefix}+Search"
 
     ml_suffix = "ML-LGBM" if request.ml_model_type == "lgbm" else "ML-LR"
     display_label = f"{base_prefix}+{ml_suffix}"
     return display_label, display_label
+
+
+def _build_news_display_label(upstream_stage: StageResult) -> tuple[str, str]:
+    base_label = upstream_stage.display_label
+    base_short = upstream_stage.short_label
+    if upstream_stage.stage_key == "sm_base":
+        base_label = "SM"
+        base_short = "SM"
+    elif upstream_stage.stage_key == "fsm_base":
+        base_label = "FSM"
+        base_short = "FSM"
+    return f"{base_label}+News", f"{base_short}+News"
+
+
+def run_news_stage(
+    *,
+    context_key: str,
+    request: StrategyRequest,
+    upstream_stage: StageResult,
+    split_idx: int,
+    symbol: str | None = None,
+) -> tuple[StageResult, bool]:
+    if not request.use_news:
+        raise ValueError("News Fusion is disabled for this request")
+
+    news_factor_path = request.news_factor_path or DEFAULT_NEWS_FACTOR_PATH
+    stage_request_slice = {
+        "family": "search",
+        "search_base": request.search_base,
+        "use_news": True,
+        "news_fusion_mode": request.news_fusion_mode,
+        "news_factor_path": news_factor_path,
+        "news_weight": float(request.news_weight),
+        "news_lookback": int(request.news_lookback),
+        "upstream_stage_key": upstream_stage.stage_key,
+    }
+
+    def _builder() -> StageResult:
+        fused_signal_df, news_metadata = apply_news_fusion(
+            upstream_stage.full_signal_df.copy(),
+            news_factor_path=news_factor_path,
+            symbol=symbol,
+            news_weight=float(request.news_weight),
+            news_lookback=int(request.news_lookback),
+            split_idx=split_idx,
+            score_mid_pct=float(upstream_stage.params_snapshot.get("score_mid_pct", 0.60)),
+            score_high_pct=float(upstream_stage.params_snapshot.get("score_high_pct", 0.80)),
+        )
+        effective_snapshot = copy.deepcopy(upstream_stage.params_snapshot)
+        effective_snapshot.update(
+            {
+                "use_news": True,
+                "news_fusion_mode": request.news_fusion_mode,
+                "news_factor_path": news_factor_path,
+                "news_weight": float(request.news_weight),
+                "news_lookback": int(request.news_lookback),
+            }
+        )
+        display_label, short_label = _build_news_display_label(upstream_stage)
+        sim_kwargs = _sim_kwargs_from_snapshot(upstream_stage.params_snapshot)
+        return _build_stage_result_from_signal_df(
+            stage_key="news",
+            display_label=display_label,
+            short_label=short_label,
+            params_snapshot=effective_snapshot,
+            full_signal_df=fused_signal_df,
+            split_idx=split_idx,
+            stop_loss_mult=sim_kwargs["stop_loss_mult"],
+            take_profit_mult=sim_kwargs["take_profit_mult"],
+            initial_position=sim_kwargs["initial_position"],
+            upstream_stage_key=upstream_stage.stage_key,
+            metadata=news_metadata,
+        )
+
+    return _cached_stage(
+        stage_key="news",
+        context_key=context_key,
+        stage_request_slice=stage_request_slice,
+        stage_input_params_snapshot=upstream_stage.params_snapshot,
+        builder=_builder,
+    )
 
 
 def run_ml_stage(
@@ -1477,6 +1567,7 @@ def _validate_request(request: StrategyRequest) -> None:
         if (
             request.use_search
             or request.use_ml
+            or request.use_news
             or request.search_base
             or request.regime_kind
             or request.search_method
@@ -1488,7 +1579,7 @@ def _validate_request(request: StrategyRequest) -> None:
     if request.family == "regime":
         if request.regime_kind not in {"dual_state_router", "no_market", "no_router", ADAPTIVE_REGIME_KIND}:
             raise ValueError(tr("validation.regimePath"))
-        if request.baseline_kind or request.search_base or request.use_search or request.use_ml:
+        if request.baseline_kind or request.search_base or request.use_search or request.use_ml or request.use_news:
             raise ValueError(tr("regime.path.restriction.noBaselineSearchML"))
         if request.search_method or request.ml_model_type:
             raise ValueError(tr("regime.path.restriction.noSearchML"))
@@ -1502,6 +1593,13 @@ def _validate_request(request: StrategyRequest) -> None:
         raise ValueError(tr("validation.param_search_method_required"))
     if request.use_ml and request.ml_model_type not in {"logistic", "lgbm"}:
         raise ValueError(tr("validation.mlModelRequired"))
+    if request.use_news:
+        if request.news_fusion_mode != NEWS_FUSION_MODE:
+            raise ValueError("News Fusion v1 only supports residual_gate mode")
+        if not (request.news_factor_path or DEFAULT_NEWS_FACTOR_PATH):
+            raise ValueError("News Fusion requires a news factor CSV path")
+        if int(request.news_lookback) <= 1:
+            raise ValueError("news_lookback must be greater than 1")
     if int(request.ml_horizon_days) <= 0:
         raise ValueError(tr("validation.mlHorizonDays"))
     if int(request.ml_min_excess_samples) <= 0:
@@ -1515,6 +1613,7 @@ def run_strategy_pipeline(
     request_params_snapshot: dict[str, Any],
     df_raw: pd.DataFrame,
     split_idx: int,
+    symbol: str | None = None,
 ) -> PipelineRunResult:
     try:
         _validate_request(request)
@@ -1612,6 +1711,33 @@ def run_strategy_pipeline(
                         info_messages=cache_messages,
                     )
 
+            if request.use_news:
+                try:
+                    latest_stage, news_cached = run_news_stage(
+                        context_key=context_key,
+                        request=request,
+                        upstream_stage=latest_stage,
+                        split_idx=split_idx,
+                        symbol=symbol,
+                    )
+                    lineage.append(latest_stage)
+                    if news_cached:
+                        cache_messages.append("News Fusion 命中缓存。")
+                except Exception as exc:
+                    warnings = [f"News Fusion 失败，已保留最近一步成功结果：{exc}"]
+                    artifact = assemble_strategy_artifact(
+                        context_key=context_key,
+                        request=request,
+                        request_params_snapshot=request_params_snapshot,
+                        lineage=lineage,
+                    )
+                    return PipelineRunResult(
+                        artifact=artifact,
+                        status="degraded",
+                        warnings=warnings,
+                        info_messages=cache_messages,
+                    )
+
             if request.use_ml:
                 try:
                     latest_stage, ml_cached = run_ml_stage(
@@ -1669,6 +1795,7 @@ def build_lineage_model_payloads(artifact: StrategyArtifact | None) -> dict[str,
         "fsm_base": "#8f3b2e",
         "search": "#f39c12",
         "ml": "#7d5a9e",
+        "news": "#256d85",
         "regime": "#18636c",
     }
 

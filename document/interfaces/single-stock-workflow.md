@@ -35,6 +35,11 @@
 - `regime_kind`: `"adaptive_router_v1" / "dual_state_router" / "no_market" / "no_router"`
 - `use_search`
 - `search_method`: `"bayesian" / "genetic" / "random"`
+- `use_news`
+- `news_fusion_mode`: `"residual_gate"`
+- `news_factor_path`
+- `news_weight`
+- `news_lookback`
 - `use_ml`
 - `ml_model_type`: `"logistic" / "lgbm"`
 - `ml_horizon_days`
@@ -207,11 +212,22 @@ run_strategy_pipeline(
 - `search` 路径：
   - 先跑 `sm_base` 或 `fsm_base`
   - 可选进入搜索阶段
+  - 可选进入 News Fusion 阶段
   - 可选进入 ML 阶段
   - 出错时允许降级回最近成功的上游 stage
 - `regime` 路径：单步生成 regime stage，并复用 `StageResult / StrategyArtifact / cache`
 
 生成成功后，`pipeline_lineage` 会保留所有成功阶段；最终 artifact 只提交最新成功阶段。
+
+## `run_news_stage()` 语义
+
+`use_news=True` 只允许在 `family="search"` 下启用，且默认使用 `residual_gate`。
+
+- 输入：上游 `full_signal_df`、`news_factor_path`、当前 symbol、`news_weight`、`news_lookback` 和 `split_idx`。
+- 数据来源：FinGPT 侧生成的 `news_sentiment_daily.csv`，字段至少包含 `symbol/date/news_count/sentiment_ewm_3/confidence_mean`。
+- 合并规则：按 `symbol + date` 对齐；若某个交易日缺少新闻，`news_delta=0`，该日退化为上游技术策略。
+- 输出列：保留原始 `factor_score`，新增 `fused_factor_score`、`news_sentiment_z`、`news_technical_proxy`、`news_residual`、`news_gate`、`news_delta`，并基于 `fused_factor_score` 重算 `factor_percentile/target_position/buy_signal/sell_signal`。
+- metadata：记录 `news_rows_loaded/news_rows_matched/news_coverage_ratio/news_weight/news_lookback/news_fusion_mode/news_factor_path/news_symbol/news_beta`。
 
 ## `run_regime_stage()` 语义
 
