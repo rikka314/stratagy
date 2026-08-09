@@ -11,13 +11,8 @@ from datetime import date as _date, timedelta as _timedelta
 import numpy as np
 import pandas as pd
 import streamlit as st
-from ui.i18n import tr
-try:
-    from st_keyup import st_keyup
-except ImportError:  # pragma: no cover - fallback for environments without the component
-    st_keyup = None
-
 from core.config import DATA_DIR, DEFAULT_A_STOCKS, DEFAULT_SYMBOL, STRATEGY_PRESETS
+from ui.i18n import tr
 from core.data import (
     fetch_a_stock,
     fetch_data,
@@ -28,11 +23,20 @@ from core.data import (
 from core.utils import load_or_fetch_stock, get_available_stocks
 
 
+def _load_st_keyup():
+    try:
+        from st_keyup import st_keyup
+    except ImportError:  # pragma: no cover - fallback for environments without the component
+        return None
+    return st_keyup
+
+
 def _render_live_search_input(market: str) -> str:
     """ui.searchInputFallback"""
     label = tr("placeholder.search_stock")
     placeholder = tr("example.tickerOrName")
     key = f"new_symbol_input_{market}"
+    st_keyup = _load_st_keyup()
 
     if st_keyup is not None:
         value = st_keyup(
@@ -265,6 +269,10 @@ def render_sidebar(
 
         st.markdown("---")
 
+        # Strategy sliders are bound to this form so adjustments are committed
+        # together instead of triggering a rerun for every control.
+        strategy_form = st.form("sidebar_strategy_parameters")
+
         # ===== 策略选择 =====
         st.subheader(tr("strategy.selection"))
 
@@ -342,7 +350,7 @@ def render_sidebar(
 5. 📉 MACD在信号线上方
         """
         )
-        entry_min_signals = st.slider(
+        entry_min_signals = strategy_form.slider(
             tr("param.minEntrySignals"),
             1,
             5,
@@ -363,7 +371,7 @@ def render_sidebar(
 4. 📉 MACD跌破信号线
         """
         )
-        exit_min_signals = st.slider(
+        exit_min_signals = strategy_form.slider(
             tr("strategy.min_exit_signals"),
             1,
             4,
@@ -387,144 +395,146 @@ def render_sidebar(
                 )
 
             st.markdown(tr("params.ema_trend_parameters"))
-            ema_fast = st.slider(
+            ema_fast = strategy_form.slider(
                 tr("param.emaFastPeriod"), 5, 50, 20, help=tr("description.trend_filter_ema"), key="ema_fast_slider"
             )
-            ema_slow = st.slider(
+            ema_slow = strategy_form.slider(
                 tr("params.ema_slow_period"), 20, 200, 60, help=tr("indicator.trendFilter.longEma"), key="ema_slow_slider"
             )
 
             st.markdown(tr("param.macd"))
-            macd_fast = st.slider(
+            macd_fast = strategy_form.slider(
                 tr("indicator.macd_fast_period"), 5, 20, 12, help=tr("indicator.macdFastPeriod"), key="macd_fast_slider"
             )
-            macd_slow = st.slider(
+            macd_slow = strategy_form.slider(
                 tr("indicator.macd_slow_period"), 10, 40, 26, help=tr("indicator.macd.slowEma.period"), key="macd_slow_slider"
             )
-            macd_signal = st.slider(
+            macd_signal = strategy_form.slider(
                 tr("parameter.macdSignalPeriod"), 5, 20, 9, help=tr("param.macd_signal_ema_period"), key="macd_signal_slider"
             )
 
             st.markdown(tr("section.rsi_parameters"))
-            rsi_period = st.slider(
+            rsi_period = strategy_form.slider(
                 tr("rsi.period"), 5, 30, 14, help=tr("param.rsi.period.description"), key="rsi_period_slider"
             )
-            rsi_lower = st.slider(
+            rsi_lower = strategy_form.slider(
                 tr("params.rsi_lower_threshold"), 10, 50, 30, help=tr("indicator.rsi_weak_threshold"), key="rsi_lower_slider"
             )
-            rsi_upper = st.slider(
+            rsi_upper = strategy_form.slider(
                 tr("param.rsiUpperThreshold"), 50, 90, 70, help=tr("parameter.rsiStrongThreshold.desc"), key="rsi_upper_slider"
             )
 
             st.markdown(tr("param.adx_strength"))
-            adx_period = st.slider(
+            adx_period = strategy_form.slider(
                 tr("parameter.adxPeriod"), 5, 30, 14, help=tr("indicator.trendStrength.period"), key="adx_period_slider"
             )
-            adx_threshold = st.slider(
+            adx_threshold = strategy_form.slider(
                 tr("indicator.adx.threshold"), 10, 40, 20,
                 help=tr("adx.trend_threshold"),
                 key="adx_threshold",
             )
 
             st.markdown(tr("strategy.atr_stop_loss_take_profit"))
-            atr_period = st.slider(
+            atr_period = strategy_form.slider(
                 tr("parameter.atr.period"), 5, 30, 14, help=tr("indicator.atr.calculationPeriod"), key="atr_period_slider"
             )
 
             st.markdown(tr("indicator.bollingerBands.advancedParams"))
-            bb_period = st.slider(
+            bb_period = strategy_form.slider(
                 tr("bollinger.period"), 5, 50, 20, help=tr("indicator.bollinger.maPeriod"), key="bb_period_slider"
             )
-            bb_std = st.slider(
+            bb_std = strategy_form.slider(
                 tr("bollinger.std_dev_multiplier"), 1.0, 3.0, 2.0, step=0.1,
                 help=tr("param.bollinger.stdDev.description"),
                 key="bb_std_slider",
             )
-            indicator_period = st.slider(
+            indicator_period = strategy_form.slider(
                 tr("indicator.obvVolumePriceCycle"), 5, 60, 20,
                 help=tr("parameter.obvCommonWindow.desc"),
                 key="indicator_period_slider",
             )
 
-            stop_loss_mult = st.slider(
+            stop_loss_mult = strategy_form.slider(
                 tr("param.atrStopLossMultiplier"), 0.0, 5.0, 2.0, step=0.5,
                 help=tr("param.stopLoss.formula"),
                 key="stop_loss_mult",
             )
-            take_profit_mult = st.slider(
+            take_profit_mult = strategy_form.slider(
                 tr("strategy.atr.takeProfitMultiplier"), 0.0, 8.0, 4.0, step=0.5,
                 help=tr("param.takeProfit.formula"),
                 key="take_profit_mult",
             )
 
             st.markdown(tr("section.factorScoreParameters"))
-            momentum_short = st.slider(tr("params.short_momentum_window"), 2, 20, 5, help=tr("label.short_term_return_window"))
-            momentum_long = st.slider(tr("param.midTermMomentum.window"), 10, 60, 20, help=tr("metrics.midterm_return_window"))
-            score_lookback = st.slider(
+            momentum_short = strategy_form.slider(tr("params.short_momentum_window"), 2, 20, 5, help=tr("label.short_term_return_window"))
+            momentum_long = strategy_form.slider(tr("param.midTermMomentum.window"), 10, 60, 20, help=tr("metrics.midterm_return_window"))
+            score_lookback = strategy_form.slider(
                 tr("scoring.normalization_window"), 10, 120, 30, help=tr("parameter.zScoreWindow.desc")
             )
-            score_mid_pct = st.slider(
+            score_mid_pct = strategy_form.slider(
                 tr("scoring.percentile.mid"), 0.5, 0.9, 0.6, step=0.05,
                 help=tr("position.mid_level_threshold"),
             )
-            score_high_pct = st.slider(
+            score_high_pct = strategy_form.slider(
                 tr("score.quantile.high"), 0.6, 0.95, 0.8, step=0.05,
                 help=tr("position.high_level_threshold"),
             )
-            weight_mom_short = st.slider(
+            weight_mom_short = strategy_form.slider(
                 tr("weight.short_term_momentum"), 0.0, 3.0, 1.0, step=0.1, help=tr("factor.weight_short_term_momentum")
             )
-            weight_mom_long = st.slider(
+            weight_mom_long = strategy_form.slider(
                 tr("parameter.midTermMomentumWeight"), 0.0, 3.0, 1.0, step=0.1, help=tr("scoring.weight_midterm_momentum")
             )
-            weight_macd = st.slider(
+            weight_macd = strategy_form.slider(
                 tr("parameter.macdWeight"), 0.0, 3.0, 1.0, step=0.1, help=tr("param.macdHistogramWeight")
             )
-            weight_rsi = st.slider(
+            weight_rsi = strategy_form.slider(
                 tr("param.rsi_weight"), 0.0, 3.0, 0.5, step=0.1, help=tr("factor.weight_rsi")
             )
-            weight_vol = st.slider(
+            weight_vol = strategy_form.slider(
                 tr("strategy.volatilityPenalty.weight"), 0.0, 3.0, 0.5, step=0.1, help=tr("scoring.volatilityPenalty")
             )
 
             st.markdown(tr("factor.weight.phase1.title"))
-            weight_bb = st.slider(
+            weight_bb = strategy_form.slider(
                 tr("weight.bollinger_position"), 0.0, 2.0, 0.8, step=0.1,
                 help=tr("bollinger.weight_in_scoring"),
                 key="weight_bb",
             )
-            weight_obv = st.slider(
+            weight_obv = strategy_form.slider(
                 tr("parameter.obvTrendWeight"), 0.0, 2.0, 1.0, step=0.1,
                 help=tr("scoring.weight_obv_trend"),
                 key="weight_obv",
             )
-            weight_volume = st.slider(
+            weight_volume = strategy_form.slider(
                 tr("weight.volume_ratio"), 0.0, 1.5, 0.6, step=0.1,
                 help=tr("scoring.weight.volumeRatio"),
                 key="weight_volume",
             )
-            weight_price = st.slider(
+            weight_price = strategy_form.slider(
                 tr("strategy.pricePositionWeight"), 0.0, 1.5, 0.7, step=0.1,
                 help=tr("weight.rangePosition"),
                 key="weight_price",
             )
-            weight_drawdown = st.slider(
+            weight_drawdown = strategy_form.slider(
                 tr("parameter.drawdownPenaltyWeight"), 0.0, 1.5, 0.5, step=0.1,
                 help=tr("scoring.drawdownPenalty"),
                 key="weight_drawdown",
             )
 
             st.markdown(tr("strategy.entryExit.scoreThreshold"))
-            entry_threshold = st.slider(
+            entry_threshold = strategy_form.slider(
                 tr("strategy.entryScoreThreshold"), -2.0, 2.0, 0.5, step=0.1,
                 help=tr("param.entryThreshold.description"),
                 key="entry_threshold",
             )
-            exit_threshold = st.slider(
+            exit_threshold = strategy_form.slider(
                 tr("threshold.exitScore"), -2.0, 2.0, -0.5, step=0.1,
                 help=tr("factor.exit_threshold"),
                 key="exit_threshold",
             )
+
+        strategy_form.form_submit_button("应用参数", width="stretch")
 
         # 固定值
         use_trend_filter = True

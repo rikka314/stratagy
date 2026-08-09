@@ -15,16 +15,25 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+from core.visualization import create_news_ablation_chart
+from ui.export_reports import build_model_evaluation_export_html
 from ui.i18n import tr
 
-from ui.theme import render_html, render_route_nav, render_status_note
+from ui.theme import get_ui_language, render_html, render_route_nav, render_status_note, t
 
 
 MODEL_EVALUATION_ROUTE = "model-evaluation"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUTS_ROOT = REPO_ROOT / "model-test" / "outputs"
-TEXT_EMPTY = tr("common.noData")
 TEXT_NA = "N/A"
+RESEARCH_MARKETS = ("US", "CN_A")
+RESEARCH_ARTIFACT_NAMES = {
+    "recommendations": "market_strategy_recommendations.json",
+    "matrix": "market_strategy_matrix.csv",
+    "news_ablation": "news_ablation_summary.csv",
+    "manifest": "data_manifest.json",
+}
+CONFIDENCE_VALUES = {"high", "medium", "low", "insufficient_evidence"}
 
 
 @dataclass(frozen=True)
@@ -78,13 +87,142 @@ def load_model_evaluation_payload(run: ModelEvaluationRun) -> dict[str, Any]:
         mlflow_payload = _load_json_mapping(mlflow_path) if mlflow_path.is_file() else None
     except OSError:
         mlflow_payload = None
-    return normalize_model_evaluation_payload(run, report_payload, mlflow_payload)
+    research_payload = load_market_research_payload(run)
+    return normalize_model_evaluation_payload(run, report_payload, mlflow_payload, research_payload)
+
+
+def load_market_research_payload(run: ModelEvaluationRun) -> dict[str, Any]:
+    """Load optional Dean's Award research artifacts without breaking legacy runs."""
+    issues: list[str] = []
+    source_paths: dict[str, str] = {}
+
+    recommendations: dict[str, Any] = {}
+    recommendations_path = run.run_dir / RESEARCH_ARTIFACT_NAMES["recommendations"]
+    if _path_is_file(recommendations_path):
+        source_paths["recommendations"] = str(recommendations_path)
+        loaded = _load_json_mapping(recommendations_path)
+        if loaded is None:
+            issues.append(f"Unreadable or invalid {recommendations_path.name}")
+        else:
+            recommendations = loaded
+
+    matrix_records = _load_optional_csv_records(
+        run.run_dir / RESEARCH_ARTIFACT_NAMES["matrix"],
+        artifact_key="matrix",
+        source_paths=source_paths,
+        issues=issues,
+    )
+    news_records = _load_optional_csv_records(
+        run.run_dir / RESEARCH_ARTIFACT_NAMES["news_ablation"],
+        artifact_key="news_ablation",
+        source_paths=source_paths,
+        issues=issues,
+    )
+
+    manifest: dict[str, Any] = {}
+    manifest_path = run.run_dir / RESEARCH_ARTIFACT_NAMES["manifest"]
+    if _path_is_file(manifest_path):
+        source_paths["manifest"] = str(manifest_path)
+        loaded = _load_json_mapping(manifest_path)
+        if loaded is None:
+            issues.append(f"Unreadable or invalid {manifest_path.name}")
+        else:
+            manifest = loaded
+
+    return normalize_market_research_payload(
+        recommendations=recommendations,
+        matrix_records=matrix_records,
+        news_records=news_records,
+        manifest=manifest,
+        source_paths=source_paths,
+        issues=issues,
+    )
+
+
+def normalize_market_research_payload(
+    *,
+    recommendations: dict[str, Any] | None = None,
+    matrix_records: list[dict[str, Any]] | None = None,
+    news_records: list[dict[str, Any]] | None = None,
+    manifest: dict[str, Any] | None = None,
+    source_paths: dict[str, str] | None = None,
+    issues: list[str] | None = None,
+) -> dict[str, Any]:
+    """Adapt frozen Gate-0 artifacts into a UI-safe, traceable payload."""
+    recommendations = _ensure_mapping(recommendations)
+    manifest = _ensure_mapping(manifest)
+    source_paths = dict(source_paths or {})
+    normalized_issues = [str(item) for item in (issues or []) if str(item).strip()]
+
+    matrix = _normalize_market_records(matrix_records, artifact_label="strategy matrix", issues=normalized_issues)
+    news_ablation = _normalize_market_records(news_records, artifact_label="news ablation", issues=normalized_issues)
+    raw_markets = _ensure_mapping(recommendations.get("markets"))
+    market_payloads: dict[str, dict[str, Any]] = {}
+
+    for market in RESEARCH_MARKETS:
+        if raw_markets and market not in raw_markets:
+            normalized_issues.append(f"Recommendation payload is missing required market '{market}'")
+        raw_entry = _ensure_mapping(raw_markets.get(market))
+        recommendation = _optional_text(raw_entry.get("recommendation"))
+        confidence = str(raw_entry.get("confidence") or "insufficient_evidence").strip().lower()
+        if confidence not in CONFIDENCE_VALUES:
+            normalized_issues.append(f"{market} recommendation has unknown confidence '{confidence}'")
+            confidence = "insufficient_evidence"
+
+        limitations = _normalize_text_list(raw_entry.get("limitations"))
+        evidence = _ensure_mapping(raw_entry.get("evidence"))
+        market_rows = [row for row in matrix if row.get("market") == market]
+        trace_rows = (
+            [
+                row
+                for row in market_rows
+                if str(row.get("strategy_id") or "").strip() == recommendation
+            ]
+            if recommendation is not None
+            else market_rows
+        )
+        market_payloads[market] = {
+            "market": market,
+            "recommendation": recommendation,
+            "confidence": confidence,
+            "evidence": evidence,
+            "limitations": limitations,
+            "trace_rows": trace_rows,
+        }
+
+    has_recommendations = bool(raw_markets)
+    present_markets = {str(row.get("market") or "") for row in matrix}
+    recommendations_traceable = all(
+        market in raw_markets
+        and bool(market_payloads[market]["trace_rows"])
+        for market in RESEARCH_MARKETS
+    )
+    return {
+        "schema_version": _display_text(recommendations.get("schema_version"), empty=TEXT_NA, na=TEXT_NA),
+        "generated_at": recommendations.get("generated_at"),
+        "markets": market_payloads,
+        "matrix": matrix,
+        "news_ablation": news_ablation,
+        "manifest": manifest,
+        "source_paths": source_paths,
+        "issues": list(dict.fromkeys(normalized_issues)),
+        "has_recommendations": has_recommendations,
+        "has_matrix": bool(matrix),
+        "has_news_ablation": bool(news_ablation),
+        "cross_market_ready": (
+            has_recommendations
+            and set(RESEARCH_MARKETS).issubset(present_markets)
+            and recommendations_traceable
+        ),
+        "available": bool(has_recommendations or matrix or news_ablation),
+    }
 
 
 def normalize_model_evaluation_payload(
     run: ModelEvaluationRun,
     report_payload: dict[str, Any],
     mlflow_payload: dict[str, Any] | None = None,
+    research_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """task.normalizeReportJson"""
     config = _ensure_mapping(report_payload.get("config"))
@@ -148,6 +286,7 @@ def normalize_model_evaluation_payload(
         "failures": failures,
         "mlflow": mlflow_payload or {},
         "mlflow_recorded": bool(mlflow_payload),
+        "research": research_payload or normalize_market_research_payload(),
         "config_name_label": _display_text(config.get("name")),
         "market_label": _display_text(config.get("market"), empty=TEXT_NA, na=TEXT_NA),
         "stock_count_label": _format_count_label(pool.get("stock_count")),
@@ -168,16 +307,16 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
     render_route_nav(MODEL_EVALUATION_ROUTE)
 
     runs = discover_model_evaluation_runs(outputs_root)
-    latest_run_label = runs[0].run_id if runs else TEXT_EMPTY
-    latest_time_label = _format_timestamp_label(runs[0].modified_ts) if runs else TEXT_EMPTY
+    latest_run_label = runs[0].run_id if runs else _empty_text()
+    latest_time_label = _format_timestamp_label(runs[0].modified_ts) if runs else _empty_text()
 
     render_html(
         f"""
 <section class="analysis-page-shell">
   <div class="analysis-hero">
     <div class="analysis-hero-topline">
-      <span class="analysis-pill accent">{tr("modelEvaluation.heroPill")}</span>
-      <span class="analysis-pill">{tr("modelEvaluation.readableRuns", count=len(runs))}</span>
+      <span class="analysis-pill accent">{_page_text("modelEvaluation.heroPill", "Evidence-first research", zh_fallback="证据优先的研究")}</span>
+      <span class="analysis-pill">{_page_text("modelEvaluation.readableRuns", "{count} readable runs", zh_fallback="{count} 个可读运行", count=len(runs))}</span>
       <span class="analysis-pill">{html.escape(str(outputs_root.name))}</span>
     </div>
     <div class="analysis-hero-main">
@@ -187,18 +326,18 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
       </div>
       <div class="analysis-quick-grid">
         <div class="analysis-quick-item">
-          <span class="analysis-quick-label">{tr("modelEvaluation.publicPath")}</span>
+          <span class="analysis-quick-label">{_page_text("modelEvaluation.publicPath", "Public path", zh_fallback="公开路径")}</span>
           <span class="analysis-quick-value">/strategy/model-evaluation</span>
-          <span class="analysis-quick-meta">{tr("modelEvaluation.publicPathMeta")}</span>
+          <span class="analysis-quick-meta">{_page_text("modelEvaluation.publicPathMeta", "Read-only research browser", zh_fallback="只读研究浏览器")}</span>
         </div>
         <div class="analysis-quick-item">
-          <span class="analysis-quick-label">{tr("modelEvaluation.latestRun")}</span>
+          <span class="analysis-quick-label">{_page_text("modelEvaluation.latestRun", "Latest run", zh_fallback="最新运行")}</span>
           <span class="analysis-quick-value">{html.escape(latest_run_label)}</span>
           <span class="analysis-quick-meta">{html.escape(latest_time_label)}</span>
         </div>
         <div class="analysis-quick-item">
-          <span class="analysis-quick-label">{tr("modelEvaluation.dataSource")}</span>
-          <span class="analysis-quick-value">{html.escape(str(outputs_root))}</span>
+          <span class="analysis-quick-label">{_page_text("modelEvaluation.dataSource", "Data source", zh_fallback="数据来源")}</span>
+          <span class="analysis-quick-value">model-test/outputs</span>
           <span class="analysis-quick-meta">{tr("modelEvaluation.dataSourceMeta")}</span>
         </div>
       </div>
@@ -215,7 +354,7 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
 
     with control_col:
         with st.container(key="model-evaluation-control-card"):
-            st.markdown(f"<div class='surface-kicker'>{html.escape(tr('modelEvaluation.runBrowserKicker'))}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='surface-kicker'>{html.escape(_page_text('modelEvaluation.runBrowserKicker', 'Run browser', zh_fallback='运行浏览器'))}</div>", unsafe_allow_html=True)
             st.markdown(tr("section.browseExistingRuns"), unsafe_allow_html=True)
             st.markdown(
                 tr("page.description.consumesReportOnly"),
@@ -224,7 +363,7 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
 
             if not runs:
                 render_status_note(tr("research.run.empty"), tone="warning")
-                st.caption(f"扫描目录：{outputs_root}")
+                st.caption(t(f"扫描目录：{outputs_root}", f"Scanned directory: {outputs_root}"))
             else:
                 selected_run_id = st.selectbox(
                     tr("action.selectRun"),
@@ -244,7 +383,7 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
                         [
                             (tr("meta.generatedTime"), selected_payload["generated_label"], selected_payload["last_modified_label"]),
                             (tr("configuration.name"), selected_payload["config_name_label"], tr("modelEvaluation.runMeta", run_id=selected_payload["run_id"])),
-                            (tr("market.name"), selected_payload["market_label"], f"股票池 {selected_payload['stock_count_label']}"),
+                            (tr("market.name"), selected_payload["market_label"], t(f"股票池 {selected_payload['stock_count_label']}", f"Stock pool {selected_payload['stock_count_label']}")),
                             (tr("model.count"), selected_payload["model_count_label"], selected_payload["score_policy_text"]),
                         ]
                     )
@@ -261,7 +400,7 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
 
     with summary_col:
         with st.container(key="model-evaluation-summary-board"):
-            st.markdown(f"<div class='surface-kicker'>{html.escape(tr('modelEvaluation.showcaseKicker'))}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='surface-kicker'>{html.escape(_page_text('modelEvaluation.showcaseKicker', 'Research snapshot', zh_fallback='研究快照'))}</div>", unsafe_allow_html=True)
             st.markdown(tr("run.currentSummary"), unsafe_allow_html=True)
 
             if selected_payload is None:
@@ -273,8 +412,8 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
                     [
                         (tr("model.top1"), _display_text(top_model.get("display_name")), _display_text(top_model.get("family_group"))),
                         (tr("score.total"), _format_number_text(top_model.get("total_score")), selected_payload["score_policy_text"]),
-                        (tr("performance.medianSharpe"), _format_number_text(top_model.get("median_sharpe")), f"阶段 {_display_text(top_model.get('stage'), empty=TEXT_NA, na=TEXT_NA)}"),
-                        (tr("performance.medianExcessReturn"), _format_pct_text(top_model.get("median_excess_return")), f"股票池 {selected_payload['pool_size_label']}"),
+                        (tr("performance.medianSharpe"), _format_number_text(top_model.get("median_sharpe")), t(f"阶段 {_display_text(top_model.get('stage'), empty=TEXT_NA, na=TEXT_NA)}", f"Stage {_display_text(top_model.get('stage'), empty=TEXT_NA, na=TEXT_NA)}")),
+                        (tr("performance.medianExcessReturn"), _format_pct_text(top_model.get("median_excess_return")), t(f"股票池 {selected_payload['pool_size_label']}", f"Stock pool {selected_payload['pool_size_label']}")),
                     ]
                 )
                 render_html(_top_rank_list_markup(selected_payload["top_models"]))
@@ -289,13 +428,20 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
                     """
                 )
 
-    with st.container(key="model-evaluation-tabs-shell"):
-        tab_overview, tab_obs, tab_failures = st.tabs([tr("section.overview"), tr("modelEvaluation.tab.observability"), tr("data.abnormalSamples")])
+    _render_research_conclusion(selected_payload)
+    _render_evaluation_export(selected_payload)
 
-        with tab_overview:
-            with st.container(key="model-evaluation-detail-section-overview"):
+    with st.container(key="model-evaluation-tabs-shell"):
+        tab_evidence, tab_robustness, tab_limits, tab_obs = st.tabs(
+            [t("证据", "Evidence"), t("稳定性", "Stability"), t("局限", "Limits"), t("元数据", "Metadata")]
+        )
+
+        with tab_evidence:
+            with st.container(key="model-evaluation-detail-section-evidence"):
+                _render_market_strategy_evidence(selected_payload)
+                st.divider()
                 _render_data_section(
-                    title=tr("modelEvaluation.section.topModels"),
+                    title=_page_text("modelEvaluation.section.topModels", "Top models", zh_fallback="领先模型"),
                     copy=tr("note.main_leaderboard_source"),
                     frame=_top_models_frame(selected_payload),
                 )
@@ -309,11 +455,27 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
                     copy=tr("model.comparisonDescription"),
                     frame=_search_method_frame(selected_payload),
                 )
+
+        with tab_robustness:
+            with st.container(key="model-evaluation-detail-section-robustness"):
+                _render_news_ablation_section(selected_payload)
+                st.divider()
                 _render_data_section(
                     title=tr("modelEvaluation.section.robustnessSummary"),
                     copy=tr("results.rolling_robustness_summary"),
                     frame=_robustness_frame(selected_payload),
                     empty_message=tr("run.noRobustnessSummary"),
+                )
+
+        with tab_limits:
+            with st.container(key="model-evaluation-detail-section-limits"):
+                _render_research_limitations(selected_payload)
+                st.divider()
+                _render_data_section(
+                    title=tr("modelEvaluation.section.failures"),
+                    copy=tr("anomaly.summaryOnly"),
+                    frame=_failures_frame(selected_payload),
+                    empty_message=tr("run.no_anomalous_samples"),
                 )
 
         with tab_obs:
@@ -322,14 +484,159 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
                 st.divider()
                 _render_mlflow_section(selected_payload)
 
-        with tab_failures:
-            with st.container(key="model-evaluation-detail-section-failures"):
-                _render_data_section(
-                    title=tr("modelEvaluation.section.failures"),
-                    copy=tr("anomaly.summaryOnly"),
-                    frame=_failures_frame(selected_payload),
-                    empty_message=tr("run.no_anomalous_samples"),
-                )
+
+def _render_research_conclusion(payload: dict[str, Any] | None) -> None:
+    with st.container(key="model-evaluation-research-conclusion"):
+        st.markdown(
+            f"<div class='surface-kicker'>{html.escape(t('跨市场结论', 'Cross-market conclusion'))}</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(t("## US 与 CN_A 策略建议", "## US vs CN_A recommendations"))
+        st.markdown(t(
+            "结论先于支撑表格展示；每条建议都连接到对应的市场与策略记录、样本数量和局限。",
+            "The conclusion is shown before the supporting tables. Every recommendation is linked "
+            "to its matching market/strategy rows, sample counts, and limitations.",
+        ))
+
+        if payload is None:
+            render_status_note(t("请选择一个可读运行以查看跨市场结论。", "Select a readable run to inspect its cross-market conclusions."))
+            return
+
+        research = _ensure_mapping(payload.get("research"))
+        if not research.get("has_recommendations"):
+            render_status_note(
+                t(
+                    "此运行没有跨市场建议产物，下方仍可查看旧版报告。",
+                    "No cross-market recommendation artifact is available for this run. "
+                    "The legacy report remains accessible below.",
+                ),
+                tone="warning",
+            )
+            return
+
+        cards: list[str] = []
+        markets = _ensure_mapping(research.get("markets"))
+        for market in RESEARCH_MARKETS:
+            entry = _ensure_mapping(markets.get(market))
+            recommendation = _display_text(
+                entry.get("recommendation"),
+                empty=t("暂无建议", "No recommendation"),
+                na=t("暂无建议", "No recommendation"),
+            )
+            trace_rows = _ensure_records(entry.get("trace_rows"))
+            evidence_text = _trace_summary(trace_rows, _ensure_mapping(entry.get("evidence")))
+            confidence_text = _confidence_label(entry.get("confidence"))
+            meta_text = t(
+                f"置信度：{confidence_text} · {evidence_text}",
+                f"{confidence_text} confidence · {evidence_text}",
+            )
+            cards.append(
+                f"""
+<div class="analysis-kv-item">
+  <span class="analysis-kv-label">{html.escape(market)}</span>
+  <span class="analysis-kv-value">{html.escape(recommendation)}</span>
+  <span class="analysis-kv-meta">{html.escape(meta_text)}</span>
+</div>
+                """
+            )
+        render_html(f"<div class='analysis-kv-grid'>{''.join(cards)}</div>")
+
+        if not research.get("cross_market_ready"):
+            render_status_note(
+                t(
+                    "建议已经载入，但策略矩阵没有同时包含 US 与 CN_A 的追溯记录；请把当前结论视为不完整。",
+                    "Recommendations were loaded, but the strategy matrix does not contain trace rows "
+                    "for both US and CN_A. Treat the conclusion as incomplete.",
+                ),
+                tone="warning",
+            )
+
+
+def _render_evaluation_export(payload: dict[str, Any] | None) -> None:
+    if payload is None:
+        return
+    news_rows = _ensure_records(_ensure_mapping(payload.get("research")).get("news_ablation"))
+    news_fig = create_news_ablation_chart(news_rows) if news_rows else None
+    try:
+        export_html = build_model_evaluation_export_html(
+            payload=payload,
+            news_ablation_fig=news_fig,
+            language=get_ui_language(),
+            theme="light",
+        )
+    except Exception as exc:
+        render_status_note(t(f"研究 HTML 暂时无法导出：{exc}", f"Research HTML export is unavailable: {exc}"), tone="warning")
+        return
+
+    st.download_button(
+        t("下载研究 HTML", "Download research HTML"),
+        data=export_html.encode("utf-8"),
+        file_name=f"{payload.get('run_id', 'research-run')}-research-evidence.html",
+        mime="text/html",
+        key="model-evaluation-research-export",
+    )
+
+
+def _render_market_strategy_evidence(payload: dict[str, Any] | None) -> None:
+    _render_data_section(
+        title=t("建议证据", "Recommendation evidence"),
+        copy=t("每一行都把市场结论连接到作为证据的具体策略与窗口指标。", "Each row connects a market conclusion to the exact strategy/window metrics used as evidence."),
+        frame=_recommendation_evidence_frame(payload),
+        empty_message=t("暂无可追溯的跨市场建议证据。", "No traceable cross-market recommendation evidence is available."),
+    )
+    st.divider()
+    _render_data_section(
+        title=t("US 与 CN_A 策略矩阵", "US vs CN_A strategy matrix"),
+        copy=t("对比样本外指标、样本覆盖率、交易成本与滚动稳定性。", "Comparable out-of-sample metrics, sample coverage, trading cost, and rolling stability."),
+        frame=_market_strategy_matrix_frame(payload),
+        empty_message=t("此运行没有可用的 market_strategy_matrix.csv。", "No market_strategy_matrix.csv is available for this run."),
+    )
+
+
+def _render_news_ablation_section(payload: dict[str, Any] | None) -> None:
+    st.markdown(f"<div class='surface-kicker'>{html.escape(t('新闻消融', 'News ablation'))}</div>", unsafe_allow_html=True)
+    st.markdown(t("#### 新闻融合对比", "#### News-fusion comparison"))
+    st.markdown(t(
+        "在不同新闻权重和回看窗口下比较同一基础策略，并同时观察覆盖率、回退完整性与表现。",
+        "Compare the same base strategy across news weights and lookback windows; coverage and "
+        "fallback integrity remain visible beside performance.",
+    ))
+    research = _ensure_mapping(payload.get("research")) if payload else {}
+    rows = _ensure_records(research.get("news_ablation"))
+    if not rows:
+        render_status_note(t("此运行没有可用的 news_ablation_summary.csv。", "No news_ablation_summary.csv is available for this run."))
+        return
+
+    fig = create_news_ablation_chart(rows)
+    st.plotly_chart(
+        fig,
+        width="stretch",
+        config={"displaylogo": False, "responsive": True},
+        key="model-evaluation-news-ablation-chart",
+    )
+    for message, tone in _news_quality_notes(research):
+        render_status_note(message, tone=tone)
+    st.dataframe(_news_ablation_frame(payload), width="stretch", hide_index=True)
+
+
+def _render_research_limitations(payload: dict[str, Any] | None) -> None:
+    st.markdown(f"<div class='surface-kicker'>{html.escape(t('已知边界', 'Known boundaries'))}</div>", unsafe_allow_html=True)
+    st.markdown(t("#### 建议的局限", "#### Recommendation limitations"))
+    st.markdown(t("在解释胜出策略或新闻带来的表面提升前，请先阅读这些边界。", "Read these boundaries before interpreting a winner or an apparent news uplift."))
+
+    research = _ensure_mapping(payload.get("research")) if payload else {}
+    rows: list[dict[str, str]] = []
+    for market in RESEARCH_MARKETS:
+        entry = _ensure_mapping(_ensure_mapping(research.get("markets")).get(market))
+        for limitation in _normalize_text_list(entry.get("limitations")):
+            rows.append({t("市场 / 来源", "Market / source"): market, t("局限", "Limitation"): limitation})
+    for issue in _normalize_text_list(research.get("issues")):
+        rows.append({t("市场 / 来源", "Market / source"): t("产物校验", "Artifact validation"), t("局限", "Limitation"): issue})
+
+    if rows:
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    else:
+        render_status_note(t("此运行没有记录研究局限。", "No research limitations were recorded for this run."))
 
 
 def _render_quantstats_section(payload: dict[str, Any] | None) -> None:
@@ -397,7 +704,7 @@ def _render_mlflow_section(payload: dict[str, Any] | None) -> None:
         [
             (tr("experiment.name"), _display_text(mlflow_payload.get("experiment_name")), "experiment_name"),
             (tr("mlflow.runId"), _display_text(mlflow_payload.get("run_id"), empty=TEXT_NA, na=TEXT_NA), "run_id"),
-            (tr("mlflow.trackingUri"), _display_text(mlflow_payload.get("tracking_uri"), empty=TEXT_NA, na=TEXT_NA), "tracking_uri"),
+            (_page_text("mlflow.trackingUri", "Tracking URI", zh_fallback="跟踪 URI"), _display_text(mlflow_payload.get("tracking_uri"), empty=TEXT_NA, na=TEXT_NA), "tracking_uri"),
             (tr("mlflow.artifactUri"), _display_text(mlflow_payload.get("artifact_uri"), empty=TEXT_NA, na=TEXT_NA), "artifact_uri"),
         ]
     )
@@ -408,15 +715,15 @@ def _render_data_section(
     title: str,
     copy: str,
     frame: pd.DataFrame,
-    empty_message: str = tr("results.notAvailable"),
+    empty_message: str | None = None,
 ) -> None:
     st.markdown(f"<div class='surface-kicker'>{html.escape(title)}</div>", unsafe_allow_html=True)
     st.markdown(f"<h4 class='analysis-section-title'>{html.escape(title)}</h4>", unsafe_allow_html=True)
     st.markdown(f"<p class='analysis-section-copy'>{html.escape(copy)}</p>", unsafe_allow_html=True)
     if frame.empty:
-        render_status_note(empty_message)
+        render_status_note(empty_message or tr("results.notAvailable"))
         return
-    st.dataframe(frame, use_container_width=True, hide_index=True)
+    st.dataframe(frame, width="stretch", hide_index=True)
 
 
 def _top_models_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
@@ -490,6 +797,150 @@ def _failures_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
     )
 
 
+def _recommendation_evidence_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
+    if not payload:
+        return pd.DataFrame()
+    research = _ensure_mapping(payload.get("research"))
+    if not research.get("has_recommendations"):
+        return pd.DataFrame()
+
+    frame_rows: list[dict[str, str]] = []
+    markets = _ensure_mapping(research.get("markets"))
+    for market in RESEARCH_MARKETS:
+        entry = _ensure_mapping(markets.get(market))
+        recommendation = _display_text(
+            entry.get("recommendation"),
+            empty=t("暂无建议", "No recommendation"),
+            na=t("暂无建议", "No recommendation"),
+        )
+        confidence = _confidence_label(entry.get("confidence"))
+        evidence = _evidence_summary(_ensure_mapping(entry.get("evidence")))
+        trace_rows = _ensure_records(entry.get("trace_rows")) or [{}]
+        for row in trace_rows:
+            frame_rows.append(
+                {
+                    t("市场", "Market"): market,
+                    t("建议策略", "Recommendation"): recommendation,
+                    t("证据策略", "Evidence strategy"): _display_text(
+                        row.get("strategy_label") or row.get("strategy_id"),
+                        empty=TEXT_NA,
+                        na=TEXT_NA,
+                    ),
+                    t("置信度", "Confidence"): confidence,
+                    t("窗口", "Window"): _display_text(row.get("evaluation_window"), empty=TEXT_NA, na=TEXT_NA),
+                    t("样本", "Samples"): _sample_trace_label(row),
+                    t("覆盖率", "Coverage"): _format_pct_text(row.get("coverage_rate")),
+                    t("净收益", "Net return"): _format_pct_text(row.get("net_total_return")),
+                    "Sharpe": _format_number_text(row.get("sharpe")),
+                    t("最大回撤", "Max drawdown"): _format_pct_text(row.get("max_drawdown")),
+                    t("证据", "Evidence"): evidence,
+                }
+            )
+    return pd.DataFrame(frame_rows)
+
+
+def _market_strategy_matrix_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
+    research = _ensure_mapping(payload.get("research")) if payload else {}
+    rows = _ensure_records(research.get("matrix"))
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(
+        [
+            {
+                t("市场", "Market"): _display_text(row.get("market"), empty=TEXT_NA, na=TEXT_NA),
+                t("策略", "Strategy"): _display_text(row.get("strategy_label") or row.get("strategy_id")),
+                t("窗口", "Window"): _display_text(row.get("evaluation_window"), empty=TEXT_NA, na=TEXT_NA),
+                t("样本", "Samples"): _sample_trace_label(row),
+                t("覆盖率", "Coverage"): _format_pct_text(row.get("coverage_rate")),
+                t("净收益", "Net return"): _format_pct_text(row.get("net_total_return")),
+                "Sharpe": _format_number_text(row.get("sharpe")),
+                t("最大回撤", "Max drawdown"): _format_pct_text(row.get("max_drawdown")),
+                t("换手", "Turnover"): _format_number_text(row.get("total_turnover")),
+                t("成本", "Cost"): _format_pct_text(row.get("total_transaction_cost")),
+                t("滚动排名", "Rolling rank"): _format_number_text(row.get("rolling_rank_median")),
+                t("方向一致性", "Direction consistency"): _format_pct_text(row.get("rolling_direction_consistency")),
+                t("降级率", "Degraded"): _format_pct_text(row.get("degraded_run_rate")),
+            }
+            for row in rows
+        ]
+    )
+
+
+def _news_ablation_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
+    research = _ensure_mapping(payload.get("research")) if payload else {}
+    rows = _ensure_records(research.get("news_ablation"))
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(
+        [
+            {
+                t("市场", "Market"): _display_text(row.get("market"), empty=TEXT_NA, na=TEXT_NA),
+                t("基础策略", "Base strategy"): _display_text(row.get("base_strategy_id")),
+                t("新闻权重", "News weight"): _format_number_text(row.get("news_weight")),
+                t("回看窗口", "Lookback"): t(f"{_format_count_label(row.get('lookback_days'))} 天", f"{_format_count_label(row.get('lookback_days'))}d"),
+                t("样本", "Samples"): _format_count_label(row.get("symbol_count")),
+                t("匹配行数", "Matched rows"): _format_count_label(row.get("matched_row_count")),
+                t("覆盖率", "Coverage"): _format_pct_text(row.get("coverage_rate")),
+                t("回退匹配率", "Fallback match"): _format_pct_text(row.get("fallback_position_match_rate")),
+                t("净收益", "Net return"): _format_pct_text(row.get("net_total_return")),
+                "Sharpe": _format_number_text(row.get("sharpe")),
+                t("最大回撤", "Max drawdown"): _format_pct_text(row.get("max_drawdown")),
+                t("泄漏违规数", "Leakage violations"): _format_count_label(row.get("future_leakage_violation_count")),
+                t("状态", "Status"): _display_text(row.get("status"), empty=TEXT_NA, na=TEXT_NA),
+                t("跳过原因", "Skip reason"): _display_text(row.get("skip_reason"), empty="", na=""),
+            }
+            for row in rows
+        ]
+    )
+
+
+def _news_quality_notes(research: dict[str, Any]) -> list[tuple[str, str]]:
+    rows = _ensure_records(research.get("news_ablation"))
+    if not rows:
+        return []
+    frame = pd.DataFrame(rows)
+    notes: list[tuple[str, str]] = []
+
+    coverage = pd.to_numeric(frame.get("coverage_rate", pd.Series(dtype=float)), errors="coerce").dropna()
+    if not coverage.empty:
+        notes.append(
+            (
+                t(
+                    f"观测到的新闻覆盖率为 {coverage.min():.1%}–{coverage.max():.1%}；解读表现变化时需同时考虑覆盖率。",
+                    f"Observed news coverage ranges from {coverage.min():.1%} to {coverage.max():.1%}; "
+                    "interpret performance changes together with this coverage.",
+                ),
+                "info",
+            )
+        )
+        threshold = _coerce_float(_ensure_mapping(_ensure_mapping(research.get("manifest")).get("news")).get("coverage_threshold"))
+        if threshold is not None and threshold > 0 and bool((coverage < threshold).any()):
+            notes.append(
+                (
+                    t(
+                        f"至少一条消融记录低于 manifest 中 {threshold:.1%} 的覆盖率阈值。",
+                        f"At least one ablation row is below the manifest coverage threshold of {threshold:.1%}.",
+                    ),
+                    "warning",
+                )
+            )
+
+    leakage = pd.to_numeric(
+        frame.get("future_leakage_violation_count", pd.Series(dtype=float)),
+        errors="coerce",
+    ).fillna(0)
+    if bool((leakage > 0).any()):
+        notes.append((t("检测到未来信息泄漏违规；受影响记录不得作为建议依据。", "Future-leakage violations were recorded; affected rows must not support a recommendation."), "error"))
+
+    fallback = pd.to_numeric(
+        frame.get("fallback_position_match_rate", pd.Series(dtype=float)),
+        errors="coerce",
+    ).dropna()
+    if not fallback.empty and bool((fallback < 1.0 - 1e-9).any()):
+        notes.append((t("部分无新闻记录未保持上游策略仓位。", "Some no-news rows did not preserve the upstream strategy position."), "warning"))
+    return notes
+
+
 def _records_to_frame(
     rows: list[dict[str, Any]],
     columns: list[tuple[str, Any]],
@@ -512,6 +963,9 @@ def _top_rank_list_markup(rows: list[dict[str, Any]]) -> str:
         return tr("message.no_results_to_display")
     items = []
     for row in rows[:5]:
+        stage = _display_text(row.get("stage"), empty=TEXT_NA, na=TEXT_NA)
+        score = _format_number_text(row.get("total_score"))
+        meta = t(f"阶段 {stage} · 分数 {score}", f"Stage {stage} · Score {score}")
         items.append(
             f"""
 <div class="model-eval-rank-item">
@@ -520,8 +974,7 @@ def _top_rank_list_markup(rows: list[dict[str, Any]]) -> str:
     <div class="model-eval-rank-title">{html.escape(_display_text(row.get("display_name")))}</div>
     <div class="model-eval-rank-meta">
       {html.escape(_display_text(row.get("family_group"), empty=TEXT_NA, na=TEXT_NA))}
-      · 阶段 {html.escape(_display_text(row.get("stage"), empty=TEXT_NA, na=TEXT_NA))}
-      · 分数 {html.escape(_format_number_text(row.get("total_score")))}
+      · {html.escape(meta)}
     </div>
   </div>
 </div>
@@ -543,6 +996,125 @@ def _render_kv_grid(items: list[tuple[str, str, str]]) -> None:
             """
         )
     render_html(f"<div class='analysis-kv-grid'>{''.join(cards)}</div>")
+
+
+def _load_optional_csv_records(
+    path: Path,
+    *,
+    artifact_key: str,
+    source_paths: dict[str, str],
+    issues: list[str],
+) -> list[dict[str, Any]]:
+    if not _path_is_file(path):
+        return []
+    source_paths[artifact_key] = str(path)
+    try:
+        frame = pd.read_csv(path)
+    except Exception:
+        issues.append(f"Unreadable or invalid {path.name}")
+        return []
+    if frame.empty:
+        return []
+    return frame.where(pd.notna(frame), None).to_dict(orient="records")
+
+
+def _normalize_market_records(
+    records: list[dict[str, Any]] | None,
+    *,
+    artifact_label: str,
+    issues: list[str],
+) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for row in _ensure_records(records):
+        market = str(row.get("market") or "").strip().upper()
+        if market not in RESEARCH_MARKETS:
+            issues.append(f"Ignored {artifact_label} row with unknown market '{market or 'missing'}'")
+            continue
+        normalized.append({**row, "market": market})
+    return normalized
+
+
+def _normalize_text_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if not isinstance(value, (list, tuple, set)):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _optional_text(value: Any) -> str | None:
+    if _is_missing(value):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _path_is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
+def _confidence_label(value: Any) -> str:
+    normalized = str(value or "insufficient_evidence").strip().lower()
+    return {
+        "high": t("高", "High"),
+        "medium": t("中", "Medium"),
+        "low": t("低", "Low"),
+        "insufficient_evidence": t("证据不足", "Insufficient evidence"),
+    }.get(normalized, t("证据不足", "Insufficient evidence"))
+
+
+def _page_text(key: str, fallback: str, *, zh_fallback: str | None = None, **kwargs: Any) -> str:
+    """Use the shared catalog when present and a window-local fallback otherwise."""
+    translated = tr(key, **kwargs)
+    if translated != key:
+        return translated
+    localized_fallback = t(zh_fallback or fallback, fallback)
+    try:
+        return localized_fallback.format(**kwargs)
+    except Exception:
+        return localized_fallback
+
+
+def _sample_trace_label(row: dict[str, Any]) -> str:
+    successful = _format_count_label(row.get("successful_symbol_count"))
+    total = _format_count_label(row.get("symbol_count"))
+    if successful == TEXT_NA and total == TEXT_NA:
+        return TEXT_NA
+    return t(f"成功 {successful} / 总计 {total}", f"{successful} successful / {total} total")
+
+
+def _evidence_summary(evidence: dict[str, Any]) -> str:
+    if not evidence:
+        return t("未提供结构化证据说明", "No structured evidence note")
+    parts: list[str] = []
+    for key, value in evidence.items():
+        if _is_missing(value):
+            continue
+        if isinstance(value, (dict, list, tuple)) and not value:
+            continue
+        if isinstance(value, (dict, list, tuple)):
+            rendered = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        else:
+            rendered = str(value)
+        parts.append(f"{str(key).replace('_', ' ')}: {rendered}")
+    return "; ".join(parts) if parts else t("未提供结构化证据说明", "No structured evidence note")
+
+
+def _trace_summary(trace_rows: list[dict[str, Any]], evidence: dict[str, Any]) -> str:
+    if not trace_rows:
+        return _evidence_summary(evidence)
+    row = trace_rows[0]
+    parts = [
+        _sample_trace_label(row),
+        t(f"覆盖率 {_format_pct_text(row.get('coverage_rate'))}", f"coverage {_format_pct_text(row.get('coverage_rate'))}"),
+        f"Sharpe {_format_number_text(row.get('sharpe'))}",
+        t(f"净收益 {_format_pct_text(row.get('net_total_return'))}", f"net return {_format_pct_text(row.get('net_total_return'))}"),
+    ]
+    parts.append(t(f"{len(trace_rows)} 条矩阵证据", f"{len(trace_rows)} matrix row(s)"))
+    return " · ".join(parts)
 
 
 def _load_json_mapping(path: Path) -> dict[str, Any] | None:
@@ -594,15 +1166,20 @@ def _failure_message(row: dict[str, Any]) -> str:
             if joined:
                 return joined
         return str(warnings)
-    return TEXT_EMPTY
+    return _empty_text()
 
 
-def _display_text(value: Any, *, empty: str = TEXT_EMPTY, na: str = TEXT_NA) -> str:
+def _empty_text() -> str:
+    return tr("common.noData")
+
+
+def _display_text(value: Any, *, empty: str | None = None, na: str = TEXT_NA) -> str:
+    empty_text = _empty_text() if empty is None else empty
     if value is None:
-        return empty
+        return empty_text
     if isinstance(value, str):
         stripped = value.strip()
-        return stripped or empty
+        return stripped or empty_text
     if _is_missing(value):
         return na
     return str(value)
@@ -633,13 +1210,13 @@ def _format_timestamp_label(timestamp_value: float) -> str:
     try:
         dt = datetime.fromtimestamp(float(timestamp_value)).astimezone()
     except Exception:
-        return TEXT_EMPTY
+        return _empty_text()
     return dt.strftime("%Y-%m-%d %H:%M")
 
 
 def _format_datetime_text(value: Any) -> str:
     if _is_missing(value):
-        return TEXT_EMPTY
+        return _empty_text()
     try:
         dt = pd.Timestamp(value)
     except Exception:

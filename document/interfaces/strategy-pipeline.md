@@ -222,6 +222,8 @@ compute_signals(df, ..., fsm_mode=False, fa_model=None) -> pd.DataFrame
 - `fit_ml_filter(...)` 可能返回常数概率模型，不能默认训练总成功。
 - `apply_filter(...)` 过滤的是整段持仓块，不是单个孤立买点。
 - 训练视图的标签边界不能跨过 `split_idx`。
+- LightGBM runtime 由 `core/lightgbm_runtime.py` 统一解析；默认 `device_type=cpu`。离线研究可通过 config 的 `lightgbm_device_type=cpu|gpu|cuda` 显式选择设备，非 CPU 设备必须先通过 tiny-fit preflight，失败时正式 run 直接停止，不静默回退。
+- GPU/CUDA 只覆盖 LightGBM ML filter 与 adaptive state classifier；数据加载、pandas 指标、回测、Logistic Regression 和大部分搜索 objective 仍为 CPU 路径。
 
 ### 优化层
 
@@ -247,6 +249,17 @@ simulate_strategy(df, ..., return_trades=False)
 - `buy_hold_equity`
 
 当 `return_trades=True` 时返回 `(sim_df, trades_df)`，其中 `trades_df` 由 `extract_trades()` 结构化生成。
+
+Dean's Award 的研究运行可通过 `MarketExecutionConfig` 启用市场成本。没有显式 config、且不在
+`using_execution_config(...)` 研究上下文中的调用，保持原有零成本数值结果不变。启用后，`sim_df`
+额外包含 `turnover`、`transaction_cost` 和 `gross_strategy_return`；`strategy_return` 始终表示扣除成本后的净收益。
+成本只在仓位变化时计提，公式是
+`abs(position_t - position_(t-1)) * (commission_bps + slippage_bps) / 10_000`，首日之前仓位为 `0`。
+
+离线 `model-test` 将有效成本写入 `config_snapshot.json` 和 `data_manifest.json`，并在同一 run 内以
+context-local execution config 传递给所有嵌套回测；这不会改变交互页面的默认结果。
+
+Dean's Award 正式研究配置采用市场内独立推荐：US 与 CN_A 分别从本市场已验证候选中选择；只有单独的 shared benchmark 才限制为共同候选。标准 full tier 为每市场 60 只，经 deterministic hybrid catalog sampling、趋势/波动分桶与流动性排序选取；每个 run 要求行情至少覆盖到 `minimum_data_end_date`（当前为 2026-07-31），旧 sample/cache 会触发重拉，随后将入选 CSV 冻结到 `data_snapshot/` 并在 manifest 记录逐文件及聚合 SHA-256。120 只配置是参数冻结后的确认层。
 
 ## ModelResult 边界
 

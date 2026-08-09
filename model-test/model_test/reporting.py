@@ -152,6 +152,117 @@ def build_report_payload(
     return payload
 
 
+def build_market_strategy_payload(
+    *,
+    config: ResearchConfig,
+    run_id: str,
+    matrix_df: pd.DataFrame,
+    recommendations: dict[str, Any],
+    source_manifests: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Create a traceable comparison payload without changing single-market reports."""
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "config": config.to_dict(),
+        "run_id": run_id,
+        "market_strategy": {
+            "matrix": matrix_df.to_dict("records"),
+            "recommendations": recommendations,
+            "source_manifests": source_manifests,
+        },
+    }
+
+
+def render_market_strategy_markdown(payload: dict[str, Any]) -> str:
+    strategy = dict(payload.get("market_strategy") or {})
+    recommendations = dict(strategy.get("recommendations") or {})
+    markets = dict(recommendations.get("markets") or {})
+    shared_benchmark = dict(recommendations.get("shared_benchmark") or {})
+    manifests = dict(strategy.get("source_manifests") or {})
+    lines = [
+        "# Market Strategy Research Report",
+        "",
+        f"- Comparison run ID: `{payload.get('run_id', 'unknown')}`",
+        f"- Generated at: `{payload.get('generated_at', 'unknown')}`",
+        "",
+        "## Source Manifests",
+    ]
+    for market in ("US", "CN_A"):
+        source = dict(manifests.get(market) or {})
+        lines.append(
+            f"- `{market}`: `{source.get('path', 'unavailable')}` "
+            f"(source run `{source.get('run_id', 'unavailable')}`, "
+            f"cost `{_format_num(source.get('commission_bps'))} + "
+            f"{_format_num(source.get('slippage_bps'))} bps`)"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Decision Rule",
+            "- Each market selects from every strategy validated for that market; a strategy does not need to be supported by the other market.",
+            "- The separate shared benchmark uses only common candidates for method-level US/CN_A comparison.",
+            "- Candidates must beat Naive after costs, meet coverage and degradation gates, and have positive rolling-window direction consistency.",
+            "- Near-ties are reported as insufficient evidence instead of forcing a winner.",
+            "",
+            "## Market-Specific Recommendations",
+        ]
+    )
+    for market in ("US", "CN_A"):
+        entry = dict(markets.get(market) or {})
+        recommendation = entry.get("recommendation") or "none"
+        confidence = entry.get("confidence") or "insufficient_evidence"
+        lines.append(f"### {market}")
+        lines.append(f"- Recommendation: `{recommendation}`")
+        lines.append(f"- Confidence: `{confidence}`")
+        evidence = dict(entry.get("evidence") or {})
+        matrix_rows = evidence.get("matrix_rows") or []
+        if matrix_rows:
+            row_references = [
+                f"{item.get('market')}/{item.get('strategy_id')}/{item.get('evaluation_window')}"
+                if isinstance(item, dict) else str(item)
+                for item in matrix_rows
+            ]
+            lines.append(f"- Matrix rows used: `{', '.join(row_references)}`")
+        else:
+            lines.append("- Matrix rows used: none; insufficient evidence.")
+        metrics = dict(evidence.get("metrics") or {})
+        if metrics:
+            lines.append(
+                f"- Evidence: {int(metrics.get('valid_symbol_count', 0))} valid symbols, "
+                f"coverage {_format_pct(metrics.get('coverage_rate'))}, "
+                f"median excess return {_format_pct(metrics.get('median_excess_return'))}, "
+                f"Naive win rate {_format_pct(metrics.get('naive_win_rate'))}, "
+                f"rolling consistency {_format_pct(metrics.get('rolling_direction_consistency'))}."
+            )
+        for limitation in entry.get("limitations") or []:
+            lines.append(f"- Limitation: {limitation}")
+
+    lines.extend(["", "## Shared-Candidate Benchmark"])
+    eligible = shared_benchmark.get("eligible_strategy_ids") or []
+    lines.append(f"- Common candidate set: `{', '.join(eligible) if eligible else 'none'}`")
+    shared_markets = dict(shared_benchmark.get("markets") or {})
+    for market in ("US", "CN_A"):
+        entry = dict(shared_markets.get(market) or {})
+        lines.append(
+            f"- `{market}` common-set result: `{entry.get('recommendation') or 'none'}` "
+            f"({entry.get('confidence') or 'insufficient_evidence'})."
+        )
+
+    lines.extend(["", "## Strategy Matrix"])
+    matrix_rows = strategy.get("matrix") or []
+    if matrix_rows:
+        for row in matrix_rows:
+            lines.append(
+                f"- `{row.get('market')}` / `{row.get('strategy_id')}` / "
+                f"`{row.get('evaluation_window')}`: coverage {_format_pct(row.get('coverage_rate'))}, "
+                f"net return {_format_pct(row.get('net_total_return'))}, Sharpe {_format_num(row.get('sharpe'))}."
+            )
+    else:
+        lines.append("- No strategy matrix rows were available.")
+    return "\n".join(lines) + "\n"
+
+
 def render_report_markdown(payload: dict[str, Any]) -> str:
     lines: list[str] = []
     config = payload["config"]

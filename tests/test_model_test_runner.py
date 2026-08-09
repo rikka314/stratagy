@@ -7,15 +7,160 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-from model_test import execution, observability
+from model_test import execution, observability, universe
 from core.adaptive_regime import ADAPTIVE_MODEL_ID, ADAPTIVE_REGIME_KIND
 from model_test.config import build_stage_a_model_specs, load_research_config
 from model_test.models import ModelSpec, ResearchConfig, StockProfile, TaskSpec, WindowSpec
 from model_test.reporting import build_report_payload, render_report_markdown
+from model_test.summarize import MARKET_MATRIX_COLUMNS, build_market_strategy_matrix, build_market_strategy_recommendations
 from model_test import runner
 
 
-def test_locked_240_and_fast_configs_match_expected_budgets() -> None:
+
+def test_market_strategy_matrix_and_recommendations_are_traceable() -> None:
+    records = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL", "model_id": "naive", "display_name": "Naive", "window_id": "main",
+                "status": "success", "test_cumret": 0.03, "test_annret": 0.08, "test_sharpe": 0.5,
+                "test_maxdd": -0.10, "test_excess_return": 0.0, "test_turnover": 0.1,
+            },
+            {
+                "symbol": "AAPL", "model_id": "sm", "display_name": "SM", "window_id": "main",
+                "status": "success", "test_cumret": 0.10, "test_annret": 0.24, "test_sharpe": 1.2,
+                "test_maxdd": -0.08, "test_excess_return": 0.07, "test_turnover": 0.2,
+                "net_total_return": 0.10, "total_transaction_cost": 0.001,
+            },
+            {
+                "symbol": "MSFT", "model_id": "sm", "display_name": "SM", "window_id": "main",
+                "status": "success", "test_cumret": 0.08, "test_annret": 0.20, "test_sharpe": 1.1,
+                "test_maxdd": -0.09, "test_excess_return": 0.05, "test_turnover": 0.2,
+                "net_total_return": 0.08, "total_transaction_cost": 0.001,
+            },
+            {
+                "symbol": "AAPL", "model_id": "sm", "display_name": "SM", "window_id": "rolling_1",
+                "status": "success", "test_cumret": 0.04, "test_annret": 0.10, "test_sharpe": 0.8,
+                "test_maxdd": -0.07, "test_excess_return": 0.03, "net_total_return": 0.04,
+            },
+            {
+                "symbol": "MSFT", "model_id": "sm", "display_name": "SM", "window_id": "rolling_1",
+                "status": "success", "test_cumret": 0.03, "test_annret": 0.08, "test_sharpe": 0.7,
+                "test_maxdd": -0.08, "test_excess_return": 0.02, "net_total_return": 0.03,
+            },
+            {
+                "symbol": "TSLA", "model_id": "rsm", "display_name": "RSM", "window_id": "main",
+                "status": "SKIPPED", "error_message": "unsupported market",
+            },
+        ]
+    )
+
+    matrix = build_market_strategy_matrix(records, "US")
+    recommendations = build_market_strategy_recommendations(
+        matrix,
+        source_limitations={"CN_A": ["source run unavailable"]},
+    )
+
+    assert list(matrix.columns) == MARKET_MATRIX_COLUMNS
+    assert matrix.loc[matrix["strategy_id"] == "sm", "successful_symbol_count"].iloc[0] == 2
+    assert recommendations["markets"]["US"]["recommendation"] == "sm"
+    assert recommendations["markets"]["US"]["evidence"]["matrix_rows"] == [
+        {"market": "US", "strategy_id": "sm", "evaluation_window": "main"},
+        {"market": "US", "strategy_id": "sm", "evaluation_window": "rolling_1"},
+    ]
+    assert recommendations["markets"]["CN_A"]["recommendation"] is None
+    assert recommendations["markets"]["CN_A"]["confidence"] == "insufficient_evidence"
+
+
+def test_recommendations_refuse_main_window_only_winner() -> None:
+    matrix = pd.DataFrame(
+        [
+            {
+                "market": "US", "strategy_id": "sm", "strategy_label": "SM",
+                "evaluation_window": "main", "symbol_count": 6, "successful_symbol_count": 6,
+                "failed_symbol_count": 0, "skipped_symbol_count": 0, "coverage_rate": 1.0,
+                "total_return": 0.1, "annualized_return": 0.2, "sharpe": 1.2,
+                "max_drawdown": -0.1, "total_turnover": 1.0, "total_transaction_cost": 0.001,
+                "net_total_return": 0.1, "naive_win_rate": 0.8, "median_excess_return": 0.05,
+                "rolling_rank_median": None, "rolling_direction_consistency": None,
+                "degraded_run_rate": 0.0,
+            }
+        ],
+        columns=MARKET_MATRIX_COLUMNS,
+    )
+
+    recommendations = build_market_strategy_recommendations(matrix)
+
+    assert recommendations["markets"]["US"]["recommendation"] is None
+    assert recommendations["markets"]["US"]["confidence"] == "insufficient_evidence"
+
+
+def test_cross_market_aggregation_writes_contract_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    workspace_root = tmp_path / "model-test"
+    outputs_root = workspace_root / "outputs"
+    monkeypatch.setattr(runner, "WORKSPACE_ROOT", workspace_root)
+    source_records = {
+        "US": [
+            {"symbol": "AAPL", "model_id": "sm", "display_name": "SM", "window_id": "main", "status": "success", "test_cumret": 0.1, "test_annret": 0.2, "test_sharpe": 1.1, "test_maxdd": -0.1, "test_excess_return": 0.05},
+            {"symbol": "MSFT", "model_id": "sm", "display_name": "SM", "window_id": "main", "status": "success", "test_cumret": 0.08, "test_annret": 0.18, "test_sharpe": 1.0, "test_maxdd": -0.1, "test_excess_return": 0.04},
+        ],
+        "CN_A": [
+            {"symbol": "600519", "model_id": "naive", "display_name": "Naive", "window_id": "main", "status": "success", "test_cumret": 0.02, "test_annret": 0.04, "test_sharpe": 0.2, "test_maxdd": -0.15, "test_excess_return": 0.0},
+        ],
+    }
+    for market, rows in source_records.items():
+        source_dir = outputs_root / f"{market.lower()}_source"
+        source_dir.mkdir(parents=True)
+        pd.DataFrame(rows).to_csv(source_dir / "runs.csv", index=False)
+        (source_dir / "data_manifest.json").write_text(json.dumps({
+            "schema_version": "1.0",
+            "market": market,
+            "run_id": f"{market}-run",
+            "code_version": "test-sha",
+            "data": {"source": "fixture", "adjustment": "qfq", "start": "2023-01-01", "end": "2024-01-01"},
+            "universe": {"symbols": [row["symbol"] for row in rows], "selection_rationale": "fixture"},
+            "evaluation": {"train_end": "2023-09-01", "test_start": "2023-09-02", "rolling_windows": []},
+            "execution": {"commission_bps": 1 if market == "US" else 3, "slippage_bps": 2 if market == "US" else 5},
+            "search": {"budget": 24},
+            "news": {"available_lag_trading_days": 1, "coverage_threshold": 0.0},
+        }), encoding="utf-8")
+    config_path = tmp_path / "cross_market.json"
+    config_path.write_text(json.dumps({
+        "name": "cross_market", "output_subdir": "comparison",
+        "cross_market_source_subdirs": {"US": "us_source", "CN_A": "cn_a_source"},
+    }), encoding="utf-8")
+
+    output_paths = runner.run_research(config_path)
+
+    matrix = pd.read_csv(output_paths["market_strategy_matrix"])
+    recommendations = json.loads(output_paths["market_strategy_recommendations"].read_text(encoding="utf-8"))
+    report = output_paths["market_strategy_report"].read_text(encoding="utf-8")
+    assert list(matrix.columns) == MARKET_MATRIX_COLUMNS
+    assert set(recommendations["markets"]) == {"US", "CN_A"}
+    assert "Comparison run ID" in report
+    assert "source run" in report
+    assert "Decision Rule" in report
+
+
+def test_window3b_configs_freeze_same_common_candidates_and_market_costs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    us = load_research_config(repo_root / "model-test" / "configs" / "deans_window3b_us.json")
+    cn_a = load_research_config(repo_root / "model-test" / "configs" / "deans_window3b_cn_a.json")
+    cross = load_research_config(
+        repo_root / "model-test" / "configs" / "deans_window3b_cross_market.json"
+    )
+
+    assert us.selected_model_ids == cn_a.selected_model_ids
+    assert len(us.smoke_symbols) == len(cn_a.smoke_symbols) == 6
+    assert us.run_robustness is cn_a.run_robustness is True
+    assert us.rolling_window_count == cn_a.rolling_window_count == 3
+    assert us.search_trials == cn_a.search_trials == 24
+    assert us.execution == {"market": "US", "commission_bps": 1.0, "slippage_bps": 2.0}
+    assert cn_a.execution == {"market": "CN_A", "commission_bps": 3.0, "slippage_bps": 5.0}
+    assert cross.cross_market_source_subdirs == {
+        "US": "deans_window3b_us",
+        "CN_A": "deans_window3b_cn_a",
+    }
+
     repo_root = Path(__file__).resolve().parents[1]
     locked_config = load_research_config(repo_root / "model-test" / "configs" / "us_v2_locked_240.json")
     smoke_locked_config = load_research_config(repo_root / "model-test" / "configs" / "smoke_us_v2_locked_240.json")
@@ -53,6 +198,124 @@ def test_stage_a_model_specs_include_rsm_variants() -> None:
     assert spec_map["rsm_no_router"].request_payload["regime_kind"] == "no_router"
     assert spec_map[ADAPTIVE_MODEL_ID].request_payload == {"family": "regime", "regime_kind": ADAPTIVE_REGIME_KIND}
     assert spec_map["rsm"].family_group == "rsm"
+
+
+def test_cn_a_config_normalizes_market_and_applies_market_defaults(tmp_path: Path) -> None:
+    config_path = tmp_path / "cn_a_deans_smoke.json"
+    config_path.write_text(json.dumps({"market": " cn ", "smoke_mode": True}), encoding="utf-8")
+
+    config = load_research_config(config_path)
+
+    assert config.market == "CN_A"
+    assert config.catalog_path == "core/catalogs/a_stock_catalog.csv"
+    assert config.market_proxy_symbol == "000300"
+    assert config.smoke_symbols == ("600519", "300750", "000001", "600036", "000858", "002594")
+    assert config.effective_min_avg_traded_value == 50_000_000.0
+    assert config.execution == {"market": "CN_A", "commission_bps": 3.0, "slippage_bps": 5.0}
+
+
+def test_gate1_smoke_configs_freeze_market_costs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    us_config = load_research_config(repo_root / "model-test" / "configs" / "smoke_us_deans_gate1.json")
+    cn_config = load_research_config(repo_root / "model-test" / "configs" / "smoke_cn_a_deans_gate1.json")
+
+    assert us_config.execution == {"market": "US", "commission_bps": 1.0, "slippage_bps": 2.0}
+    assert cn_config.execution == {"market": "CN_A", "commission_bps": 3.0, "slippage_bps": 5.0}
+    assert us_config.selected_model_ids == cn_config.selected_model_ids == ("naive",)
+
+
+def test_data_manifest_records_split_range_costs_and_seed(tmp_path: Path) -> None:
+    source_path = tmp_path / "history.csv"
+    pd.DataFrame({"date": pd.date_range("2026-01-01", periods=10, freq="B")}).to_csv(source_path, index=False)
+    records_df = pd.DataFrame(
+        [{
+            "window_kind": "main",
+            "status": "success",
+            "window_start": "2026-01-01",
+            "window_end": "2026-01-14",
+            "data_path": str(source_path),
+        }]
+    )
+    stocks_df = pd.DataFrame([{"symbol": "600519", "source_kind": "cache_csv"}])
+
+    manifest = runner._build_data_manifest(ResearchConfig(name="manifest", market="CN_A", train_ratio=0.7), records_df, stocks_df)
+
+    assert manifest["market"] == "CN_A"
+    assert manifest["execution"] == {"market": "CN_A", "commission_bps": 3.0, "slippage_bps": 5.0}
+    assert manifest["random_seed"] == 42
+    assert manifest["data"]["start"] == "2026-01-01"
+    assert manifest["data"]["end"] == "2026-01-14"
+    assert manifest["evaluation"]["train_end"] == "2026-01-09"
+    assert manifest["evaluation"]["test_start"] == "2026-01-12"
+
+
+def test_unknown_market_is_rejected(tmp_path: Path) -> None:
+    config_path = tmp_path / "bad_market.json"
+    config_path.write_text(json.dumps({"market": "HK"}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Expected US or CN_A"):
+        load_research_config(config_path)
+
+
+def test_cn_a_regime_specs_are_explicitly_skipped() -> None:
+    specs = {spec.model_id: spec for spec in build_stage_a_model_specs(ResearchConfig(name="cn_case", market="CN_A"))}
+
+    assert specs["sm"].skip_reason_for_market("CN_A") is None
+    assert "SPY market proxy" in specs["rsm"].skip_reason_for_market("CN_A")
+    assert "adaptive state artifacts" in specs[ADAPTIVE_MODEL_ID].skip_reason_for_market("CN_A")
+
+
+def test_cn_a_catalog_and_profile_use_six_digit_symbols_and_amount_filter() -> None:
+    config = ResearchConfig(name="cn_universe", market="CN_A", max_catalog_candidates=3)
+    catalog_path = Path(__file__).resolve().parents[1] / "core" / "catalogs" / "a_stock_catalog.csv"
+
+    candidates = universe._build_candidate_entries(config, catalog_path)
+    metrics = universe._compute_recent_profile(
+        pd.DataFrame(
+            {
+                "close": [10.0, 12.0],
+                "volume": [100.0, 100.0],
+                "amount": [60_000_000.0, 80_000_000.0],
+            }
+        ),
+        lookback_days=2,
+    )
+
+    assert [candidate["symbol"] for candidate in candidates] == ["000001", "000002", "000004"]
+    assert metrics["avg_dollar_volume_1y"] == 70_000_000.0
+
+
+def test_unsupported_task_returns_explicit_skipped_record() -> None:
+    model = ModelSpec(
+        "rsm",
+        "RSM",
+        "A",
+        "rsm",
+        {"family": "regime", "regime_kind": "dual_state_router"},
+        supported_markets=("US",),
+        unsupported_market_reasons={"CN_A": "CN_A regime routing is not supported."},
+    )
+    task = TaskSpec(
+        symbol="600519",
+        company_name="贵州茅台",
+        segment_key="Up__Mid",
+        trend_bucket="Up",
+        volatility_bucket="Mid",
+        source_kind="sample_csv",
+        data_path="not-read.csv",
+        market="CN_A",
+        adjust="qfq",
+        model=model,
+        window=WindowSpec(window_id="main", kind="main", start_idx=0, end_idx=3, train_ratio=0.7),
+        params_snapshot={},
+        skip_reason=model.skip_reason_for_market("CN_A"),
+    )
+
+    records = execution.run_task_batch([task])
+
+    assert len(records) == 1
+    assert records[0].status == "SKIPPED"
+    assert records[0].error_message == "CN_A regime routing is not supported."
 
 
 def test_resolve_rolling_specs_excludes_adaptive_router() -> None:
@@ -243,6 +506,26 @@ def test_load_checkpoint_records_keeps_latest_resume_record(tmp_path: Path) -> N
     assert json.loads(records_df.iloc[0]["params_snapshot_json"])["ema_fast"] == 20
 
 
+def test_load_checkpoint_records_preserves_a_share_symbol_leading_zeros(tmp_path: Path) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = output_dir / runner.CHECKPOINT_RUNS_FILENAME
+    pd.DataFrame(
+        [
+            {
+                "symbol": "000001",
+                "window_id": "main",
+                "model_id": "naive",
+                "status": "success",
+            }
+        ]
+    ).to_csv(checkpoint_path, index=False)
+
+    records_df = runner._load_checkpoint_records(output_dir)
+
+    assert records_df.iloc[0]["symbol"] == "000001"
+
+
 def test_report_payload_includes_uniform_search_budget_note() -> None:
     config = ResearchConfig(
         name="locked_case",
@@ -358,6 +641,9 @@ def test_run_artifact_export_writes_bundle_and_path_fields(tmp_path: Path) -> No
         {
             "date": ["2024-01-01", "2024-01-02", "2024-01-03"],
             "strategy_return": [0.0, 0.10, -0.05],
+            "gross_strategy_return": [0.0, 0.101, -0.049],
+            "turnover": [0.0, 1.0, 0.5],
+            "transaction_cost": [0.0, 0.001, 0.0005],
             "strategy_equity": [1.0, 1.10, 1.045],
             "buy_hold_equity": [1.0, 1.04, 1.0816],
         }
@@ -416,6 +702,10 @@ def test_run_artifact_export_writes_bundle_and_path_fields(tmp_path: Path) -> No
     assert Path(record.benchmark_returns_path).exists()
     assert Path(record.equity_path).exists()
     assert Path(record.trades_path).exists()
+    assert record.total_turnover == pytest.approx(1.5)
+    assert record.total_transaction_cost == pytest.approx(0.0015)
+    assert record.gross_total_return == pytest.approx((1.101 * 0.951) - 1.0)
+    assert record.net_total_return == pytest.approx((1.10 * 0.95) - 1.0)
 
     returns_df = pd.read_csv(record.returns_path)
     benchmark_df = pd.read_csv(record.benchmark_returns_path)

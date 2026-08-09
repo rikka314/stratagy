@@ -1,0 +1,9 @@
+{
+  "name": "full_cross_market_deans_60",
+  "market": "US",
+  "output_subdir": "full_cross_market_deans_60",
+  "cross_market_source_subdirs": {
+    "US": "full_us_deans_60",
+    "CN_A": "full_cn_a_deans_60"
+  }
+}

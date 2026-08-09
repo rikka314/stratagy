@@ -120,6 +120,308 @@ ROBUSTNESS_COLUMNS = [
     "robustness_total_score",
 ]
 
+MARKET_MATRIX_COLUMNS = [
+    "market", "strategy_id", "strategy_label", "evaluation_window", "symbol_count",
+    "successful_symbol_count", "failed_symbol_count", "skipped_symbol_count", "coverage_rate",
+    "total_return", "annualized_return", "sharpe", "max_drawdown", "total_turnover",
+    "total_transaction_cost", "net_total_return", "naive_win_rate", "median_excess_return",
+    "rolling_rank_median", "rolling_direction_consistency", "degraded_run_rate",
+]
+
+
+def _numeric_mean(frame: pd.DataFrame, column: str) -> float | None:
+    if column not in frame.columns:
+        return None
+    values = pd.to_numeric(frame[column], errors="coerce").dropna()
+    return float(values.mean()) if not values.empty else None
+
+
+def _numeric_median(frame: pd.DataFrame, column: str) -> float | None:
+    if column not in frame.columns:
+        return None
+    values = pd.to_numeric(frame[column], errors="coerce").dropna()
+    return float(values.median()) if not values.empty else None
+
+
+def _value_or_fallback(primary: float | None, fallback: float | None) -> float | None:
+    return fallback if primary is None else primary
+
+
+def _naive_win_rate(valid: pd.DataFrame, naive_returns: pd.Series) -> float | None:
+    if valid.empty or naive_returns.empty:
+        return None
+    key_index = pd.MultiIndex.from_frame(valid[["window_id", "symbol"]])
+    comparisons = valid.assign(
+        _naive_return=naive_returns.reindex(key_index).to_numpy(),
+        _strategy_return=pd.to_numeric(valid["test_annret"], errors="coerce"),
+    ).dropna(subset=["_naive_return", "_strategy_return"])
+    return float((comparisons["_strategy_return"] > comparisons["_naive_return"]).mean()) if not comparisons.empty else None
+
+
+def _apply_rolling_metrics(matrix: pd.DataFrame) -> pd.DataFrame:
+    if matrix.empty:
+        return matrix
+    result = matrix.copy()
+    rolling = result[result["evaluation_window"].str.startswith("rolling_", na=False)].copy()
+    if rolling.empty:
+        return result
+    rolling["_rank"] = rolling.groupby(["market", "evaluation_window"])["median_excess_return"].rank(
+        method="average", ascending=False
+    )
+    summary = rolling.groupby(["market", "strategy_id"], as_index=False).agg(
+        rolling_rank_median=("_rank", "median"),
+        rolling_direction_consistency=("median_excess_return", lambda values: float((values > 0).mean())),
+    )
+    main_mask = result["evaluation_window"] == "main"
+    result = result.merge(summary, on=["market", "strategy_id"], how="left", suffixes=("", "_rolling"))
+    result.loc[main_mask, "rolling_rank_median"] = result.loc[main_mask, "rolling_rank_median_rolling"]
+    result.loc[main_mask, "rolling_direction_consistency"] = result.loc[main_mask, "rolling_direction_consistency_rolling"]
+    return result.drop(columns=["rolling_rank_median_rolling", "rolling_direction_consistency_rolling"])
+
+
+def build_market_strategy_matrix(records_df: pd.DataFrame, market: str) -> pd.DataFrame:
+    """Build frozen market x strategy x evaluation-window rows from run records."""
+    if records_df.empty:
+        return pd.DataFrame(columns=MARKET_MATRIX_COLUMNS)
+    frame = records_df.copy()
+    frame["market"] = str(market).strip().upper()
+    valid_statuses = frame["status"].astype(str).str.lower().isin(["success", "degraded"])
+    naive_returns = pd.to_numeric(
+        frame.loc[valid_statuses & (frame["model_id"] == "naive")]
+        .groupby(["window_id", "symbol"])["test_annret"].median(),
+        errors="coerce",
+    )
+    rows: list[dict[str, object]] = []
+    for (strategy_id, label, window), group in frame.groupby(
+        ["model_id", "display_name", "window_id"], dropna=False, sort=False
+    ):
+        statuses = group["status"].astype(str).str.lower()
+        successful = int(statuses.eq("success").sum())
+        degraded = int(statuses.eq("degraded").sum())
+        failed = int(statuses.eq("failed").sum())
+        skipped = int(statuses.eq("skipped").sum())
+        symbol_count = int(len(group))
+        valid = group[statuses.isin(["success", "degraded"])]
+        total_turnover = _value_or_fallback(
+            _numeric_mean(valid, "total_turnover"), _numeric_mean(valid, "test_turnover")
+        )
+        net_total_return = _value_or_fallback(
+            _numeric_median(valid, "net_total_return"), _numeric_median(valid, "test_cumret")
+        )
+        rows.append({
+            "market": frame["market"].iloc[0],
+            "strategy_id": str(strategy_id),
+            "strategy_label": str(label),
+            "evaluation_window": str(window),
+            "symbol_count": symbol_count,
+            "successful_symbol_count": successful,
+            "failed_symbol_count": failed,
+            "skipped_symbol_count": skipped,
+            "coverage_rate": float((successful + degraded) / symbol_count) if symbol_count else 0.0,
+            "total_return": _numeric_median(valid, "test_cumret"),
+            "annualized_return": _numeric_median(valid, "test_annret"),
+            "sharpe": _numeric_median(valid, "test_sharpe"),
+            "max_drawdown": _numeric_median(valid, "test_maxdd"),
+            "total_turnover": total_turnover,
+            "total_transaction_cost": _numeric_mean(valid, "total_transaction_cost"),
+            "net_total_return": net_total_return,
+            "naive_win_rate": _naive_win_rate(valid, naive_returns) if strategy_id != "naive" else None,
+            "median_excess_return": _numeric_median(valid, "test_excess_return"),
+            "rolling_rank_median": None,
+            "rolling_direction_consistency": None,
+            "degraded_run_rate": float(degraded / symbol_count) if symbol_count else 0.0,
+        })
+    return _apply_rolling_metrics(pd.DataFrame(rows, columns=MARKET_MATRIX_COLUMNS))[MARKET_MATRIX_COLUMNS]
+
+
+def build_market_strategy_recommendations(
+    matrix_df: pd.DataFrame,
+    *,
+    source_limitations: dict[str, list[str]] | None = None,
+    min_valid_symbols: int = 2,
+    min_coverage_rate: float = 0.5,
+    min_naive_win_rate: float = 0.5,
+    min_rolling_direction_consistency: float = 0.5,
+    max_degraded_run_rate: float = 0.5,
+    require_rolling_evidence: bool = True,
+    tie_score_margin: float = 0.02,
+    eligible_strategy_ids: set[str] | None = None,
+) -> dict[str, object]:
+    """Apply the frozen multi-signal winner rule and always emit both markets."""
+    recommendations: dict[str, object] = {}
+    limitations_map = source_limitations or {}
+    for market in ("US", "CN_A"):
+        market_rows = (
+            matrix_df[(matrix_df["market"] == market) & (matrix_df["evaluation_window"] == "main")].copy()
+            if not matrix_df.empty
+            else pd.DataFrame()
+        )
+        limitations = list(limitations_map.get(market, []))
+        if not market_rows.empty:
+            numeric_columns = [
+                "symbol_count", "successful_symbol_count", "coverage_rate", "net_total_return",
+                "naive_win_rate", "median_excess_return", "sharpe", "max_drawdown",
+                "rolling_rank_median", "rolling_direction_consistency", "degraded_run_rate",
+            ]
+            for column in numeric_columns:
+                market_rows[column] = pd.to_numeric(market_rows[column], errors="coerce")
+            market_rows["valid_symbol_count"] = (
+                market_rows["coverage_rate"] * market_rows["symbol_count"]
+            ).round()
+
+        valid = market_rows[market_rows["strategy_id"] != "naive"] if not market_rows.empty else market_rows
+        if eligible_strategy_ids is not None and not valid.empty:
+            valid = valid[valid["strategy_id"].isin(eligible_strategy_ids)]
+        if not valid.empty:
+            valid = valid[
+                (valid["valid_symbol_count"] >= min_valid_symbols)
+                & (valid["coverage_rate"] >= min_coverage_rate)
+                & (valid["net_total_return"] > 0)
+                & (valid["median_excess_return"] > 0)
+                & (valid["naive_win_rate"] >= min_naive_win_rate)
+                & (valid["degraded_run_rate"] <= max_degraded_run_rate)
+            ]
+        if require_rolling_evidence and not valid.empty:
+            valid = valid[
+                valid["rolling_rank_median"].notna()
+                & (valid["rolling_direction_consistency"] >= min_rolling_direction_consistency)
+            ]
+
+        thresholds = {
+            "min_valid_symbols": int(min_valid_symbols),
+            "min_coverage_rate": float(min_coverage_rate),
+            "min_naive_win_rate": float(min_naive_win_rate),
+            "min_rolling_direction_consistency": float(min_rolling_direction_consistency),
+            "max_degraded_run_rate": float(max_degraded_run_rate),
+            "require_rolling_evidence": bool(require_rolling_evidence),
+            "eligible_strategy_ids": sorted(eligible_strategy_ids) if eligible_strategy_ids is not None else None,
+        }
+        if valid.empty:
+            limitations.append(
+                "insufficient evidence: no non-naive candidate met the sample, coverage, "
+                "post-cost return, naive-win, rolling-stability, and degradation thresholds"
+            )
+            recommendations[market] = {
+                "recommendation": None,
+                "confidence": "insufficient_evidence",
+                "evidence": {"matrix_rows": [], "thresholds": thresholds},
+                "limitations": list(dict.fromkeys(limitations)),
+            }
+            continue
+
+        def _rank_or_neutral(values: pd.Series) -> pd.Series:
+            return values.rank(pct=True).fillna(0.5)
+
+        rank_inputs = {
+            "excess": _rank_or_neutral(valid["median_excess_return"]),
+            "sharpe": _rank_or_neutral(valid["sharpe"]),
+            "drawdown": _rank_or_neutral(valid["max_drawdown"]),
+            "naive_win": _rank_or_neutral(valid["naive_win_rate"]),
+            "rolling": _rank_or_neutral(valid["rolling_direction_consistency"]),
+            "coverage": _rank_or_neutral(valid["coverage_rate"]),
+            "degradation": _rank_or_neutral(-valid["degraded_run_rate"]),
+        }
+        valid = valid.assign(
+            selection_score=(
+                0.30 * rank_inputs["excess"]
+                + 0.20 * rank_inputs["sharpe"]
+                + 0.10 * rank_inputs["drawdown"]
+                + 0.15 * rank_inputs["naive_win"]
+                + 0.15 * rank_inputs["rolling"]
+                + 0.05 * rank_inputs["coverage"]
+                + 0.05 * rank_inputs["degradation"]
+            )
+        )
+        ranked = valid.sort_values(
+            ["selection_score", "median_excess_return", "sharpe"], ascending=False
+        ).reset_index(drop=True)
+        winner = ranked.iloc[0]
+        tied = (
+            len(ranked) > 1
+            and abs(float(winner["selection_score"]) - float(ranked.iloc[1]["selection_score"]))
+            <= tie_score_margin
+        )
+        winner_valid_symbols = int(winner["valid_symbol_count"])
+        if (
+            winner_valid_symbols >= 6
+            and float(winner["coverage_rate"]) >= 0.8
+            and float(winner["naive_win_rate"]) >= 0.6
+            and (
+                not require_rolling_evidence
+                or float(winner["rolling_direction_consistency"]) >= 2.0 / 3.0
+            )
+            and float(winner["degraded_run_rate"]) <= 0.1
+        ):
+            confidence = "high"
+        elif winner_valid_symbols >= 4 and float(winner["coverage_rate"]) >= 0.7:
+            confidence = "medium"
+        else:
+            confidence = "low"
+        if tied:
+            limitations.append(
+                f"top candidates are within the {tie_score_margin:.3f} selection-score tie margin"
+            )
+            recommendations[market] = {
+                "recommendation": None,
+                "confidence": "insufficient_evidence",
+                "evidence": {
+                    "matrix_rows": [
+                        {"market": market, "strategy_id": str(row["strategy_id"]), "evaluation_window": "main"}
+                        for _, row in ranked.head(2).iterrows()
+                    ],
+                    "thresholds": thresholds,
+                    "selection_scores": {
+                        str(row["strategy_id"]): float(row["selection_score"])
+                        for _, row in ranked.head(2).iterrows()
+                    },
+                },
+                "limitations": list(dict.fromkeys(limitations)),
+            }
+        else:
+            winner_id = str(winner["strategy_id"])
+            rolling_rows = matrix_df[
+                (matrix_df["market"] == market)
+                & (matrix_df["strategy_id"] == winner_id)
+                & (matrix_df["evaluation_window"].astype(str).str.startswith("rolling_"))
+            ]
+            row_refs = [
+                {"market": market, "strategy_id": winner_id, "evaluation_window": "main"},
+                *[
+                    {"market": market, "strategy_id": winner_id, "evaluation_window": str(row["evaluation_window"])}
+                    for _, row in rolling_rows.iterrows()
+                ],
+            ]
+            recommendations[market] = {
+                "recommendation": winner_id,
+                "confidence": confidence,
+                "evidence": {
+                    "matrix_rows": row_refs,
+                    "thresholds": thresholds,
+                    "selection_score": float(winner["selection_score"]),
+                    "metrics": {
+                        "valid_symbol_count": winner_valid_symbols,
+                        "coverage_rate": float(winner["coverage_rate"]),
+                        "net_total_return": float(winner["net_total_return"]),
+                        "median_excess_return": float(winner["median_excess_return"]),
+                        "naive_win_rate": float(winner["naive_win_rate"]),
+                        "rolling_rank_median": (
+                            float(winner["rolling_rank_median"])
+                            if pd.notna(winner["rolling_rank_median"])
+                            else None
+                        ),
+                        "rolling_direction_consistency": (
+                            float(winner["rolling_direction_consistency"])
+                            if pd.notna(winner["rolling_direction_consistency"])
+                            else None
+                        ),
+                        "degraded_run_rate": float(winner["degraded_run_rate"]),
+                    },
+                },
+                "limitations": list(dict.fromkeys(limitations)),
+            }
+    return {"schema_version": "1.0", "markets": recommendations}
+
+
 ROBUSTNESS_MERGE_MAP = {
     "attempted_count": "robustness_attempted_count",
     "valid_count": "robustness_valid_count",

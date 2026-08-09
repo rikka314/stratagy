@@ -153,9 +153,13 @@ def test_multi_stock_export_html_contains_detail_table_and_strategy_surface() ->
 def test_public_route_contract_remains_on_strategy_base_path() -> None:
     config = tomllib.loads((REPO_ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8"))
     assert config["server"]["baseUrlPath"] == "strategy"
-    assert route_href("") == "/strategy"
-    assert route_href("stock-analysis") == "/strategy/stock-analysis"
-    assert route_href("stocks-analysis") == "/strategy/stocks-analysis"
+    assert route_href("", language="en") == "/strategy?lang=en"
+    assert route_href("stock-analysis", language="en") == "/strategy/stock-analysis?lang=en"
+    assert route_href("stocks-analysis", language="zh") == "/strategy/stocks-analysis?lang=zh"
+    assert (
+        route_href("final-report", language="zh", query={"section": "section-2-models"})
+        == "/strategy/final-report?lang=zh&section=section-2-models"
+    )
 
     tree = ast.parse((REPO_ROOT / "app.py").read_text(encoding="utf-8"))
     route_paths: set[str] = set()

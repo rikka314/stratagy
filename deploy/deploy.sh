@@ -84,6 +84,13 @@ pip install --upgrade pip
 # 安装依赖
 pip install -r requirements.txt
 
+# 记录已安装 requirements 指纹，供日常增量同步按需安装。
+sha256sum requirements.txt | awk '{print $1}' > "${APP_DIR}/venv/.requirements.sha256"
+
+echo "已安装运行时版本:"
+"${APP_DIR}/venv/bin/python" --version
+"${APP_DIR}/venv/bin/python" -c 'import streamlit; print(f"Streamlit {streamlit.__version__}")'
+
 echo -e "${GREEN}✓ Python 依赖安装完成${NC}"
 
 # ===== 4. 创建 Streamlit 配置文件 =====
@@ -138,6 +145,10 @@ systemctl daemon-reload
 systemctl enable stratagy.service
 # 启动服务
 systemctl restart stratagy.service
+
+# 服务必须在受支持的 base path 健康端点上通过检查，部署才算成功。
+chmod +x "${APP_DIR}/deploy/check_runtime.sh"
+"${APP_DIR}/deploy/check_runtime.sh" "${APP_DIR}"
 
 echo -e "${GREEN}✓ systemd 服务配置完成${NC}"
 

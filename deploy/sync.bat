@@ -19,6 +19,8 @@ call :require_tool scp || exit /b 1
 call :require_file "%PROJECT_DIR%\app.py" || exit /b 1
 call :require_file "%PROJECT_DIR%\requirements.txt" || exit /b 1
 call :require_file "%PROJECT_DIR%\.streamlit\config.toml" || exit /b 1
+call :require_file "%PROJECT_DIR%\deploy\install_requirements_if_needed.sh" || exit /b 1
+call :require_file "%PROJECT_DIR%\deploy\check_runtime.sh" || exit /b 1
 call :require_file "%PROJECT_DIR%\deploy\nginx_strategy.conf" || exit /b 1
 
 echo [sync] project: %PROJECT_DIR%
@@ -33,7 +35,7 @@ call :run scp "%PROJECT_DIR%\app.py" "%PROJECT_DIR%\requirements.txt" %SERVER%:%
 call :run scp "%PROJECT_DIR%\core\*.py" %SERVER%:%REMOTE_DIR%/core/ || exit /b 1
 call :run scp "%PROJECT_DIR%\ui\*.py" %SERVER%:%REMOTE_DIR%/ui/ || exit /b 1
 call :run scp "%PROJECT_DIR%\.streamlit\config.toml" %SERVER%:%REMOTE_DIR%/.streamlit/ || exit /b 1
-call :run scp "%PROJECT_DIR%\deploy\deploy.sh" "%PROJECT_DIR%\deploy\fix_config.sh" "%PROJECT_DIR%\deploy\nginx_strategy.conf" %SERVER%:%REMOTE_DIR%/deploy/ || exit /b 1
+call :run scp "%PROJECT_DIR%\deploy\deploy.sh" "%PROJECT_DIR%\deploy\fix_config.sh" "%PROJECT_DIR%\deploy\install_requirements_if_needed.sh" "%PROJECT_DIR%\deploy\check_runtime.sh" "%PROJECT_DIR%\deploy\nginx_strategy.conf" %SERVER%:%REMOTE_DIR%/deploy/ || exit /b 1
 
 if exist "%PROJECT_DIR%\core\catalogs\*.csv" (
     call :run scp "%PROJECT_DIR%\core\catalogs\*.csv" %SERVER%:%REMOTE_DIR%/core/catalogs/ || exit /b 1
@@ -51,7 +53,7 @@ if exist "%PROJECT_DIR%\model-test\outputs" (
     call :sync_model_outputs || exit /b 1
 )
 
-call :run ssh %SERVER% "systemctl restart stratagy && sleep 2 && systemctl is-active stratagy" || exit /b 1
+call :run ssh %SERVER% "chmod +x %REMOTE_DIR%/deploy/install_requirements_if_needed.sh %REMOTE_DIR%/deploy/check_runtime.sh && %REMOTE_DIR%/deploy/install_requirements_if_needed.sh %REMOTE_DIR% && systemctl restart stratagy && systemctl is-active stratagy && %REMOTE_DIR%/deploy/check_runtime.sh %REMOTE_DIR%" || exit /b 1
 
 echo.
 echo [done] sync complete

@@ -303,6 +303,7 @@ def _fit_state_classifier(features: pd.DataFrame, state_ids: np.ndarray) -> tupl
     if _prefer_lightgbm(len(features), unique_state_count) and importlib.util.find_spec("lightgbm") is not None:
         try:
             from lightgbm import LGBMClassifier
+            from core.lightgbm_runtime import lightgbm_runtime_params
 
             classifier = LGBMClassifier(
                 objective="multiclass",
@@ -315,6 +316,7 @@ def _fit_state_classifier(features: pd.DataFrame, state_ids: np.ndarray) -> tupl
                 random_state=ADAPTIVE_RANDOM_STATE,
                 n_jobs=1,
                 verbosity=-1,
+                **lightgbm_runtime_params(),
             )
             classifier.fit(features, state_ids)
             return classifier, "lightgbm"
@@ -328,7 +330,6 @@ def _fit_state_classifier(features: pd.DataFrame, state_ids: np.ndarray) -> tupl
                 "classifier",
                 LogisticRegression(
                     max_iter=1200,
-                    multi_class="multinomial",
                     random_state=ADAPTIVE_RANDOM_STATE,
                 ),
             ),

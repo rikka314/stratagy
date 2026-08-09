@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import html
+from time import perf_counter
 from datetime import datetime
 from typing import Any
 
@@ -18,6 +19,7 @@ from ui.i18n import tr
 
 from core.data import get_stock_label_map, search_stock_candidates
 from core.market_context import get_market_indices
+from core.perf import emit_performance_event, performance_span
 from core.portfolio import bayesian_optimize_portfolio, run_portfolio_simulation
 from core.utils import load_or_fetch_stock
 from core.visualization import (
@@ -43,6 +45,7 @@ MULTI_ROUTE_STATE_KEY = "route_multi_state"
 MULTI_STRATEGY_WORKSPACE_KEY = "multi_stock_strategy_workspace"
 MULTI_ANALYSIS_SECTION_KEY = "multi_stock_analysis_section"
 MULTI_ANALYSIS_CACHE_KEY = "multi_stock_analysis_cache"
+MULTI_APPLIED_ADJUSTMENTS_KEY = "multi_stock_applied_adjustments"
 
 
 def _prepare_multi_stock_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -593,43 +596,45 @@ def _get_multi_chart_figure(
         benchmark=benchmark,
     )
     if cache_key in figure_cache:
+        emit_performance_event("multi", "figure_build", 0.0, cache="hit", chart_key=chart_key)
         return figure_cache[cache_key]
 
-    if chart_key == "comparison":
-        figure = _style_display_figure(
-            create_multi_stock_comparison_chart(
-                stock_data_dict,
-                title=f"多股票价格对比（共 {len(stock_data_dict)} 只）",
-            ),
-            height=620,
-        )
-    elif chart_key == "relative_strength":
-        figure = (
-            _style_display_figure(
-                create_relative_strength_chart(stock_data_dict, benchmark=benchmark),
-                height=520,
-            )
-            if len(stock_data_dict) >= 2
-            else None
-        )
-    elif chart_key == "risk_return":
-        figure = _style_display_figure(create_risk_return_scatter(stock_data_dict), height=520) if len(stock_data_dict) >= 2 else None
-    elif chart_key == "factor_score":
-        figure = (
-            _style_display_figure(
-                create_factor_score_comparison(
-                    factor_stock_data_dict,
-                    **_strategy_params(params),
+    with performance_span("multi", "figure_build", cache="miss", chart_key=chart_key):
+        if chart_key == "comparison":
+            figure = _style_display_figure(
+                create_multi_stock_comparison_chart(
+                    stock_data_dict,
+                    title=f"多股票价格对比（共 {len(stock_data_dict)} 只）",
                 ),
-                height=500,
+                height=620,
             )
-            if len(stock_data_dict) >= 2
-            else None
-        )
-    elif chart_key == "correlation":
-        figure = _style_display_figure(create_correlation_heatmap(stock_data_dict), height=560) if len(stock_data_dict) >= 2 else None
-    else:
-        figure = None
+        elif chart_key == "relative_strength":
+            figure = (
+                _style_display_figure(
+                    create_relative_strength_chart(stock_data_dict, benchmark=benchmark),
+                    height=520,
+                )
+                if len(stock_data_dict) >= 2
+                else None
+            )
+        elif chart_key == "risk_return":
+            figure = _style_display_figure(create_risk_return_scatter(stock_data_dict), height=520) if len(stock_data_dict) >= 2 else None
+        elif chart_key == "factor_score":
+            figure = (
+                _style_display_figure(
+                    create_factor_score_comparison(
+                        factor_stock_data_dict,
+                        **_strategy_params(params),
+                    ),
+                    height=500,
+                )
+                if len(stock_data_dict) >= 2
+                else None
+            )
+        elif chart_key == "correlation":
+            figure = _style_display_figure(create_correlation_heatmap(stock_data_dict), height=560) if len(stock_data_dict) >= 2 else None
+        else:
+            figure = None
 
     figure_cache[cache_key] = figure
     return figure
@@ -912,6 +917,8 @@ def _render_multi_stock_strategy_section(
     stock_data_dict: dict[str, pd.DataFrame],
 ) -> tuple[dict[str, Any] | None, Any]:
     workspace = _get_multi_strategy_workspace()
+    applied_adjustments = st.session_state.get(MULTI_APPLIED_ADJUSTMENTS_KEY, {})
+    params = _apply_multi_adjustments(params, applied_adjustments)
     periodic_heatmap_fig = None
 
     with st.container(key="multi-stock-strategy-section"):
@@ -939,11 +946,12 @@ def _render_multi_stock_strategy_section(
 
                 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
                 st.markdown(tr("portfolio.weight.configuration"))
-                weight_cols = st.columns(2, gap="small")
+                weights_form = st.form("multi_stock_portfolio_weights")
+                weight_cols = weights_form.columns(2, gap="small")
                 portfolio_weights: dict[str, float] = {}
                 for index, symbol in enumerate(stock_data_dict.keys()):
                     with weight_cols[index % 2]:
-                        portfolio_weights[symbol] = st.number_input(
+                        portfolio_weights[symbol] = weights_form.number_input(
                             f"{symbol} 权重",
                             min_value=0.0,
                             max_value=10.0,
@@ -951,6 +959,7 @@ def _render_multi_stock_strategy_section(
                             step=0.1,
                             key=f"multi_stock_weight_{symbol}",
                         )
+                weights_form.form_submit_button("应用权重", width="stretch")
 
                 strategy_signature = _build_multi_strategy_signature(stock_data_dict, params, portfolio_weights)
                 if workspace.get("portfolio_result") is not None and workspace.get("signature") != strategy_signature:
@@ -1049,16 +1058,19 @@ def _render_multi_stock_strategy_section(
                             key="multi_adj_weight_price",
                         )
 
-                    # Write adjusted values back to params for downstream use
-                    params["entry_threshold"] = _adj_entry
-                    params["exit_threshold"] = _adj_exit
-                    params["stop_loss_mult"] = _adj_sl
-                    params["take_profit_mult"] = _adj_tp
-                    params["weight_bb"] = _adj_wbb
-                    params["weight_obv"] = _adj_wobv
-                    params["weight_volume"] = _adj_wvol
-                    params["weight_price"] = _adj_wprice
-                    params["weight_drawdown"] = _adj_wdd
+                    adjustments = {
+                        "entry_threshold": _adj_entry,
+                        "exit_threshold": _adj_exit,
+                        "stop_loss_mult": _adj_sl,
+                        "take_profit_mult": _adj_tp,
+                        "weight_bb": _adj_wbb,
+                        "weight_obv": _adj_wobv,
+                        "weight_volume": _adj_wvol,
+                        "weight_price": _adj_wprice,
+                        "weight_drawdown": _adj_wdd,
+                    }
+                    params = _apply_multi_adjustments(params, adjustments)
+                    st.session_state[MULTI_APPLIED_ADJUSTMENTS_KEY] = adjustments
 
                 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
                 st.markdown(tr("section.title.comboParamSearch"))
@@ -1243,7 +1255,11 @@ def render_multi_stock_page(
         end_ts=end_ts,
     )
 
+    if analysis_cache.get("data_signature") == data_signature:
+        emit_performance_event("multi", "data_load", 0.0, cache="hit", market=market, count=len(compare_stocks))
+
     if analysis_cache.get("data_signature") != data_signature:
+        data_load_started_at = perf_counter()
         with st.spinner(tr("data.loadingComparison")):
             stock_data_dict: dict[str, pd.DataFrame] = {}
             factor_stock_data_dict: dict[str, pd.DataFrame] = {}
@@ -1311,6 +1327,14 @@ def render_multi_stock_page(
                 "comparison_stats": comparison_stats,
                 "figure_cache": {},
             }
+        )
+        emit_performance_event(
+            "multi",
+            "data_load",
+            (perf_counter() - data_load_started_at) * 1000,
+            cache="miss",
+            market=market,
+            count=len(stock_data_dict),
         )
 
     stock_data_dict = analysis_cache.get("stock_data_dict", {})
@@ -1396,6 +1420,11 @@ def render_multi_stock_page(
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 辅助函数
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def _apply_multi_adjustments(params: dict[str, Any], adjustments: dict[str, float]) -> dict[str, Any]:
+    """Return calculation parameters with explicitly applied UI adjustments."""
+    return {**params, **adjustments}
 
 
 def _strategy_params(params: dict) -> dict:

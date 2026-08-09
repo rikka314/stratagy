@@ -9,6 +9,8 @@ from typing import Literal, overload
 import numpy as np
 import pandas as pd
 
+from core.market_rules import MarketExecutionConfig, get_active_execution_config
+
 
 @overload
 def simulate_strategy(
@@ -17,6 +19,8 @@ def simulate_strategy(
     stop_loss_mult: float = 0.0,
     take_profit_mult: float = 0.0,
     return_trades: Literal[False] = False,
+    *,
+    execution_config: MarketExecutionConfig | None = None,
 ) -> pd.DataFrame: ...
 
 
@@ -28,6 +32,7 @@ def simulate_strategy(
     take_profit_mult: float = 0.0,
     *,
     return_trades: Literal[True],
+    execution_config: MarketExecutionConfig | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
 
 
@@ -37,6 +42,8 @@ def simulate_strategy(
     stop_loss_mult: float = 0.0,
     take_profit_mult: float = 0.0,
     return_trades: bool = False,
+    *,
+    execution_config: MarketExecutionConfig | None = None,
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame]:
     """
     模拟策略执行，计算收益曲线
@@ -45,6 +52,11 @@ def simulate_strategy(
     return_trades=True 时额外返回 extract_trades(df) 的逐笔明细。
     """
     df = df.copy()
+    # The interactive/UI default remains zero-cost.  Offline research opts in
+    # through a context-local configuration so every nested pipeline backtest
+    # uses the same frozen market assumptions.
+    if execution_config is None:
+        execution_config = get_active_execution_config()
     position = np.zeros(len(df))
     in_position = initial_position == 1
     entry_price = df["close"].iloc[0] if in_position and len(df) > 0 else np.nan
@@ -114,7 +126,19 @@ def simulate_strategy(
     
     df["position"] = position
     returns = df["close"].pct_change().fillna(0)
-    df["strategy_return"] = df["position"].shift(1).fillna(initial_position) * returns
+    gross_strategy_return = df["position"].shift(1).fillna(initial_position) * returns
+
+    if execution_config is not None:
+        previous_position = df["position"].shift(1).fillna(0.0)
+        turnover = (df["position"] - previous_position).abs()
+        transaction_cost = turnover * execution_config.total_cost_rate
+        df["turnover"] = turnover
+        df["transaction_cost"] = transaction_cost
+        df["gross_strategy_return"] = gross_strategy_return
+        df["strategy_return"] = gross_strategy_return - transaction_cost
+    else:
+        df["strategy_return"] = gross_strategy_return
+
     df["strategy_equity"] = (1 + df["strategy_return"]).cumprod()
     df["buy_hold_equity"] = (1 + returns).cumprod()
 
@@ -150,16 +174,38 @@ def extract_trades(
     if "close" not in df.columns:
         raise ValueError("extract_trades: missing required column `close`")
 
+    has_execution_details = any(
+        column in df.columns for column in ("turnover", "transaction_cost", "gross_strategy_return")
+    )
+    base_columns = ["entry_date", "exit_date", "hold_days", "trade_return", "is_win"]
+    execution_columns = [
+        "gross_trade_return",
+        "trade_turnover",
+        "trade_transaction_cost",
+    ]
+
     if df.empty:
-        return pd.DataFrame(columns=["entry_date", "exit_date", "hold_days", "trade_return", "is_win"])
+        columns = base_columns[:4] + execution_columns + base_columns[4:] if has_execution_details else base_columns
+        return pd.DataFrame(columns=columns)
 
     # 强制数值化，避免 position 为 object/字符串导致比较异常
     pos = pd.to_numeric(df[position_col], errors="coerce").fillna(0.0).to_numpy(dtype=float)
     close = df["close"]
 
-    daily_returns = close.pct_change().fillna(0.0)
-    pos_prev = pd.to_numeric(df[position_col].shift(1), errors="coerce").fillna(float(initial_position))
-    strategy_return = pos_prev * daily_returns
+    if has_execution_details and "strategy_return" in df.columns:
+        strategy_return = pd.to_numeric(df["strategy_return"], errors="coerce").fillna(0.0)
+    else:
+        daily_returns = close.pct_change().fillna(0.0)
+        pos_prev = pd.to_numeric(df[position_col].shift(1), errors="coerce").fillna(float(initial_position))
+        strategy_return = pos_prev * daily_returns
+
+    turnover = pd.to_numeric(df.get("turnover", pd.Series(0.0, index=df.index)), errors="coerce").fillna(0.0)
+    transaction_cost = pd.to_numeric(
+        df.get("transaction_cost", pd.Series(0.0, index=df.index)), errors="coerce"
+    ).fillna(0.0)
+    gross_strategy_return = pd.to_numeric(
+        df.get("gross_strategy_return", strategy_return), errors="coerce"
+    ).fillna(0.0)
 
     active = pos > eps
     n = len(active)
@@ -176,45 +222,64 @@ def extract_trades(
         if start_idx is not None and (not active[i]):
             end_idx = i - 1  # 最后一行仍持仓（position > eps）
             exit_row = i  # 平仓当日 position==0，但 strategy_return 仍含当日损益
-            trade_equity = (1.0 + strategy_return.iloc[start_idx : exit_row + 1]).cumprod()
+            trade_returns = strategy_return.iloc[start_idx : exit_row + 1]
+            trade_equity = (1.0 + trade_returns).cumprod()
             trade_ret = float(trade_equity.iloc[-1] - 1.0)
+            gross_trade_return = float(
+                (1.0 + gross_strategy_return.iloc[start_idx : exit_row + 1]).prod() - 1.0
+            )
 
             entry_date = dates.iloc[start_idx] if len(dates) == n else start_idx
             exit_date = dates.iloc[end_idx] if len(dates) == n else end_idx
             hold_days = int(end_idx - start_idx + 1)
 
-            trades.append(
-                {
-                    "entry_date": entry_date,
-                    "exit_date": exit_date,
-                    "hold_days": hold_days,
-                    "trade_return": trade_ret,
-                    "is_win": bool(trade_ret > 0),
-                }
-            )
-            start_idx = None
-
-    # 若最后一个区间一直 active 到末尾
-    if start_idx is not None:
-        end_idx = n - 1
-        trade_equity = (1.0 + strategy_return.iloc[start_idx : end_idx + 1]).cumprod()
-        trade_ret = float(trade_equity.iloc[-1] - 1.0)
-
-        entry_date = dates.iloc[start_idx] if len(dates) == n else start_idx
-        exit_date = dates.iloc[end_idx] if len(dates) == n else end_idx
-        hold_days = int(end_idx - start_idx + 1)
-
-        trades.append(
-            {
+            trade = {
                 "entry_date": entry_date,
                 "exit_date": exit_date,
                 "hold_days": hold_days,
                 "trade_return": trade_ret,
                 "is_win": bool(trade_ret > 0),
             }
+            if has_execution_details:
+                trade.update(
+                    gross_trade_return=gross_trade_return,
+                    trade_turnover=float(turnover.iloc[start_idx : exit_row + 1].sum()),
+                    trade_transaction_cost=float(transaction_cost.iloc[start_idx : exit_row + 1].sum()),
+                )
+            trades.append(trade)
+            start_idx = None
+
+    # 若最后一个区间一直 active 到末尾
+    if start_idx is not None:
+        end_idx = n - 1
+        trade_returns = strategy_return.iloc[start_idx : end_idx + 1]
+        trade_equity = (1.0 + trade_returns).cumprod()
+        trade_ret = float(trade_equity.iloc[-1] - 1.0)
+        gross_trade_return = float(
+            (1.0 + gross_strategy_return.iloc[start_idx : end_idx + 1]).prod() - 1.0
         )
 
-    return pd.DataFrame(trades, columns=["entry_date", "exit_date", "hold_days", "trade_return", "is_win"])
+        entry_date = dates.iloc[start_idx] if len(dates) == n else start_idx
+        exit_date = dates.iloc[end_idx] if len(dates) == n else end_idx
+        hold_days = int(end_idx - start_idx + 1)
+
+        trade = {
+            "entry_date": entry_date,
+            "exit_date": exit_date,
+            "hold_days": hold_days,
+            "trade_return": trade_ret,
+            "is_win": bool(trade_ret > 0),
+        }
+        if has_execution_details:
+            trade.update(
+                gross_trade_return=gross_trade_return,
+                trade_turnover=float(turnover.iloc[start_idx : end_idx + 1].sum()),
+                trade_transaction_cost=float(transaction_cost.iloc[start_idx : end_idx + 1].sum()),
+            )
+        trades.append(trade)
+
+    columns = base_columns[:4] + execution_columns + base_columns[4:] if has_execution_details else base_columns
+    return pd.DataFrame(trades, columns=columns)
 
 
 def max_drawdown(equity: pd.Series) -> float:
@@ -244,6 +309,7 @@ def walk_forward_backtest(
     test_window: int,
     stop_loss_mult: float,
     take_profit_mult: float,
+    execution_config: MarketExecutionConfig | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Walk-Forward 回测（滚动窗口回测）
@@ -268,6 +334,7 @@ def walk_forward_backtest(
             initial_position=0,
             stop_loss_mult=stop_loss_mult,
             take_profit_mult=take_profit_mult,
+            execution_config=execution_config,
         )
         
         total_return = test_sim["strategy_equity"].iloc[-1] - 1

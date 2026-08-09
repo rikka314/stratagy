@@ -1,0 +1,9 @@
+{
+  "name": "deans_window3b_cross_market",
+  "market": "US",
+  "output_subdir": "deans_window3b_cross_market",
+  "cross_market_source_subdirs": {
+    "US": "deans_window3b_us",
+    "CN_A": "deans_window3b_cn_a"
+  }
+}

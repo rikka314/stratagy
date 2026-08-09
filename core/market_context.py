@@ -8,19 +8,16 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, wait
+from datetime import datetime
 import time
 from typing import Any
+from zoneinfo import ZoneInfo
 
-import akshare as ak
 import pandas as pd
 import requests
 from requests.exceptions import ProxyError, RequestException, Timeout
 import streamlit as st
-
-from core.config import DEFAULT_A_STOCKS, DEFAULT_STOCKS
-from core.data import get_stock_label_map
-
 
 A_INDEX_CONFIG = [
     {"symbol": "sh000001", "label": "上证指数", "aliases": {"000001", "sh000001", "上证指数"}},
@@ -44,9 +41,23 @@ US_FAMOUS_CATEGORY_CONFIG = (
 )
 
 DEFAULT_RECOMMENDATION_LABEL = "实时涨幅前十"
+BAIDU_HOT_SEARCH_URL = "https://finance.pae.baidu.com/selfselect/listsugrecomm"
+BAIDU_HOT_SEARCH_TIMEZONE = ZoneInfo("Asia/Shanghai")
+RECOMMENDATION_SOURCE_HOT_SEARCH = "baidu_hot_search_today"
+RECOMMENDATION_SOURCE_A_MOVERS = "a_realtime_top_movers"
+RECOMMENDATION_SOURCE_US_MOVERS = "us_famous_realtime_top_movers"
+RECOMMENDATION_SOURCE_UNAVAILABLE = "unavailable"
+RECOMMENDATION_SOURCE_I18N_KEYS = {
+    RECOMMENDATION_SOURCE_HOT_SEARCH: "recommendation.source.hotSearchToday",
+    RECOMMENDATION_SOURCE_A_MOVERS: "recommendation.source.aRealtimeMovers",
+    RECOMMENDATION_SOURCE_US_MOVERS: "recommendation.source.usRealtimeMovers",
+    RECOMMENDATION_SOURCE_UNAVAILABLE: "recommendation.source.unavailable",
+}
 MARKET_CONTEXT_SESSION_KEY = "market_context_snapshot_cache"
 MARKET_CONTEXT_SESSION_TTL_SECONDS = 900
 MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS = 3.0
+RECOMMENDATION_TOTAL_DEADLINE_SECONDS = 3.0
+HTTP_CONNECT_READ_TIMEOUT = (1.0, 2.0)
 
 
 def _coerce_float(value: Any) -> float | None:
@@ -63,6 +74,14 @@ def _coerce_float(value: Any) -> float | None:
         return float(text)
     except ValueError:
         return None
+
+
+def _load_akshare() -> Any | None:
+    try:
+        import akshare as ak
+    except ImportError:
+        return None
+    return ak
 
 
 def _safe_market_call(loader, *, timeout_seconds: float = MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS) -> Any:
@@ -107,7 +126,7 @@ def _fetch_us_indices_direct() -> pd.DataFrame | None:
         resp = requests.get(
             url,
             headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"},
-            timeout=5,
+            timeout=HTTP_CONNECT_READ_TIMEOUT,
         )
         resp.raise_for_status()
         rows: list[dict] = []
@@ -227,35 +246,77 @@ def _normalize_recommendation_table(df: pd.DataFrame, market: str, limit: int) -
     prepared["pct_change"] = prepared["pct_change"].map(_coerce_float)
     prepared = prepared[(prepared["symbol"] != "") & prepared["pct_change"].notna()].copy()
     prepared = prepared.sort_values("pct_change", ascending=False).head(limit).reset_index(drop=True)
+    prepared["rank"] = prepared.index + 1
     prepared["label"] = prepared["symbol"] + " " + prepared["name"]
     return prepared.to_dict("records")
 
 
-def _fallback_recommendations(market: str, limit: int) -> list[dict[str, Any]]:
-    """在实时推荐不可用时，回退到默认股票池。"""
-    default_symbols = DEFAULT_A_STOCKS if market == "A" else DEFAULT_STOCKS
-    symbols = default_symbols[:limit]
+def _load_baidu_hot_search_recommendations(market: str, limit: int) -> list[dict[str, Any]]:
+    """读取百度股市通今日热搜，并保留 AkShare 包装层未暴露的股票代码。"""
+    normalized_limit = max(int(limit), 0)
+    if normalized_limit == 0:
+        return []
+
+    market_key = "A" if str(market).strip().upper() in {"A", "CN", "CN_A"} else "US"
+    now = datetime.now(BAIDU_HOT_SEARCH_TIMEZONE)
+    params = {
+        "bizType": "wisexmlnew",
+        "dsp": "iphone",
+        "product": "search",
+        "style": "tablelist",
+        "market": "ab" if market_key == "A" else "us",
+        "type": "今日",
+        "day": now.strftime("%Y%m%d"),
+        "hour": str(now.hour),
+        "pn": "0",
+        "rn": str(max(normalized_limit, 12)),
+        "finClientType": "pc",
+    }
     try:
-        label_map = get_stock_label_map(symbols, market=market)
+        response = requests.get(
+            BAIDU_HOT_SEARCH_URL,
+            params=params,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=HTTP_CONNECT_READ_TIMEOUT,
+        )
+        response.raise_for_status()
+        data_json = response.json()
+        records = data_json.get("Result", {}).get("list", {}).get("body") or []
+    except (Timeout, ProxyError, RequestException, ValueError, AttributeError, TypeError):
+        return []
     except Exception:
-        label_map = {symbol: symbol for symbol in symbols}
-    recommendations = []
-    for symbol in symbols:
-        label = label_map.get(symbol, symbol)
-        if " " in label:
-            _, name = label.split(" ", 1)
+        return []
+
+    recommendations: list[dict[str, Any]] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        raw_symbol = str(record.get("code") or "").strip().upper()
+        if market_key == "A":
+            digits = "".join(character for character in raw_symbol if character.isdigit())
+            symbol = digits.zfill(6)[-6:] if digits else ""
         else:
-            name = symbol
+            symbol = raw_symbol
+        heat = _coerce_float(record.get("heat"))
+        if not symbol or heat is None or pd.isna(heat):
+            continue
+        name = str(record.get("name") or symbol).strip() or symbol
         recommendations.append(
             {
                 "symbol": symbol,
                 "name": name,
-                "label": label,
+                "label": f"{symbol} {name}",
                 "price": None,
-                "pct_change": None,
+                "pct_change": _coerce_float(record.get("pxChangeRate")),
+                "heat": int(heat) if float(heat).is_integer() else float(heat),
             }
         )
-    return recommendations
+
+    recommendations.sort(key=lambda item: float(item["heat"]), reverse=True)
+    limited = recommendations[:normalized_limit]
+    for rank, item in enumerate(limited, start=1):
+        item["rank"] = rank
+    return limited
 
 
 @st.cache_data(show_spinner=False, ttl=900)
@@ -263,17 +324,23 @@ def get_market_indices(market: str) -> list[dict[str, Any]]:
     """获取入口页右侧的大盘指数快照。"""
     market_key = "A" if str(market).strip().upper() in {"A", "CN", "CN_A"} else "US"
     if market_key == "US":
-        snapshot_df = _safe_market_call(ak.index_global_spot_em)
+        snapshot_df = _fetch_us_indices_direct()
         if snapshot_df is None or snapshot_df.empty:
-            snapshot_df = _fetch_us_indices_direct()
+            ak = _load_akshare()
+            snapshot_df = _safe_market_call(ak.index_global_spot_em) if ak is not None else None
         return _normalize_index_snapshot(snapshot_df, US_INDEX_CONFIG)
 
-    snapshot_df = _safe_market_call(ak.stock_zh_index_spot_sina)
+    ak = _load_akshare()
+    snapshot_df = _safe_market_call(ak.stock_zh_index_spot_sina) if ak is not None else None
     return _normalize_index_snapshot(snapshot_df, A_INDEX_CONFIG)
 
 
 def _load_us_famous_recommendations(limit: int) -> list[dict[str, Any]]:
     """从知名美股分组里拼出一份轻量推荐池，再按涨跌幅排序。"""
+    ak = _load_akshare()
+    if ak is None:
+        return []
+
     executor = ThreadPoolExecutor(max_workers=len(US_FAMOUS_CATEGORY_CONFIG))
     future_map = {
         executor.submit(ak.stock_us_famous_spot_em, category): category
@@ -281,9 +348,13 @@ def _load_us_famous_recommendations(limit: int) -> list[dict[str, Any]]:
     }
     frames: list[pd.DataFrame] = []
     try:
-        for future in future_map:
+        done, _pending = wait(
+            future_map,
+            timeout=RECOMMENDATION_TOTAL_DEADLINE_SECONDS,
+        )
+        for future in done:
             try:
-                df = future.result(timeout=MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS)
+                df = future.result()
             except (FuturesTimeoutError, Timeout, ProxyError, RequestException, ValueError):
                 continue
             except Exception:
@@ -316,7 +387,7 @@ def _load_a_top_movers(limit: int) -> list[dict[str, Any]]:
         "fields": "f2,f3,f4,f12,f14",
     }
     try:
-        response = requests.get(url, params=params, timeout=MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS)
+        response = requests.get(url, params=params, timeout=HTTP_CONNECT_READ_TIMEOUT)
         data_json = response.json()
     except (Timeout, ProxyError, RequestException, ValueError):
         return []
@@ -341,12 +412,21 @@ def _load_a_top_movers(limit: int) -> list[dict[str, Any]]:
 
 @st.cache_data(show_spinner=False, ttl=900)
 def get_recommended_stocks(market: str, limit: int = 10) -> dict[str, Any]:
-    """获取推荐股票，优先使用实时涨幅榜，失败时回退默认列表。"""
+    """获取推荐股票，优先使用今日热搜，失败时回退实时涨幅榜。"""
     market_key = "A" if str(market).strip().upper() in {"A", "CN", "CN_A"} else "US"
+    recommendations = _load_baidu_hot_search_recommendations(market_key, limit)
+    if recommendations:
+        return {
+            "source_kind": RECOMMENDATION_SOURCE_HOT_SEARCH,
+            "source_label": "今日热搜综合热度",
+            "items": recommendations,
+        }
+
     if market_key == "A":
         recommendations = _load_a_top_movers(limit)
         if recommendations:
             return {
+                "source_kind": RECOMMENDATION_SOURCE_A_MOVERS,
                 "source_label": DEFAULT_RECOMMENDATION_LABEL,
                 "items": recommendations,
             }
@@ -354,13 +434,15 @@ def get_recommended_stocks(market: str, limit: int = 10) -> dict[str, Any]:
         recommendations = _load_us_famous_recommendations(limit)
         if recommendations:
             return {
+                "source_kind": RECOMMENDATION_SOURCE_US_MOVERS,
                 "source_label": "知名美股实时涨幅前十",
                 "items": recommendations,
             }
 
     return {
-        "source_label": "默认股票池兜底",
-        "items": _fallback_recommendations(market_key, limit),
+        "source_kind": RECOMMENDATION_SOURCE_UNAVAILABLE,
+        "source_label": "暂时无法获取推荐股票",
+        "items": [],
     }
 
 
@@ -378,6 +460,13 @@ def _format_pct_change(value: float | None) -> str:
     return f"{value:+.2f}%"
 
 
+def _format_heat(value: float | int | None) -> str | None:
+    """格式化热搜综合热度；实时涨幅榜没有该字段。"""
+    if value is None or pd.isna(value):
+        return None
+    return f"{float(value):,.0f}"
+
+
 def build_market_context(market: str, limit: int = 10) -> dict[str, Any]:
     """构建入口页所需的大盘和推荐股票上下文。
 
@@ -389,24 +478,31 @@ def build_market_context(market: str, limit: int = 10) -> dict[str, Any]:
     # ── 并行获取指数 + 推荐 ──
     indices: list[dict[str, Any]] = []
     recommendations: dict[str, Any] = {
-        "source_label": "默认股票池兜底",
-        "items": _fallback_recommendations(market_key, limit),
+        "source_kind": RECOMMENDATION_SOURCE_UNAVAILABLE,
+        "source_label": "暂时无法获取推荐股票",
+        "items": [],
     }
 
     executor = ThreadPoolExecutor(max_workers=2)
     try:
         future_indices = executor.submit(get_market_indices, market_key)
         future_recs = executor.submit(get_recommended_stocks, market_key, limit)
+        done, _pending = wait(
+            {future_indices, future_recs},
+            timeout=MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS + 1,
+        )
 
-        try:
-            indices = future_indices.result(timeout=MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS + 1)
-        except Exception:
-            indices = []
+        if future_indices in done:
+            try:
+                indices = future_indices.result()
+            except Exception:
+                indices = []
 
-        try:
-            recommendations = future_recs.result(timeout=MARKET_CONTEXT_REQUEST_TIMEOUT_SECONDS + 1)
-        except Exception:
-            pass  # keep fallback
+        if future_recs in done:
+            try:
+                recommendations = future_recs.result()
+            except Exception:
+                pass
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 
@@ -418,11 +514,13 @@ def build_market_context(market: str, limit: int = 10) -> dict[str, Any]:
     for item in recommendations["items"]:
         item["price_text"] = _format_index_value(item.get("price"))
         item["pct_text"] = _format_pct_change(item.get("pct_change"))
+        item["heat_text"] = _format_heat(item.get("heat"))
         item["is_positive"] = (item.get("pct_change") or 0) >= 0 if item.get("pct_change") is not None else None
 
     return {
         "market": market_key,
         "indices": indices,
+        "recommendation_source_kind": recommendations.get("source_kind", RECOMMENDATION_SOURCE_UNAVAILABLE),
         "recommendation_source": recommendations["source_label"],
         "recommendations": recommendations["items"],
     }

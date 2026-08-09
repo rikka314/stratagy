@@ -37,6 +37,42 @@ DEFAULT_SCORE_WEIGHTS = {
 DEFAULT_ROBUSTNESS_WEIGHT = 0.4
 DEFAULT_SEARCH_SEED = 42
 
+MARKET_ALIASES = {
+    "US": "US",
+    "CN_A": "CN_A",
+    "CN": "CN_A",
+    "A": "CN_A",
+}
+
+MARKET_DEFAULTS: dict[str, dict[str, Any]] = {
+    "US": {
+        "adjust": "qfq",
+        "catalog_path": "core/catalogs/us_stock_catalog.csv",
+        "smoke_symbols": DEFAULT_SMOKE_SYMBOLS,
+        "min_avg_traded_value": 10_000_000.0,
+        "market_proxy_symbol": "SPY",
+    },
+    "CN_A": {
+        "adjust": "qfq",
+        "catalog_path": "core/catalogs/a_stock_catalog.csv",
+        "smoke_symbols": ("600519", "300750", "000001", "600036", "000858", "002594"),
+        "min_avg_traded_value": 50_000_000.0,
+        "market_proxy_symbol": "000300",
+    },
+}
+
+
+def normalize_market(raw_market: Any) -> str:
+    market = str(raw_market or "").strip().upper()
+    try:
+        return MARKET_ALIASES[market]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported market: {raw_market!r}. Expected US or CN_A.") from exc
+
+
+def market_defaults(market: Any) -> dict[str, Any]:
+    return dict(MARKET_DEFAULTS[normalize_market(market)])
+
 
 def recommended_parallelism() -> int:
     cpu_count = os.cpu_count() or 1
@@ -75,15 +111,31 @@ def resolve_universe_parallelism(raw_value: Any, parallelism: int) -> int:
 def load_research_config(config_path: str | Path) -> ResearchConfig:
     path = Path(config_path)
     raw: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    market = normalize_market(raw.get("market", "US"))
+    defaults = market_defaults(market)
     parallelism = resolve_parallelism(raw.get("parallelism", 0))
     mlflow_tracking_uri = raw.get("mlflow_tracking_uri")
     if isinstance(mlflow_tracking_uri, str) and not mlflow_tracking_uri.strip():
         mlflow_tracking_uri = None
 
+    raw_cross_market_sources = raw.get("cross_market_source_subdirs", {})
+    if not isinstance(raw_cross_market_sources, dict):
+        raise ValueError("cross_market_source_subdirs must be an object keyed by US and CN_A.")
+    normalized_cross_market_sources = {
+        normalize_market(key): str(value).strip()
+        for key, value in raw_cross_market_sources.items()
+    }
+    if raw_cross_market_sources and (
+        set(normalized_cross_market_sources) != {"US", "CN_A"}
+        or any(not value or Path(value).is_absolute() or ".." in Path(value).parts for value in normalized_cross_market_sources.values())
+        or len(normalized_cross_market_sources) != len(raw_cross_market_sources)
+    ):
+        raise ValueError("cross_market_source_subdirs must contain exactly non-empty US and CN_A entries.")
+
     merged: dict[str, Any] = {
         "name": raw.get("name", path.stem),
-        "market": raw.get("market", "US"),
-        "adjust": raw.get("adjust", "qfq"),
+        "market": market,
+        "adjust": raw.get("adjust", defaults["adjust"]),
         "preset_name": raw.get("preset_name", "__balanced_default__"),
         "train_ratio": raw.get("train_ratio", 0.7),
         "parallelism": parallelism,
@@ -94,8 +146,8 @@ def load_research_config(config_path: str | Path) -> ResearchConfig:
         "enable_quantstats": raw.get("enable_quantstats", False),
         "quantstats_top_n": raw.get("quantstats_top_n", 5),
         "sample_data_dir": raw.get("sample_data_dir", "data"),
-        "catalog_path": raw.get("catalog_path", "core/catalogs/us_stock_catalog.csv"),
-        "smoke_symbols": tuple(raw.get("smoke_symbols", DEFAULT_SMOKE_SYMBOLS)),
+        "catalog_path": raw.get("catalog_path", defaults["catalog_path"]),
+        "smoke_symbols": tuple(raw.get("smoke_symbols", defaults["smoke_symbols"])),
         "smoke_mode": raw.get("smoke_mode", False),
         "run_stage_b": raw.get("run_stage_b", True),
         "run_robustness": raw.get("run_robustness", True),
@@ -110,7 +162,11 @@ def load_research_config(config_path: str | Path) -> ResearchConfig:
         "min_history_days": raw.get("min_history_days", 750),
         "profile_lookback_days": raw.get("profile_lookback_days", 252),
         "min_avg_dollar_volume": raw.get("min_avg_dollar_volume", 10_000_000.0),
+        "min_avg_traded_value": raw.get("min_avg_traded_value", defaults["min_avg_traded_value"]),
+        "market_proxy_symbol": raw.get("market_proxy_symbol", defaults["market_proxy_symbol"]),
         "max_catalog_candidates": raw.get("max_catalog_candidates", 500),
+        "candidate_selection_mode": raw.get("candidate_selection_mode", "head"),
+        "candidate_selection_seed": int(raw.get("candidate_selection_seed", DEFAULT_SEARCH_SEED)),
         "cache_dir": raw.get("cache_dir", "model-test/cache"),
         "universe_parallelism": resolve_universe_parallelism(raw.get("universe_parallelism"), parallelism),
         "search_trials": raw.get("search_trials", 60),
@@ -122,11 +178,18 @@ def load_research_config(config_path: str | Path) -> ResearchConfig:
         "stage_b_request_overrides": dict(raw.get("stage_b_request_overrides", {})),
         "selected_model_ids": tuple(str(item) for item in raw.get("selected_model_ids", []) if str(item).strip()),
         "merge_into_existing_output": bool(raw.get("merge_into_existing_output", False)),
+        "commission_bps": raw.get("commission_bps"),
+        "slippage_bps": raw.get("slippage_bps"),
+        "cross_market_source_subdirs": normalized_cross_market_sources,
+        "freeze_data_snapshot": bool(raw.get("freeze_data_snapshot", False)),
+        "minimum_data_end_date": raw.get("minimum_data_end_date"),
+        "require_clean_worktree": bool(raw.get("require_clean_worktree", False)),
+        "lightgbm_device_type": raw.get("lightgbm_device_type", "cpu"),
+        "lightgbm_gpu_platform_id": int(raw.get("lightgbm_gpu_platform_id", 0)),
+        "lightgbm_gpu_device_id": int(raw.get("lightgbm_gpu_device_id", 0)),
+        "lightgbm_gpu_use_dp": bool(raw.get("lightgbm_gpu_use_dp", False)),
     }
-    config = ResearchConfig(**merged)
-    if config.market.upper() != "US":
-        raise ValueError("V1 research runner currently supports US market only.")
-    return config
+    return ResearchConfig(**merged)
 
 
 def build_search_budget_summary(
@@ -211,6 +274,10 @@ def build_stage_a_model_specs(config: ResearchConfig) -> list[ModelSpec]:
             "A",
             "rsm",
             {"family": "regime", "regime_kind": "dual_state_router"},
+            supported_markets=("US",),
+            unsupported_market_reasons={
+                "CN_A": "CN_A regime routing is skipped: the shared regime pipeline currently requires the US SPY market proxy.",
+            },
         ),
         ModelSpec(
             "rsm_no_market",
@@ -219,6 +286,10 @@ def build_stage_a_model_specs(config: ResearchConfig) -> list[ModelSpec]:
             "rsm",
             {"family": "regime", "regime_kind": "no_market"},
             notes="Research-only ablation without SPY proxy",
+            supported_markets=("US",),
+            unsupported_market_reasons={
+                "CN_A": "CN_A regime ablation is skipped: the legacy regime family is currently validated only for US equities.",
+            },
         ),
         ModelSpec(
             "rsm_no_router",
@@ -227,6 +298,10 @@ def build_stage_a_model_specs(config: ResearchConfig) -> list[ModelSpec]:
             "rsm",
             {"family": "regime", "regime_kind": "no_router"},
             notes="Research-only ablation without dual-state router",
+            supported_markets=("US",),
+            unsupported_market_reasons={
+                "CN_A": "CN_A regime ablation is skipped: the legacy regime family is currently validated only for US equities.",
+            },
         ),
         ModelSpec(
             ADAPTIVE_MODEL_ID,
@@ -235,6 +310,10 @@ def build_stage_a_model_specs(config: ResearchConfig) -> list[ModelSpec]:
             "rsm",
             {"family": "regime", "regime_kind": ADAPTIVE_REGIME_KIND},
             notes="Adaptive regime router with offline state artifacts and online local fallback hierarchy",
+            supported_markets=("US",),
+            unsupported_market_reasons={
+                "CN_A": "CN_A adaptive regime routing is skipped: adaptive state artifacts currently use the US SPY proxy feature schema.",
+            },
         ),
         ModelSpec(
             "sm_bayesian",

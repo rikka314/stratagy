@@ -17,6 +17,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, f1_score, precision_score, recall_score
 from sklearn.preprocessing import StandardScaler
 
+from core.lightgbm_runtime import lightgbm_runtime_params
+
 try:
     from lightgbm import LGBMClassifier
 except Exception:  # pragma: no cover - 仅在缺少依赖时触发
@@ -567,6 +569,7 @@ def fit_ml_filter(
             random_state=42,
             n_jobs=_resolve_ml_n_jobs(-1),
             verbosity=-1,
+            **lightgbm_runtime_params(),
         )
         model.fit(x, y)
 

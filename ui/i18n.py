@@ -3,6 +3,18 @@ import streamlit as st
 UI_LANGUAGE_STATE_KEY = "ui_language"
 
 LOCALES: dict[str, dict[str, str]] = {
+    "analysis.show_details": {
+        "zh": "展开详情",
+        "en": "Show details",
+    },
+    "analysis.hide_details": {
+        "zh": "收起详情",
+        "en": "Hide details",
+    },
+    "single.strategy.emptyBackdrop": {
+        "zh": "交易，从这里开始",
+        "en": "Trading starts here",
+    },
     "dashboard.combinedLayout": {
         "zh": "组合 KPI + 个股表现表 + 主图",
         "en": "Portfolio KPI + Stock Performance Table + Main Chart"
@@ -536,8 +548,8 @@ LOCALES: dict[str, dict[str, str]] = {
         "en": "Uses equal-weighted average as benchmark to identify consistent outperformers/underperformers."
     },
     "section.market_snapshot_and_entry": {
-        "zh": "当前市场的快照和推荐入口",
-        "en": "Market Snapshot & Entry Points"
+        "zh": "市场指数和推荐股票",
+        "en": "Market Indices and Recommended Stocks"
     },
     "indicator.ema_spread": {
         "zh": "EMA 价差",
@@ -648,8 +660,8 @@ LOCALES: dict[str, dict[str, str]] = {
         "en": "Goal: clarity over clutter—make the research path instantly understandable."
     },
     "action.searchConfirmTarget": {
-        "zh": "搜索并确认标的",
-        "en": "Search and confirm target"
+        "zh": "选择股票",
+        "en": "Choose a Stock"
     },
     "chart.monthlyReturnsDescription": {
         "zh": "按主策略测试集日收益率复利聚合到月份；绿色代表正收益，红色代表负收益。",
@@ -3899,6 +3911,10 @@ LOCALES: dict[str, dict[str, str]] = {
         "zh": "首页",
         "en": "Home"
     },
+    "section.experiment_monitor": {
+        "zh": "实验监控",
+        "en": "Experiment Monitor"
+    },
     "strategy.noSavedYet": {
         "zh": "当前还没有已保存策略。保存当前策略后，这里会形成本次会话的策略库。",
         "en": "No saved strategies yet. Save current strategy to build a session library."
@@ -4160,87 +4176,87 @@ LOCALES: dict[str, dict[str, str]] = {
         "en": "Best Score"
     },
     "modelEvaluation.section.searchMethodSummary": {
-        "zh": "??????",
+        "zh": "搜索方法汇总",
         "en": "Search Method Summary"
     },
     "home.hero.title": {
-        "zh": "?????????????????",
+        "zh": "让股票策略入口成为真正的产品首页。",
         "en": "Turn the stock strategy entry into a real product homepage."
     },
     "home.hero.copy": {
-        "zh": "?????????????????????????????????????????????????????????????????",
+        "zh": "从市场背景与清晰入口开始，再进入现有的单股或多股分析流程。重点不是增加面板，而是让研究路径一目了然。",
         "en": "Start with market context and clear entry actions, then hand off to the existing single-stock or multi-stock analysis flow. The goal is not more panels, but a research path that is readable at a glance."
     },
     "entry.multi.title": {
-        "zh": "???????????????",
+        "zh": "先建立股票池，再进入多股分析。",
         "en": "Assemble the stock pool first, then enter multi-stock analysis."
     },
     "single.strategy.entryCopy": {
-        "zh": "????????????????????????????????????????????????",
+        "zh": "先确定课程基线、搜索或 Regime 路径，再填写其余配置；页面不再默认预计算所有模型结果。",
         "en": "Decide whether you are on the course baseline path, search path, or regime path before filling in the remaining configuration below. The page no longer precomputes every model result by default."
     },
     "home.hero.note.1": {
-        "zh": "??????????????????????????????",
+        "zh": "先阅读市场背景，再确定研究从单只股票还是股票池开始。",
         "en": "Read market context first, then decide which stock or stock group this research should start from."
     },
     "home.hero.note.2": {
-        "zh": "????????????????????????????????????",
+        "zh": "搜索、上传和推荐保持在同一页面逻辑中，不再把用户推回后台式控制区。",
         "en": "Search, upload, and recommendation stay in one page grammar instead of pushing the user back into an admin-style control area."
     },
     "home.hero.note.3": {
-        "zh": "???????????????????????????",
+        "zh": "核心分析逻辑保持不变，调整的是入口节奏、视觉层级和站点体验。",
         "en": "The core analysis logic stays the same. What changes is the entry rhythm, visual hierarchy, and site feel."
     },
     "modelEvaluation.section.robustnessSummary": {
-        "zh": "?????",
+        "zh": "稳健性汇总",
         "en": "Robustness Summary"
     },
     "home.market.copy": {
-        "zh": "??????????????????????????????????????",
+        "zh": "指数快照与推荐入口固定在右侧，让研究先完成背景判断，再进入具体操作。",
         "en": "Index snapshots and recommendation entry stay fixed on the right so research starts from context judgment before moving into specific actions."
     },
     "home.market.us": {
-        "zh": "?? / ?? / ??",
+        "zh": "纳斯达克 / 标普 500 / 道琼斯",
         "en": "Nasdaq / S&P 500 / Dow"
     },
     "home.market.cn": {
-        "zh": "?? / ?? / ???",
+        "zh": "上证 / 深证 / 创业板",
         "en": "SSE / SZSE / ChiNext"
     },
     "modelEvaluation.section.familySummary": {
-        "zh": "????",
+        "zh": "模型族汇总",
         "en": "Family Summary"
     },
     "home.workflow.copy": {
-        "zh": "???????????????????? artifact ????????",
+        "zh": "入口页只负责设定上下文，参数、工作流与 artifact 在分析页继续完成。",
         "en": "The entry page only sets context. Parameters, workflow, and artifacts continue on the analysis page."
     },
     "home.progress.copy": {
-        "zh": "????????????????????????????????",
+        "zh": "站点已具备真实的单股与多股路由，入口页与主分析顺序保持一致。",
         "en": "The site now has real single-stock and multi-stock routes, with entry pages aligned to the main analysis sequence."
     },
     "home.board.title": {
-        "zh": "????? ? ???? ? ????",
+        "zh": "市场背景 → 入口操作 → 分析",
         "en": "Market Context ? Entry Actions ? Analysis"
     },
     "home.board.copy": {
-        "zh": "???????? CTA??????????????????????????????????????????????????????",
+        "zh": "左侧承载叙事与主要操作，右侧用一个展示板说明工具使用方式。单股与多股共用同一路由壳层，让页面更像产品而不是面板堆叠。",
         "en": "The left side carries narrative and the main CTA. The right side uses one large board to explain how the tool is used. Single-stock and multi-stock share the same route shell so the page reads like a product, not a pile of panels."
     },
     "home.board.footnote": {
-        "zh": "??????????????????????????",
+        "zh": "推荐入口已合并到主流程，不再扩展成独立的悬浮面板。",
         "en": "Recommendation entry is already merged into the main flow rather than growing into a separate floating panel."
     },
     "home.support.multi.copy": {
-        "zh": "?????????????????????????????",
+        "zh": "适合先整理股票池，再进入横向比较、组合模拟和策略汇总。",
         "en": "Best for organizing a stock pool first, then moving into lateral comparison, portfolio simulation, and strategy-level summaries."
     },
     "home.support.unified.copy": {
-        "zh": "????????????????????????????????????????",
+        "zh": "首页和入口页先建立研究上下文，分析页延续现有工作流，不引入第二套逻辑。",
         "en": "Home and entry pages establish research context first, while analysis pages continue the existing workflow without introducing a second logic system."
     },
     "metric.mlPrecision": {
-        "zh": "ML Precision?",
+        "zh": "ML 精确率：",
         "en": "ML Precision: "
     },
     "metric.precision": {
@@ -4260,95 +4276,103 @@ LOCALES: dict[str, dict[str, str]] = {
         "en": "PR-AUC"
     },
     "walkForward.summary": {
-        "zh": "Walk-Forward ?????{strategy_return} | ????????{buy_hold_return}",
+        "zh": "Walk-Forward 收益：{strategy_return} | 买入持有收益：{buy_hold_return}",
         "en": "Walk-Forward return: {strategy_return} | Buy-and-hold return: {buy_hold_return}"
     },
     "surface.resultBoard": {
-        "zh": "???",
+        "zh": "结果板",
         "en": "Result Board"
     },
     "signal.sellLabel": {
-        "zh": "??",
+        "zh": "卖出",
         "en": "Sell"
     },
     "single.strategy.workspaceCopy": {
-        "zh": "??????????????????????W5 ???? request?lineage?artifact??????????????????????????????",
+        "zh": "左侧保留模型控制台，右侧保留结果板。继续使用 W5 冻结的 request、lineage、artifact、回测与导出链路；本轮只重构交互壳层和结果组织。",
         "en": "The left side stays as the model console and the right side stays as the result board. The W5-frozen request, lineage, artifact, backtest, and export chain remains in use; this round only restructures the interaction shell and result organization."
     },
+    "single.strategy.workspaceKicker": {
+        "zh": "策略工作台",
+        "en": "Strategy Workspace"
+    },
+    "single.strategy.controlKicker": {
+        "zh": "模型路径",
+        "en": "Model Path"
+    },
     "single.strategy.controlCopy": {
-        "zh": "????????????????????????????????????????workspace ??????????",
+        "zh": "训练窗口、模型路径、生成动作与策略库集中在一个控制区；股票或训练比例变化时，workspace 会根据上下文重建。",
         "en": "The training window, model path, generate action, and strategy library are all grouped in one control surface. When the stock or train ratio changes, the workspace is rebuilt from context."
     },
     "single.strategy.libraryCopy": {
-        "zh": "???????? <code>current_artifact</code>????????????????????????????",
+        "zh": "生成操作只提交新的 <code>current_artifact</code>；保存后才进入会话策略库，供结果板比较多条策略。",
         "en": "Generate only submits a new <code>current_artifact</code>. It enters the in-session strategy library only after saving, so the result board can compare multiple strategies."
     },
     "single.strategy.resultPlaceholderCopy": {
-        "zh": "???????????????????????? / ?? / ?????????Walk-Forward ????????",
+        "zh": "左侧模型路径完成后，此区域承接当前策略摘要、净值与回撤、月度收益、交易点、Walk-Forward 和比较视图。",
         "en": "Once the model path is completed on the left, this area takes over the current strategy summary, equity/drawdown, monthly returns, trade points, Walk-Forward, and comparison views."
     },
     "single.strategy.workflowCopy": {
-        "zh": "???? W5 ??????????????????? baseline?search?regime ? ML ?????????",
+        "zh": "保留 W5 分阶段 artifact 语义，明确当前结果来自 baseline、search、regime 还是最终 ML 过滤提交。",
         "en": "W5 staged artifact semantics are kept so it stays clear whether the current result comes from baseline, search, regime, or the final ML-filtered submission."
     },
     "single.strategy.currentArtifactCopy": {
-        "zh": "??????????{label}?{action}",
+        "zh": "当前已提交策略结果：{label}。{action}",
         "en": "Current submitted strategy result: {label}. {action}"
     },
     "entry.marketSnapshotFailed": {
-        "zh": "?????????{error}",
+        "zh": "市场快照加载失败：{error}",
         "en": "Failed to load the market snapshot: {error}"
     },
     "entry.single.title": {
-        "zh": "????????????????",
+        "zh": "先锁定一个标的，再进入单股分析。",
         "en": "Lock in one target before entering single-stock analysis."
     },
     "entry.single.copy": {
-        "zh": "?????????????????????????????????????????????????",
+        "zh": "此入口页只负责建立研究上下文。左侧用于切换市场、搜索与上传，右侧持续显示市场快照和推荐入口。",
         "en": "This entry page only sets up the research context. Use the left side for market switching, search, and uploads, while the right side keeps the current market snapshot and recommendation entry visible."
     },
     "entry.single.helper": {
-        "zh": "?????????????????????????????????????????????????????",
+        "zh": "入口页只组织研究标的与市场背景；进入主分析页后，现有策略工作流、已保存 artifact 与后续分析保持不变。",
         "en": "The entry page only organizes the research target and market context. After you enter the main analysis page, the existing strategy workflow, saved artifacts, and downstream analysis stay intact."
     },
     "entry.multi.copy": {
-        "zh": "??????????????????????????????????????????????????????????",
+        "zh": "左侧用于整理待比较股票，右侧保留市场快照和推荐入口；搜索、上传与推荐均汇入同一个分析列表。",
         "en": "Use the left side to organize the stocks to compare, while the right side keeps the market snapshot and recommendation add-ons visible. Search, uploads, and recommendations all flow into the same analysis list."
     },
     "entry.multi.helper": {
-        "zh": "??????????????????????????????????????????????",
+        "zh": "入口页只负责整理股票池；进入主分析页后，现有多股图表、组合模拟和后续分析逻辑保持不变。",
         "en": "The entry page only organizes the stock pool. After you enter the main analysis page, the current multi-stock charts, portfolio simulation, and follow-up analysis logic continue unchanged."
     },
     "single.strategy.configCopy": {
-        "zh": "? W5 ????????????????????????????????????????????????",
+        "zh": "按 W5 冻结语义继续配置 baseline、简化状态机、完整状态机、search 与 regime 路径，不在此处改变底层参数 contract。",
         "en": "Continue configuring the baseline, simplified state machine, full state machine, search, and regime paths under the frozen W5 semantics. Do not change the underlying parameter contract here."
     },
     "message.currentUploadedData": {
-        "zh": "?????????{name}",
+        "zh": "当前使用上传数据：{name}",
         "en": "Using uploaded data: {name}"
     },
     "message.dataFetchFailed": {
-        "zh": "???? {symbol} ????????????",
+        "zh": "无法获取 {symbol} 的数据，请检查网络连接。",
         "en": "Unable to fetch data for {symbol}. Please check the network connection."
     },
     "message.uploadReadFailed": {
-        "zh": "???? {name} ?????{error}",
+        "zh": "读取上传文件 {name} 失败：{error}",
         "en": "Failed to read uploaded file {name}: {error}"
     },
     "modelEvaluation.quantstatsCount": {
-        "zh": "{count} ?????",
+        "zh": "{count} 份 tear sheet",
         "en": "{count} tear sheets"
     },
     "modelEvaluation.title": {
-        "zh": "?????????????",
+        "zh": "以只读方式浏览已有模型研究结果。",
         "en": "Browse existing model research results in read-only mode."
     },
     "modelEvaluation.copy": {
-        "zh": "????????? <code>model-test/outputs</code> ?????????????????????????????????????????????",
+        "zh": "此页面只读取本地 <code>model-test/outputs</code> 中的已有研究产物，不触发研究执行；默认展示最新可读 run，并支持切换。",
         "en": "This page only reads existing research artifacts under local <code>model-test/outputs</code> and does not trigger any research execution. It shows the latest readable run by default and lets you switch between runs."
     },
     "modelEvaluation.section.failures": {
-        "zh": "???????",
+        "zh": "失败与降级样本",
         "en": "Failures / Degraded Samples"
     },
     "modelEvaluation.dataSourceMeta": {
@@ -4356,11 +4380,11 @@ LOCALES: dict[str, dict[str, str]] = {
         "en": "report.json / mlflow_run.json"
     },
     "modelEvaluation.reportFile": {
-        "zh": "?????{path}",
+        "zh": "报告文件：{path}",
         "en": "Report file: {path}"
     },
     "modelEvaluation.lastUpdated": {
-        "zh": "?????? {time}",
+        "zh": "最近更新：{time}",
         "en": "Last updated {time}"
     },
     "modelEvaluation.tab.observability": {
@@ -4368,27 +4392,27 @@ LOCALES: dict[str, dict[str, str]] = {
         "en": "QuantStats / MLflow"
     },
     "modelEvaluation.quantstatsPooledRun": {
-        "zh": "???? {count}",
+        "zh": "汇总运行数 {count}",
         "en": "Pooled run {count}"
     },
     "model.idLabel": {
-        "zh": "??ID {value}",
+        "zh": "模型 ID {value}",
         "en": "Model ID {value}"
     },
     "score.label": {
-        "zh": "?? {value}",
+        "zh": "分数 {value}",
         "en": "Score {value}"
     },
     "mlflow.runId": {
-        "zh": "?? ID",
+        "zh": "运行 ID",
         "en": "Run ID"
     },
     "mlflow.artifactUri": {
-        "zh": "?? URI",
+        "zh": "产物 URI",
         "en": "Artifact URI"
     },
     "modelEvaluation.runMeta": {
-        "zh": "???{run_id}",
+        "zh": "运行：{run_id}",
         "en": "Run: {run_id}"
     },
     "params.adjustable": {
@@ -4471,17 +4495,116 @@ LOCALES: dict[str, dict[str, str]] = {
         "zh": "调整组合策略的信号权重和阈值参数。修改后点击「生成组合策略」重新运行。",
         "en": "Adjust signal weights and threshold parameters for portfolio strategy. Click 'Generate Portfolio' to re-run."
     },
+    "award.home.kicker": {"zh": "证据优先的量化研究", "en": "Evidence-first quantitative research"},
+    "award.home.title": {"zh": "把价格数据变成经得起追问的双市场策略研究。", "en": "Turn price data into a cross-market strategy study that can withstand scrutiny."},
+    "award.home.copy": {"zh": "从清晰的研究对象开始，在统一口径下比较美国与中国 A 股市场，并将每项结论回溯到可复现的实验输出。", "en": "Start with a clear research target, compare US and China A-share markets under one protocol, and trace every conclusion back to reproducible evidence."},
+    "award.home.action.kicker": {"zh": "选择研究入口", "en": "Choose a research entry"},
+    "award.home.action.title": {"zh": "先定义问题，再运行分析。", "en": "Define the question, then run the analysis."},
+    "award.home.action.copy": {"zh": "单股用于解释一个标的；多股用于检验策略在股票池和市场之间是否仍成立。", "en": "Use one stock to explain a target; use a stock universe to test whether a strategy holds across instruments and markets."},
+    "award.home.cta.single": {"zh": "分析一只股票", "en": "Analyze one stock"},
+    "award.home.cta.multi": {"zh": "比较股票池", "en": "Compare a stock universe"},
+    "award.home.note.problem": {"zh": "先明确研究的是一个标的、一个股票池，还是一个跨市场问题。", "en": "First decide whether the question concerns one target, a stock pool, or a cross-market comparison."},
+    "award.home.note.method": {"zh": "市场、数据和策略路径在进入分析前被显式设定。", "en": "Market, data source, and strategy path are made explicit before analysis begins."},
+    "award.home.note.evidence": {"zh": "结果页面保留指标、样本与研究产物，方便复核而不是只展示排名。", "en": "Result surfaces retain metrics, samples, and research artifacts for review—not just a ranking."},
+    "award.home.board.kicker": {"zh": "研究视角", "en": "Research lens"},
+    "award.home.market.title": {"zh": "两个市场，同一研究问题", "en": "Two markets, one research question"},
+    "award.home.market.copy": {"zh": "US 与 CN_A 从各自市场上下文开始，但结论必须明确说明样本与限制。", "en": "US and CN_A begin with their own market context, while conclusions must state their sample and limitations."},
+    "award.home.market.us": {"zh": "美股研究入口", "en": "US market entry"},
+    "award.home.market.cn": {"zh": "中国 A 股研究入口", "en": "China A-share entry"},
+    "award.home.market.rule1": {"zh": "先看市场快照", "en": "Read the market snapshot first"},
+    "award.home.market.rule2": {"zh": "再锁定研究标的", "en": "Then lock the research target"},
+    "award.home.protocol.title": {"zh": "固定研究口径", "en": "A fixed research protocol"},
+    "award.home.protocol.copy": {"zh": "数据、策略、评估与限制按同一条链路组织。", "en": "Data, strategy, evaluation, and limitations follow one visible chain."},
+    "award.home.output.title": {"zh": "可追溯的结论", "en": "Traceable conclusions"},
+    "award.home.output.copy": {"zh": "网页、报告与实验输出共同承载证据。", "en": "The page, report, and experiment outputs carry the evidence together."},
+    "award.home.flow.kicker": {"zh": "研究路径", "en": "Research path"},
+    "award.home.flow.title": {"zh": "让证据先于推荐出现。", "en": "Put evidence before recommendation."},
+    "award.home.flow.copy": {"zh": "每一步都从市场与样本出发，再走向可解释的策略比较和结果浏览。", "en": "Each step begins with market and sample context, then moves to interpretable strategy comparison and result review."},
+    "award.home.flow.market": {"zh": "选择市场", "en": "Choose market"},
+    "award.home.flow.target": {"zh": "定义标的", "en": "Define target"},
+    "award.home.flow.experiment": {"zh": "运行实验", "en": "Run experiment"},
+    "award.home.flow.evidence": {"zh": "检查证据", "en": "Inspect evidence"},
+    "award.home.flow.footnote": {"zh": "策略建议只有在能回溯到样本、指标与失败记录时才有意义。", "en": "A strategy recommendation only matters when it can be traced to samples, metrics, and failure records."},
+    "award.home.support.single.title": {"zh": "单股研究", "en": "Single-stock research"},
+    "award.home.support.single.copy": {"zh": "为一个具体标的建立市场、数据与策略上下文，再进入完整工作流。", "en": "Build market, data, and strategy context for one specific target before entering the full workflow."},
+    "award.home.support.single.cta": {"zh": "浏览研究证据", "en": "Browse research evidence"},
+    "award.home.support.multi.title": {"zh": "股票池与组合", "en": "Stock pools and portfolios"},
+    "award.home.support.multi.copy": {"zh": "把搜索、推荐与上传来源合并为一个可管理的比较股票池。", "en": "Combine search, recommendations, and uploads into one manageable comparison universe."},
+    "award.home.support.unified.title": {"zh": "统一的结论边界", "en": "One boundary for conclusions"},
+    "award.home.support.unified.copy": {"zh": "入口页负责定义问题；分析页和只读研究页负责展示结果、证据与局限。", "en": "Entry pages define the question; analysis and read-only research pages present results, evidence, and limits."},
+    "award.entry.step.market": {"zh": "市场", "en": "Market"},
+    "award.entry.single.kicker": {"zh": "单股研究入口", "en": "Single-stock research entry"},
+    "award.entry.single.title": {"zh": "单股策略分析", "en": "Single-Stock Strategy Analysis"},
+    "award.entry.single.copy": {"zh": "按市场、标的与数据的顺序组织研究上下文；右侧始终保留市场快照和推荐来源作为判断依据。", "en": "Organize research context in market, target, and data order; keep the market snapshot and recommendation source visible on the right."},
+    "award.entry.multi.kicker": {"zh": "多股研究入口", "en": "Multi-stock research entry"},
+    "award.entry.multi.title": {"zh": "多股策略分析", "en": "Multi-Stock Strategy Analysis"},
+    "award.entry.multi.copy": {"zh": "搜索、推荐和上传数据汇入同一个股票池；进入分析后再做比较、组合模拟和结果解释。", "en": "Search, recommendations, and uploads enter one stock universe; comparison, portfolio simulation, and interpretation follow in analysis."},
+    "award.entry.actionCard": {"zh": "研究设置", "en": "Research setup"},
+    "award.entry.showcaseBoard": {"zh": "市场证据板", "en": "Market evidence board"},
+    "award.entry.step.target": {"zh": "标的", "en": "Target"},
+    "award.entry.step.data": {"zh": "数据", "en": "Data"},
+    "award.entry.step.analyze": {"zh": "开始分析", "en": "Analyze"},
+    "award.entry.marketEmpty": {"zh": "暂无可展示的市场快照。", "en": "No market snapshot is available right now."},
+    "award.entry.recommendationSource": {"zh": "推荐来源", "en": "Recommendation source"},
+    "award.entry.quote": {"zh": "现价 {price} · 涨跌 {change}", "en": "Price {price} · Change {change}"},
+    "award.entry.heatQuote": {"zh": "热度 {heat} · 涨跌 {change}", "en": "Heat {heat} · Change {change}"},
+    "recommendation.source.hotSearchToday": {"zh": "百度股市通今日热搜", "en": "Baidu Finance hot searches today"},
+    "recommendation.source.aRealtimeMovers": {"zh": "A 股实时涨幅榜（热搜不可用）", "en": "A-share real-time movers (hot search unavailable)"},
+    "recommendation.source.usRealtimeMovers": {"zh": "知名美股实时涨幅榜（热搜不可用）", "en": "Real-time movers among well-known US stocks (hot search unavailable)"},
+    "recommendation.source.unavailable": {"zh": "暂时无法获取推荐股票", "en": "Recommended stocks are temporarily unavailable"},
+    "entry.csvRequirements.trigger": {"zh": "查看标准化 CSV 数据要求", "en": "View standardized CSV requirements"},
+    "entry.csvRequirements.title": {"zh": "上传文件需要满足什么格式？", "en": "What format should the uploaded file use?"},
+    "entry.csvRequirements.body": {
+        "zh": "- 必需列：`date`、`open`、`high`、`low`、`close`、`volume`。\n- `date` 必须是可解析的交易日期；系统会按日期升序排列，同日重复记录保留最后一条。\n- 开盘、最高、最低和收盘价必须为正数且不能缺失；成交量必须非负，标准单位为“股”。\n- 支持常见别名，例如 `trade_date`、`datetime`、`日期`、`开盘`、`最高`、`最低`、`收盘`、`vol`、`成交量`。\n- 如果 A 股来源以“手”记录成交量，请先乘以 100 转换为“股”。",
+        "en": "- Required columns: `date`, `open`, `high`, `low`, `close`, and `volume`.\n- `date` must be a parseable trading date. Rows are sorted ascending, and the last duplicate for a date is kept.\n- Open, high, low, and close must be positive and non-missing. Volume must be non-negative and expressed in shares.\n- Common aliases are accepted, including `trade_date`, `datetime`, `日期`, `开盘`, `最高`, `最低`, `收盘`, `vol`, and `成交量`.\n- If an A-share source reports volume in lots, multiply it by 100 before uploading."
+    },
+    "entry.csvRequirements.source": {
+        "zh": "一般可从券商客户端、行情终端或数据平台导出日线历史行情 CSV；上传更适合自有、清洗后或离线数据。",
+        "en": "Daily historical CSV files can usually be exported from a broker, market terminal, or data provider. Uploads are best suited to proprietary, cleaned, or offline data."
+    },
+    "award.entry.importId": {"zh": "导入标识：{symbol}", "en": "Import ID: {symbol}"},
+    "award.entry.selectionSource": {"zh": "来源：搜索或推荐", "en": "Source: search or recommendation"},
+    "award.entry.poolCount": {"zh": "当前待分析数量：{total} 个标的（手动或推荐 {selected} 个，上传 {uploaded} 个）。", "en": "Ready to analyze: {total} instruments ({selected} selected or recommended, {uploaded} uploaded)."},
+    "award.common.noData": {"zh": "暂无数据", "en": "N/A"},
 }
 
 def set_ui_language(language: str) -> None:
-    _ = language
-    st.session_state[UI_LANGUAGE_STATE_KEY] = "en"
-    st.query_params["lang"] = "en"
+    normalized = _normalize_ui_language(language)
+    st.session_state[UI_LANGUAGE_STATE_KEY] = normalized
+    try:
+        if _normalize_ui_language(st.query_params.get("lang"), default="") != normalized:
+            st.query_params["lang"] = normalized
+    except (AttributeError, KeyError, TypeError):
+        pass
 
 def get_ui_language() -> str:
-    st.session_state[UI_LANGUAGE_STATE_KEY] = "en"
-    st.query_params["lang"] = "en"
-    return "en"
+    query_language = ""
+    try:
+        query_value = st.query_params.get("lang")
+        if isinstance(query_value, (list, tuple)):
+            query_value = query_value[-1] if query_value else ""
+        query_language = _normalize_ui_language(query_value, default="")
+    except (AttributeError, KeyError, TypeError):
+        pass
+
+    if query_language:
+        st.session_state[UI_LANGUAGE_STATE_KEY] = query_language
+        return query_language
+
+    session_language = _normalize_ui_language(
+        st.session_state.get(UI_LANGUAGE_STATE_KEY),
+        default="en",
+    )
+    st.session_state[UI_LANGUAGE_STATE_KEY] = session_language
+    return session_language
+
+def _normalize_ui_language(language: object, *, default: str = "en") -> str:
+    normalized = str(language or "").strip().lower().replace("_", "-")
+    if normalized.startswith("zh"):
+        return "zh"
+    if normalized.startswith("en"):
+        return "en"
+    return default
 
 def tr(key: str, **kwargs) -> str:
     lang = get_ui_language()

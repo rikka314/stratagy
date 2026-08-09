@@ -292,6 +292,138 @@ def style_analysis_figure(
     return fig
 
 
+def create_news_ablation_chart(
+    news_ablation: pd.DataFrame | list[dict[str, Any]],
+    *,
+    height: int = 460,
+) -> go.Figure:
+    """Compare news-weight performance and coverage without hiding data quality."""
+    frame = pd.DataFrame(news_ablation).copy()
+    required = {"market", "news_weight", "lookback_days"}
+    if frame.empty or not required.issubset(frame.columns):
+        return create_empty_state_chart("No news ablation data available", height=height)
+
+    frame["market"] = frame["market"].astype(str).str.strip().str.upper()
+    frame = frame[frame["market"].isin({"US", "CN_A"})].copy()
+    for column in (
+        "news_weight",
+        "lookback_days",
+        "net_total_return",
+        "total_return",
+        "max_drawdown",
+        "sharpe",
+        "coverage_rate",
+        "fallback_position_match_rate",
+    ):
+        if column not in frame.columns:
+            frame[column] = np.nan
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    frame["net_return_display"] = frame["net_total_return"].fillna(frame["total_return"])
+    frame = frame.dropna(subset=["news_weight"])
+    if frame.empty:
+        return create_empty_state_chart("No valid news ablation rows available", height=height)
+
+    tokens = get_plotly_theme_tokens()
+    colors = tokens["color_sequence"]
+    dashes = ("solid", "dash", "dot", "dashdot")
+    fig = make_subplots(
+        rows=1,
+        cols=3,
+        horizontal_spacing=0.075,
+        subplot_titles=("Net return", "Sharpe", "News coverage"),
+    )
+
+    grouped = frame.sort_values(["market", "lookback_days", "news_weight"]).groupby(
+        ["market", "lookback_days", "base_strategy_id"]
+        if "base_strategy_id" in frame.columns
+        else ["market", "lookback_days"],
+        dropna=False,
+        sort=True,
+    )
+    for index, (group_key, group) in enumerate(grouped):
+        key_parts = group_key if isinstance(group_key, tuple) else (group_key,)
+        market = str(key_parts[0])
+        lookback = _format_axis_tick(float(key_parts[1])) if len(key_parts) > 1 and pd.notna(key_parts[1]) else "N/A"
+        strategy = str(key_parts[2]) if len(key_parts) > 2 and pd.notna(key_parts[2]) else ""
+        label = f"{market} · {lookback}d" + (f" · {strategy}" if strategy else "")
+        color = colors[index % len(colors)]
+        dash = dashes[index % len(dashes)]
+        customdata = np.column_stack(
+            [
+                group["max_drawdown"].to_numpy(),
+                group["coverage_rate"].to_numpy(),
+                group["fallback_position_match_rate"].to_numpy(),
+            ]
+        )
+        common = dict(
+            x=group["news_weight"],
+            mode="lines+markers",
+            name=label,
+            legendgroup=label,
+            line=dict(color=color, width=2.2, dash=dash),
+            marker=dict(size=7, color=color),
+        )
+        fig.add_trace(
+            go.Scatter(
+                **common,
+                y=group["net_return_display"],
+                customdata=customdata,
+                hovertemplate=(
+                    "Weight %{x:.0%}<br>Net return %{y:.2%}<br>"
+                    "Max drawdown %{customdata[0]:.2%}<br>Coverage %{customdata[1]:.1%}<extra>%{fullData.name}</extra>"
+                ),
+                showlegend=True,
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                **common,
+                y=group["sharpe"],
+                hovertemplate="Weight %{x:.0%}<br>Sharpe %{y:.2f}<extra>%{fullData.name}</extra>",
+                showlegend=False,
+            ),
+            row=1,
+            col=2,
+        )
+        fig.add_trace(
+            go.Scatter(
+                **common,
+                y=group["coverage_rate"],
+                customdata=customdata,
+                hovertemplate=(
+                    "Weight %{x:.0%}<br>Coverage %{y:.1%}<br>"
+                    "Fallback match %{customdata[2]:.1%}<extra>%{fullData.name}</extra>"
+                ),
+                showlegend=False,
+            ),
+            row=1,
+            col=3,
+        )
+
+    fig = apply_plotly_theme(
+        fig,
+        height=height,
+        margin=dict(l=18, r=18, t=72, b=34),
+        hovermode="closest",
+    )
+    fig.update_layout(
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.08,
+            xanchor="left",
+            x=0,
+        )
+    )
+    fig.update_xaxes(title_text="News weight", tickformat=".0%", showgrid=True)
+    fig.update_yaxes(tickformat=".1%", row=1, col=1)
+    fig.update_yaxes(tickformat=".2f", row=1, col=2)
+    fig.update_yaxes(tickformat=".1%", range=[0, 1.02], row=1, col=3)
+    return fig
+
+
 def compute_chart_view_range(
     chart_df: pd.DataFrame,
     period_key: str,
@@ -321,6 +453,19 @@ def compute_drawdown_series(equity_series: pd.Series) -> pd.Series:
     if equity.empty:
         return equity
     return equity / equity.cummax() - 1.0
+
+
+def _hide_invalid_legend_entries(fig: go.Figure) -> None:
+    """Keep incomplete Plotly trace/shape metadata out of the visible legend."""
+    invalid_names = {"", "undefined", "none", "nan"}
+    for trace in fig.data:
+        name = str(getattr(trace, "name", "") or "").strip().casefold()
+        if name in invalid_names:
+            trace.showlegend = False
+    for shape in fig.layout.shapes or ():
+        name = str(getattr(shape, "name", "") or "").strip().casefold()
+        if bool(getattr(shape, "showlegend", False)) and name in invalid_names:
+            shape.showlegend = False
 
 
 def create_candlestick_chart(
@@ -424,6 +569,7 @@ def create_candlestick_chart(
                     borderpad=4,
                 )
 
+    _hide_invalid_legend_entries(candle)
     return candle
 
 
@@ -671,6 +817,7 @@ def create_candlestick_indicator_chart(
             yaxis2=dict(title="", domain=[0.0, 0.22], anchor="x", showgrid=False, visible=False),
         )
 
+    _hide_invalid_legend_entries(fig)
     return fig
 
 

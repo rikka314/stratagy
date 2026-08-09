@@ -1,0 +1,18 @@
+{
+  "name": "smoke_cn_a_deans_gate1",
+  "market": "CN_A",
+  "adjust": "qfq",
+  "output_subdir": "smoke_cn_a_deans_gate1",
+  "smoke_mode": true,
+  "smoke_symbols": ["600519"],
+  "selected_model_ids": ["naive"],
+  "run_stage_b": false,
+  "run_robustness": false,
+  "parallelism": 1,
+  "main_window_days": 252,
+  "minimum_window_days": 252,
+  "allow_short_main_window": true,
+  "profile_lookback_days": 252,
+  "commission_bps": 3,
+  "slippage_bps": 5
+}

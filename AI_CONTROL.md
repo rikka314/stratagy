@@ -46,7 +46,6 @@
 | 改单股工作流 | `strategy-single-stock-workflow` | `StrategyRequest`、artifact、stage cache、lineage、结果板 |
 | 改多股分析和组合 | `strategy-multi-stock` | 股票池、组合模拟、市场上下文、多股结果区 |
 | 改部署 | `strategy-deploy` | `/strategy` 子路径、Nginx、上传脚本、systemd |
-| 拆周计划 | `week-plan` | 周任务拆分、AI 分工、执行顺序建议 |
 
 ## 4. 最推荐的发指令方式
 

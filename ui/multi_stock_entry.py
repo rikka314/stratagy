@@ -14,7 +14,7 @@ import streamlit as st
 from ui.i18n import tr
 
 from core.data import search_stock_candidates
-from core.market_context import get_market_context_snapshot
+from core.market_context import RECOMMENDATION_SOURCE_I18N_KEYS, get_market_context_snapshot
 from ui.theme import render_html, render_status_note
 
 
@@ -53,28 +53,40 @@ def _sanitize_upload_symbol(filename: str, fallback_index: int) -> str:
     return stem[:24]
 
 
-def _render_surface_header(kicker: str, title: str, copy: str) -> None:
-    render_html(
-        f"""
-<div class="surface-kicker">{html.escape(kicker)}</div>
-<div class="surface-title">{html.escape(title)}</div>
-<p class="surface-copy">{html.escape(copy)}</p>
-        """
-    )
+def _render_surface_header(kicker: str | None, title: str, copy: str | None = None) -> None:
+    parts = []
+    if kicker:
+        parts.append(f'<div class="surface-kicker">{html.escape(kicker)}</div>')
+    parts.append(f'<div class="surface-title">{html.escape(title)}</div>')
+    if copy:
+        parts.append(f'<p class="surface-copy">{html.escape(copy)}</p>')
+    render_html("".join(parts))
 
 
-def _render_section_header(title: str, copy: str) -> None:
-    render_html(
-        f"""
-<div class="entry-section-title">{html.escape(title)}</div>
-<p class="entry-section-copy">{html.escape(copy)}</p>
-        """
-    )
+def _render_section_header(title: str, copy: str | None = None) -> None:
+    parts = [f'<div class="entry-section-title">{html.escape(title)}</div>']
+    if copy:
+        parts.append(f'<p class="entry-section-copy">{html.escape(copy)}</p>')
+    render_html("".join(parts))
+
+
+def _render_csv_requirements_popover() -> None:
+    with st.container(key="multi-csv-requirements"):
+        with st.popover(tr("entry.csvRequirements.trigger")):
+            st.markdown(f"**{tr('entry.csvRequirements.title')}**")
+            st.markdown(tr("entry.csvRequirements.body"))
+            st.code(
+                "date,open,high,low,close,volume\n"
+                "2026-08-05,100.20,102.10,99.80,101.60,1250000\n"
+                "2026-08-06,101.70,103.00,100.90,102.40,1380000",
+                language="csv",
+            )
+            st.caption(tr("entry.csvRequirements.source"))
 
 
 def _render_snapshot(indices: list[dict[str, Any]]) -> None:
     if not indices:
-        render_status_note(tr("data.market.loading"), tone="info")
+        render_status_note(tr("award.entry.marketEmpty"), tone="warning")
         return
 
     blocks = []
@@ -87,13 +99,33 @@ def _render_snapshot(indices: list[dict[str, Any]]) -> None:
         blocks.append(
             f"""
 <div class="snapshot-item">
-  <span class="snapshot-label">{html.escape(item['label'])}</span>
-  <span class="snapshot-value">{html.escape(item['close_text'])}</span>
-  <span class="snapshot-delta {delta_class}">{html.escape(item['pct_text'])}</span>
+  <span class="snapshot-label">{html.escape(str(item.get('label') or tr('award.common.noData')))}</span>
+  <span class="snapshot-value">{html.escape(str(item.get('close_text') or tr('award.common.noData')))}</span>
+  <span class="snapshot-delta {delta_class}">{html.escape(str(item.get('pct_text') or tr('award.common.noData')))}</span>
 </div>
             """
         )
     st.markdown(f"<div class='snapshot-grid'>{''.join(blocks)}</div>", unsafe_allow_html=True)
+
+
+def _recommendation_source_text(context: dict[str, Any]) -> str:
+    source_kind = str(context.get("recommendation_source_kind") or "").strip()
+    translation_key = RECOMMENDATION_SOURCE_I18N_KEYS.get(source_kind)
+    if translation_key:
+        return tr(translation_key)
+    return str(context.get("recommendation_source") or tr("award.common.noData"))
+
+
+def _recommendation_meta_text(item: dict[str, Any]) -> str:
+    heat_text = item.get("heat_text")
+    change_text = str(item.get("pct_text") or tr("award.common.noData"))
+    if heat_text:
+        return tr("award.entry.heatQuote", heat=str(heat_text), change=change_text)
+    return tr(
+        "award.entry.quote",
+        price=str(item.get("price_text") or tr("award.common.noData")),
+        change=change_text,
+    )
 
 
 def _render_recommendation_rows(recommendations: list[dict[str, Any]]) -> None:
@@ -104,12 +136,17 @@ def _render_recommendation_rows(recommendations: list[dict[str, Any]]) -> None:
     with st.container(key="multi-recommend-scroll"):
         for item in recommendations:
             info_col, action_col = st.columns([5.9, 0.95], gap="small")
+            symbol = str(item.get("symbol") or "").strip()
             info_col.markdown(
-                f"<div class='recommend-row'><div class='recommend-row-title'>{html.escape(item['symbol'])} · {html.escape(item['name'])}</div><div class='recommend-row-meta'>现价 {html.escape(item['price_text'])} · 涨跌 {html.escape(item['pct_text'])}</div></div>",
+                f"<div class='recommend-row'><div class='recommend-row-title'>{html.escape(symbol or tr('award.common.noData'))} · {html.escape(str(item.get('name') or tr('award.common.noData')))}</div><div class='recommend-row-meta'>{html.escape(_recommendation_meta_text(item))}</div></div>",
                 unsafe_allow_html=True,
             )
-            if action_col.button(tr("action.add"), key=f"multi_entry_rec_{item['symbol']}"):
-                _add_symbol_to_selection(item["symbol"])
+            if symbol and action_col.button(
+                tr("action.add"),
+                key=f"multi_entry_rec_{symbol}",
+                type="primary",
+            ):
+                _add_symbol_to_selection(symbol)
                 st.rerun()
 
 
@@ -122,7 +159,7 @@ def _render_uploaded_file_rows(uploaded_files) -> None:
         for index, uploaded_file in enumerate(uploaded_files, start=1):
             symbol = _sanitize_upload_symbol(uploaded_file.name, index)
             st.markdown(
-                f"<div class='upload-row'><div class='upload-row-title'>{html.escape(uploaded_file.name)}</div><div class='upload-row-meta'>导入标识：{html.escape(symbol)}</div></div>",
+                f"<div class='upload-row'><div class='upload-row-title'>{html.escape(uploaded_file.name)}</div><div class='upload-row-meta'>{html.escape(tr('award.entry.importId', symbol=symbol))}</div></div>",
                 unsafe_allow_html=True,
             )
 
@@ -136,7 +173,7 @@ def _render_selected_symbol_rows(selected_symbols: list[str]) -> None:
         for symbol in selected_symbols:
             info_col, action_col = st.columns([6.0, 0.95], gap="small")
             info_col.markdown(
-                f"<div class='selection-row'><div class='selection-row-title'>{html.escape(symbol)}</div><div class='selection-row-meta'>来源：搜索或推荐加入</div></div>",
+                f"<div class='selection-row'><div class='selection-row-title'>{html.escape(symbol)}</div><div class='selection-row-meta'>{html.escape(tr('award.entry.selectionSource'))}</div></div>",
                 unsafe_allow_html=True,
             )
             if action_col.button(tr("common.remove"), key=f"multi_entry_remove_{symbol}"):
@@ -157,22 +194,20 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
     render_html(
         f"""
 <section class="entry-intro">
-  <div class="page-kicker">{tr("entry.multi.routeKicker")}</div>
-  <h1 class="entry-title">{tr("entry.multi.title")}</h1>
-  <p class="entry-copy">{tr("entry.multi.copy")}</p>
+  <h1 class="entry-title">{tr("award.entry.multi.title")}</h1>
 </section>
         """
     )
 
     selected_action: dict[str, Any] | None = None
-    left_col, right_col = st.columns([1.03, 0.97], gap="large")
+    with st.container(key="multi-entry-split"):
+        left_col, right_col = st.columns([1.02, 0.98], gap="large")
 
     with left_col:
         with st.container(key="multi-action-card"):
             _render_surface_header(
-                tr("surface.actionCard"),
-                tr("action.organizeStockPool"),
-                tr("ui.mainOperationCard.desc"),
+                None,
+                tr("action.selectStocks"),
             )
 
             market = st.segmented_control(
@@ -192,7 +227,6 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
             _render_section_header(
                 tr("action.search_and_add_stocks"),
-                tr("search.instructions"),
             )
 
             search_query = st.text_input(
@@ -226,10 +260,11 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
                     render_status_note(tr("stockPool.addByTicker"), tone="info")
                 else:
                     render_status_note(tr("search.noMatchingStocks"), tone="warning")
-            else:
-                st.caption(tr("stock_pool.candidates_hint"))
-
-            if st.button(tr("stockPool.addAction"), use_container_width=True):
+            if st.button(
+                tr("stockPool.addAction"),
+                type="primary",
+                use_container_width=True,
+            ):
                 selected_symbol = st.session_state.get(MULTI_ENTRY_SELECTED_SYMBOL_KEY)
                 if not selected_symbol:
                     render_status_note(tr("stock.selectionFromSearchPrompt"), tone="warning")
@@ -240,8 +275,8 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
             _render_section_header(
                 tr("data.upload.multipleCSV"),
-                tr("import.csv.description"),
             )
+            _render_csv_requirements_popover()
 
             uploaded_files = st.file_uploader(
                 tr("upload.multi_csv_title"),
@@ -249,28 +284,18 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
                 accept_multiple_files=True,
                 key="multi_entry_upload_files",
                 help=tr("data.csvFormat"),
+                label_visibility="collapsed",
             )
             _render_uploaded_file_rows(uploaded_files)
 
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
-            _render_section_header(
-                tr("section.currentSelectedStocks"),
-                tr("comparison.stockList.description"),
-            )
-
             selected_symbols = _ensure_selected_list()
-            _render_selected_symbol_rows(selected_symbols)
-
-            upload_count = len(uploaded_files or [])
-            total_count = len(selected_symbols) + upload_count
-            render_html(
-                f"""
-<p class="selection-note">
-  当前待分析数量：<strong>{total_count}</strong> 个标的
-  （手动/推荐 {len(selected_symbols)} 个，上传 {upload_count} 个）。
-</p>
-                """
-            )
+            with st.container(key="multi-selected-stock-popover"):
+                with st.popover(tr("section.currentSelectedStocks")):
+                    if selected_symbols:
+                        _render_selected_symbol_rows(selected_symbols)
+                    else:
+                        st.caption(tr("award.common.noData"))
 
             if st.button(tr("action.startMultiStockAnalysis"), type="primary", use_container_width=True):
                 uploads = []
@@ -294,56 +319,49 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
                         "uploads": uploads,
                     }
 
-            render_html(
-                f"""
-<p class="plain-helper">{tr("entry.multi.helper")}</p>
-                """
-            )
-
     if selected_action is not None:
         return selected_action
 
     with right_col:
         with st.container(key="multi-showcase-board"):
             _render_surface_header(
-                tr("surface.showcaseBoard"),
-                tr("market.snapshotTitle"),
-                tr("ui.context_display_area"),
+                tr("award.entry.showcaseBoard"),
+                tr("section.market_snapshot_and_entry"),
             )
-            market_col, refresh_col = st.columns([1.0, 0.34], gap="small")
-            with market_col:
-                _render_section_header(
-                    tr("section.title.marketSnapshot"),
-                    tr("workflow.marketSnapshotFirst"),
-                )
-            with refresh_col:
-                refresh_context = st.button(
-                    tr("action.refreshMarketSnapshot"),
-                    key="multi_entry_refresh_market_context",
-                    use_container_width=False,
-                )
+            with st.container(key="multi-market-heading-row"):
+                market_col, refresh_col = st.columns([0.6, 1.4], gap="small")
+                with market_col:
+                    _render_section_header(tr("section.title.marketSnapshot"))
+                with refresh_col:
+                    with st.container(key="multi-refresh-market-context"):
+                        refresh_context = st.button(
+                            tr("action.refreshMarketSnapshot"),
+                            key="multi_entry_refresh_market_context",
+                            type="primary",
+                            use_container_width=True,
+                        )
 
             try:
                 context = get_market_context_snapshot(market, force_refresh=refresh_context)
             except Exception as exc:
                 context = {
                     "indices": [],
+                    "recommendation_source_kind": "unavailable",
                     "recommendation_source": tr("status.marketSnapshotUnavailable"),
                     "recommendations": [],
                 }
                 render_status_note(tr("entry.marketSnapshotFailed", error=str(exc)), tone="warning")
 
-            _render_snapshot(context["indices"])
+            _render_snapshot(context.get("indices") or [])
             st.markdown(
-                f"<p class='source-note'>当前推荐口径：<strong>{html.escape(context['recommendation_source'])}</strong></p>",
+                f"<p class='source-note'>{html.escape(tr('award.entry.recommendationSource'))}: <strong>{html.escape(_recommendation_source_text(context))}</strong></p>",
                 unsafe_allow_html=True,
             )
 
             with st.container(key="multi-recommend-sheet"):
                 _render_section_header(
                     tr("recommendation.stocks"),
-                    tr("ui.recommendationArea.spec"),
                 )
-                _render_recommendation_rows(context["recommendations"])
+                _render_recommendation_rows(context.get("recommendations") or [])
 
     return selected_action

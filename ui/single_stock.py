@@ -25,10 +25,11 @@ from plotly.subplots import make_subplots
 
 from core.backtest import max_drawdown, sharpe_ratio, walk_forward_backtest
 from core.adaptive_regime import ADAPTIVE_REGIME_KIND
-from core.data import get_stock_label_map, search_stock_candidates
+from core.data import load_a_stock_catalog, load_us_stock_catalog, search_stock_candidates
 from core.evaluation import build_comparison_table
 from core.indicators import add_indicators as _add_indicators_core
 from core.news_factor import DEFAULT_NEWS_FACTOR_PATH
+from core.perf import performance_span
 from core.utils import format_pct
 from core.visualization import (
     _build_axis_transform,
@@ -77,6 +78,8 @@ STRATEGY_RESULT_MODE_KEY = "single_stock_strategy_result_mode"
 WORKSPACE_DETAIL_VIEW_KEY = "single_stock_workspace_detail_view"
 COMPARE_DETAIL_VIEW_KEY = "single_stock_compare_detail_view"
 ANALYSIS_SECTION_KEY = "single_stock_analysis_section"
+HEADER_DETAILS_KEY = "single_stock_header_details_expanded"
+SINGLE_DISPLAY_CACHE_KEY = "single_stock_display_cache"
 WORKFLOW_REQUEST_STATE_KEYS = (
     "single_stock_workflow_family",
     "single_stock_workflow_baseline_kind",
@@ -125,20 +128,21 @@ def add_indicators(
     indicator_period: int = 20,
 ) -> pd.DataFrame:
     """Cached wrapper around core add_indicators – avoids recomputing on every Streamlit rerun."""
-    return _add_indicators_core(
-        df,
-        rsi_period=rsi_period,
-        macd_fast=macd_fast,
-        macd_slow=macd_slow,
-        macd_signal=macd_signal,
-        ema_fast=ema_fast,
-        ema_slow=ema_slow,
-        adx_period=adx_period,
-        atr_period=atr_period,
-        bb_period=bb_period,
-        bb_std=bb_std,
-        indicator_period=indicator_period,
-    )
+    with performance_span("single", "indicators"):
+        return _add_indicators_core(
+            df,
+            rsi_period=rsi_period,
+            macd_fast=macd_fast,
+            macd_slow=macd_slow,
+            macd_signal=macd_signal,
+            ema_fast=ema_fast,
+            ema_slow=ema_slow,
+            adx_period=adx_period,
+            atr_period=atr_period,
+            bb_period=bb_period,
+            bb_std=bb_std,
+            indicator_period=indicator_period,
+        )
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -322,11 +326,55 @@ def _render_single_stock_snapshot_panel(
         f"""
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">当前技术快照</h4>
-  <p class="analysis-callout-copy">补足左下摘要区的空白，用当前指标、量能和区间位置快速回答“这只股票现在处在哪一段”。</p>
   <div class="board-micro-list">{snapshot_markup}</div>
 </div>
         """
     )
+
+
+def _localized_stock_names(
+    symbol: str,
+    market: str,
+    language: str,
+    *,
+    route_name: str = "",
+) -> tuple[str, str]:
+    """Return primary/secondary company names in the active language order."""
+    market_key = _normalize_market_key(market)
+    normalized_symbol = str(symbol or "").strip().upper()
+    english_name = ""
+    chinese_name = ""
+
+    if market_key == "A":
+        catalog = load_a_stock_catalog()
+        match = catalog[catalog["code"].astype(str) == normalized_symbol.zfill(6)[-6:]]
+        if not match.empty:
+            chinese_name = str(match.iloc[0].get("name") or "").strip()
+        english_name = normalized_symbol
+    else:
+        catalog = load_us_stock_catalog()
+        match = catalog[catalog["symbol"].astype(str).str.upper() == normalized_symbol]
+        if not match.empty:
+            english_name = str(match.iloc[0].get("name") or "").strip()
+            chinese_name = str(match.iloc[0].get("cname") or "").strip()
+
+    candidate_name = str(route_name or "").strip()
+    if candidate_name:
+        if any("\u4e00" <= char <= "\u9fff" for char in candidate_name):
+            chinese_name = chinese_name or candidate_name
+        else:
+            english_name = english_name or candidate_name
+
+    if chinese_name.casefold() == english_name.casefold():
+        chinese_name = ""
+
+    primary = chinese_name if language == "zh" and chinese_name else english_name
+    secondary = english_name if language == "zh" else chinese_name
+    primary = primary or chinese_name or normalized_symbol
+    secondary = secondary or normalized_symbol
+    if secondary.casefold() == primary.casefold():
+        secondary = normalized_symbol
+    return primary, secondary
 
 
 def _resolve_symbol_identity(symbol: str, market: str) -> dict[str, str]:
@@ -347,11 +395,16 @@ def _resolve_symbol_identity(symbol: str, market: str) -> dict[str, str]:
             "source_label": tr("action.uploadData"),
         }
 
-    label_map = get_stock_label_map([symbol], market=market_key)
-    full_label = label_map.get(symbol, symbol)
-    display_name = full_label
-    if full_label.startswith(f"{symbol} "):
-        display_name = full_label[len(symbol) + 1 :].strip() or symbol
+    display_name, secondary_name = _localized_stock_names(
+        symbol,
+        market_key,
+        get_ui_language(),
+        route_name=str(route_state.get("name") or ""),
+    )
+    display_parts = [secondary_name]
+    if symbol.casefold() not in {display_name.casefold(), secondary_name.casefold()}:
+        display_parts.append(symbol)
+    full_label = " · ".join(display_parts)
 
     return {
         "symbol": symbol,
@@ -433,59 +486,75 @@ def _render_single_stock_header(
             """
         )
 
+    details_expanded = bool(st.session_state.get(HEADER_DETAILS_KEY, False))
+    details_label = tr("analysis.hide_details") if details_expanded else tr("analysis.show_details")
+    details_icon = ":material/expand_less:" if details_expanded else ":material/expand_more:"
+
     with st.container(key="single-stock-analysis-hero"):
-        render_html(
-            f"""
-<div class="analysis-hero-topline">
-  <span class="analysis-pill accent">{tr("analysis.singleInstrument")}</span>
-  <span class="analysis-pill">{html.escape(identity['market_label'])}</span>
-  <span class="analysis-pill">{html.escape(identity['source_label'])}</span>
-  <span class="analysis-pill {('positive' if (_safe_float(change_pct) or 0) > 0 else 'negative' if (_safe_float(change_pct) or 0) < 0 else '')}">{html.escape(_format_signed_pct(change_pct))}</span>
+        with st.container(key="single-stock-hero-compact"):
+            identity_col, range_col, toggle_col = st.columns([1.1, 0.9, 0.28], gap="medium", vertical_alignment="center")
+            with identity_col:
+                render_html(
+                    f"""
+<div class="analysis-compact-identity">
+  <h1 class="analysis-title">{html.escape(identity['display_name'])}</h1>
+  <div class="analysis-subtitle">{html.escape(identity['display_label'])}</div>
 </div>
-            """
-        )
-        summary_col, quick_col = st.columns([1.08, 0.92], gap="large")
-        with summary_col:
+                    """
+                )
+            with range_col:
+                render_analysis_date_range_control(
+                    current_range=selected_range,
+                    key_prefix="single_stock",
+                    label=tr("time.range"),
+                    in_hero=True,
+                )
+            with toggle_col:
+                with st.container(key="single-stock-hero-toggle"):
+                    if st.button(
+                        details_label,
+                        key="single_stock_header_details_toggle",
+                        icon=details_icon,
+                    ):
+                        st.session_state[HEADER_DETAILS_KEY] = not details_expanded
+                        st.rerun()
+
+        if details_expanded:
             render_html(
                 f"""
-<h1 class="analysis-title">{html.escape(identity['display_name'])}</h1>
-<div class="analysis-subtitle">{html.escape(identity['display_label'])}</div>
-<div class="analysis-chart-meta">
-  <span class="analysis-chart-chip">训练截止 {html.escape(split_date)}</span>
-  <span class="analysis-chart-chip">当前标的 {html.escape(symbol)}</span>
+<div class="analysis-hero-details">
+  <div class="analysis-hero-topline">
+    <span class="analysis-pill accent">{tr("analysis.singleInstrument")}</span>
+    <span class="analysis-pill">{html.escape(identity['market_label'])}</span>
+    <span class="analysis-pill">{html.escape(identity['source_label'])}</span>
+    <span class="analysis-pill {('positive' if (_safe_float(change_pct) or 0) > 0 else 'negative' if (_safe_float(change_pct) or 0) < 0 else '')}">{html.escape(_format_signed_pct(change_pct))}</span>
+    <span class="analysis-pill">训练截止 {html.escape(split_date)}</span>
+    <span class="analysis-pill">当前标的 {html.escape(symbol)}</span>
+  </div>
+  <div class="analysis-quick-grid">{quick_markup}</div>
+  <div class="analysis-market-strip">{''.join(index_cards)}</div>
 </div>
                 """
             )
-            render_analysis_date_range_control(
-                current_range=selected_range,
-                key_prefix="single_stock",
-                label=tr("time.range"),
-                in_hero=True,
-            )
-        with quick_col:
-            render_html(f"<div class='analysis-quick-grid'>{quick_markup}</div>")
-        render_html(f"<div class='analysis-market-strip'>{''.join(index_cards)}</div>")
 
 
 def _render_single_stock_section_nav(*, symbol: str, market: str) -> str:
-    nav_col, switch_col = st.columns([1.85, 1.0], gap="small")
     section_default = _ensure_segmented_value(ANALYSIS_SECTION_KEY, ["basics", "strategy"], "basics")
-    with nav_col:
-        st.caption(tr("analysis.areaSwitch"))
-        section_view = st.segmented_control(
-            tr("analysis.areaSwitch"),
-            options=["basics", "strategy"],
-            format_func=lambda value: tr("panel.basicInfo") if value == "basics" else tr("common.strategy"),
-            default=section_default,
-            key=ANALYSIS_SECTION_KEY,
-            width="stretch",
-            label_visibility="collapsed",
-        ) or section_default
-    with switch_col:
-        st.caption(tr("stock.switch"))
-        with st.container(key="single-stock-switch-popover"):
-            with st.popover(tr("stock.switch"), use_container_width=True):
-                _render_switch_stock_popover(symbol=symbol, market=market)
+    with st.container(key="single-stock-section-nav"):
+        nav_col, switch_col = st.columns([1.0, 0.28], gap="small", vertical_alignment="center")
+        with nav_col:
+            section_view = st.segmented_control(
+                tr("analysis.areaSwitch"),
+                options=["basics", "strategy"],
+                format_func=lambda value: tr("panel.basicInfo") if value == "basics" else tr("common.strategy"),
+                default=section_default,
+                key=ANALYSIS_SECTION_KEY,
+                label_visibility="collapsed",
+            ) or section_default
+        with switch_col:
+            with st.container(key="single-stock-switch-popover"):
+                with st.popover(tr("stock.switch"), use_container_width=False):
+                    _render_switch_stock_popover(symbol=symbol, market=market)
     return section_view
 
 
@@ -527,10 +596,12 @@ def _render_switch_stock_popover(*, symbol: str, market: str) -> None:
 
 
 def _switch_single_stock_symbol(symbol: str, market: str) -> None:
+    st.session_state.pop(HEADER_DETAILS_KEY, None)
     st.session_state[SINGLE_ROUTE_STATE_KEY] = {
         "view": "analysis",
         "market": market,
         "symbol": symbol,
+        "name": None,
         "uploaded_name": None,
         "uploaded_bytes": None,
         "source": "switch",
@@ -595,7 +666,6 @@ def _render_basic_info_section(
 <div class="analysis-section-header">
   <div class="surface-kicker">{tr("panel.basicInfo")}</div>
   <h2 class="analysis-section-title">单股基础信息区</h2>
-  <p class="analysis-section-copy">左侧用文字快速交代当前标的状态，右侧保留高密度 K 线主图和指标小图，训练/测试边界在行情图里保持可见。</p>
 </div>
             """
         )
@@ -604,10 +674,6 @@ def _render_basic_info_section(
             render_html(
                 f"""
 <div class="analysis-kv-grid">{metrics_markup}</div>
-<div class="analysis-chart-meta">
-  <span class="analysis-chart-chip">标的 {html.escape(symbol)}</span>
-  <span class="analysis-chart-chip">显示名 {html.escape(identity['display_name'])}</span>
-</div>
                 """
             )
             _render_single_stock_snapshot_panel(
@@ -737,6 +803,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
     if was_reset:
         _reset_workflow_request_state()
         _reset_downstream_display_state()
+        st.session_state.pop(SINGLE_DISPLAY_CACHE_KEY, None)
     with page_top_slot:
         _render_single_stock_header(
             symbol=symbol,
@@ -761,7 +828,8 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
             rsi_lower=p["rsi_lower"],
         )
     else:
-        candle, ind_fig, score_fig, indicator_title = _build_market_visualizations(
+        candle, ind_fig, score_fig, indicator_title = _build_cached_market_visualizations(
+            context_key=context_key,
             df_raw=df_indicators[["date", "open", "high", "low", "close"] + (["volume"] if "volume" in df_indicators.columns else [])].copy(),
             indicator_kwargs=indicator_kwargs,
             artifact=current_artifact,
@@ -769,7 +837,6 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
             symbol=symbol,
             rsi_upper=p["rsi_upper"],
             rsi_lower=p["rsi_lower"],
-            render_controls=False,
         )
 
     page_state = "EMPTY"
@@ -800,7 +867,6 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
 <div class="analysis-section-header">
   <div class="surface-kicker">{tr("single.strategy.workspaceKicker")}</div>
   <h2 class="analysis-section-title">策略区</h2>
-  <p class="analysis-section-copy">{tr("single.strategy.workspaceCopy")}</p>
 </div>
             """
         )
@@ -813,12 +879,6 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
 <div class="analysis-section-header">
   <div class="surface-kicker">{tr("single.strategy.controlKicker")}</div>
   <h3 class="analysis-section-title">模型控制台</h3>
-  <p class="analysis-section-copy">{tr("single.strategy.controlCopy")}</p>
-</div>
-<div class="analysis-chart-meta">
-  <span class="analysis-chart-chip">训练 {split_idx} 行</span>
-  <span class="analysis-chart-chip">测试 {max(len(df_indicators) - split_idx, 0)} 行</span>
-  <span class="analysis-chart-chip">比例 {train_ratio:.0%}</span>
 </div>
                     """
                 )
@@ -829,20 +889,18 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                     value=float(train_ratio),
                     step=0.05,
                     key=TRAIN_RATIO_KEY,
-                    help=tr("data.split_chronological"),
+                    help=_strategy_train_ratio_help(),
                 )
-                render_status_note(tr("note.train_ratio_change_impact"), tone="info")
+                with st.container(key="single-stock-strategy-help-trigger"):
+                    if st.button(
+                        _strategy_copy("如何使用策略模块", "How to use the strategy module"),
+                        type="tertiary",
+                        key="single_stock_strategy_help",
+                    ):
+                        _render_strategy_module_help_dialog()
 
                 st.divider()
                 entry_status_slot = st.empty()
-                render_html(
-                    f"""
-<div class="analysis-subsurface">
-  <h4 class="analysis-callout-title">工作台入口</h4>
-  <p class="analysis-callout-copy">{tr("single.strategy.entryCopy")}</p>
-</div>
-                    """
-                )
                 selected_family = _render_workbench_entry(
                     total_rows=len(df_indicators),
                     split_idx=split_idx,
@@ -851,14 +909,6 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                 )
 
                 st.divider()
-                render_html(
-                    f"""
-<div class="analysis-subsurface">
-  <h4 class="analysis-callout-title">模型配置</h4>
-  <p class="analysis-callout-copy">{tr("single.strategy.configCopy")}</p>
-</div>
-                    """
-                )
                 request = _render_model_configuration_section(selected_family)
 
                 current_artifact = get_strategy_workspace().get("current_artifact")
@@ -875,55 +925,47 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                 )
 
                 st.divider()
-                render_html(
-                    f"""
-<div class="analysis-subsurface">
-  <h4 class="analysis-callout-title">生成与策略库</h4>
-  <p class="analysis-callout-copy">{tr("single.strategy.libraryCopy")}</p>
-</div>
-                    """
-                )
+                _render_strategy_library_heading()
                 request_path = _describe_request_pipeline(request)
                 if request_path:
                     render_status_note(tr("ui.label.currentPath") + request_path, tone="info")
 
                 generate_disabled = bool(missing_items) or (request.use_search and split_idx < 50)
-                if missing_items:
-                    render_status_note(tr("todo.list") + "；".join(missing_items), tone="warning")
-                elif request.use_search and split_idx < 50:
-                    render_status_note(tr("paramSearch.insufficientSamples"), tone="warning")
-                elif page_state == "REQUEST_DRAFT" and current_artifact is not None:
-                    render_status_note(tr("status.draftPending"), tone="warning")
-                else:
-                    render_status_note(tr("action.generateArtifact.note"), tone="positive")
+                with st.container(key="single-stock-generate-actions"):
+                    if missing_items:
+                        render_status_note(tr("todo.list") + "；".join(missing_items), tone="warning")
+                    elif request.use_search and split_idx < 50:
+                        render_status_note(tr("paramSearch.insufficientSamples"), tone="warning")
+                    elif page_state == "REQUEST_DRAFT" and current_artifact is not None:
+                        render_status_note(tr("status.draftPending"), tone="warning")
 
-                if st.button(tr("strategy.generate"), type="primary", disabled=generate_disabled, key="single_stock_generate_strategy"):
-                    effective_snapshot = (
-                        _apply_search_adj_overrides(params_snapshot)
-                        if request.family == "search"
-                        else params_snapshot
-                    )
-                    with st.spinner(tr("strategy.workflowGenerating")):
-                        pipeline_result = run_strategy_pipeline(
-                            context_key=context_key,
-                            request=request,
-                            request_params_snapshot=effective_snapshot,
-                            df_raw=df_raw,
-                            split_idx=split_idx,
-                            symbol=symbol,
+                    if st.button(tr("strategy.generate"), type="primary", disabled=generate_disabled, key="single_stock_generate_strategy"):
+                        effective_snapshot = (
+                            _apply_search_adj_overrides(params_snapshot)
+                            if request.family == "search"
+                            else params_snapshot
                         )
-                    for info_message in pipeline_result.info_messages:
-                        render_status_note(info_message, tone="info")
-                    if pipeline_result.artifact is not None:
-                        commit_current_artifact(pipeline_result.artifact)
-                        _set_downstream_display_state(pipeline_result.artifact)
-                        if pipeline_result.status == "success":
-                            render_status_note(f"已生成策略：{pipeline_result.artifact.display_label}", tone="positive")
+                        with st.spinner(tr("strategy.workflowGenerating")):
+                            pipeline_result = run_strategy_pipeline(
+                                context_key=context_key,
+                                request=request,
+                                request_params_snapshot=effective_snapshot,
+                                df_raw=df_raw,
+                                split_idx=split_idx,
+                                symbol=symbol,
+                            )
+                        for info_message in pipeline_result.info_messages:
+                            render_status_note(info_message, tone="info")
+                        if pipeline_result.artifact is not None:
+                            commit_current_artifact(pipeline_result.artifact)
+                            _set_downstream_display_state(pipeline_result.artifact)
+                            if pipeline_result.status == "success":
+                                render_status_note(f"已生成策略：{pipeline_result.artifact.display_label}", tone="positive")
+                            else:
+                                for warning_message in pipeline_result.warnings:
+                                    render_status_note(warning_message, tone="warning")
                         else:
-                            for warning_message in pipeline_result.warnings:
-                                render_status_note(warning_message, tone="warning")
-                    else:
-                        render_status_note(pipeline_result.error_message or tr("strategy.generation.failed"), tone="error")
+                            render_status_note(pipeline_result.error_message or tr("strategy.generation.failed"), tone="error")
 
                 workspace = get_strategy_workspace()
                 current_artifact = workspace.get("current_artifact")
@@ -952,7 +994,6 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
 <div class="analysis-section-header">
   <div class="surface-kicker">{tr("surface.resultBoard")}</div>
   <h3 class="analysis-section-title">策略结果区</h3>
-  <p class="analysis-section-copy">右侧只保留一个稳定展示板。默认查看当前策略，切到"策略比对"后保持同一布局，只替换结果内容，不再把比较图表散落到页面底部。</p>
 </div>
                     """
                 )
@@ -1335,6 +1376,104 @@ def _resolve_current_artifact_entry(
     )
 
 
+def _strategy_copy(zh: str, en: str) -> str:
+    return zh if get_ui_language() == "zh" else en
+
+
+def _strategy_train_ratio_help() -> str:
+    return _strategy_copy(
+        "按时间顺序切分训练集与测试集。修改比例会同步刷新行情图中的边界，并重建当前股票的策略工作区；未保存的当前结果和会话策略库会随上下文重置。",
+        "Splits training and test data chronologically. Changing the ratio refreshes the boundary on the chart and rebuilds the strategy workspace for this stock; the current result and in-session library reset with the context.",
+    )
+
+
+def _strategy_module_help_markup(language: str | None = None) -> str:
+    language = language or get_ui_language()
+    if language == "zh":
+        intro = "先选训练比例与模型路径，再补齐该路径的配置并点击“生成策略”。生成结果只会成为当前策略；保存后才进入会话策略库，供策略比对使用。"
+        steps = (
+            ("01", "选择路径", "Baseline 用于透明基准；Search 用于可调策略；Regime 用于状态切换。"),
+            ("02", "完成配置", "根据路径选择基础模型、搜索方法、可选新闻因子或 ML 过滤器。"),
+            ("03", "生成与保存", "生成当前策略，确认结果后保存到策略库；保存不会改变回测结果。"),
+            ("04", "策略比对", "至少勾选两条当前或已保存策略，再切换右侧“策略比对”。"),
+        )
+        models = (
+            ("Naive Baseline", "最透明、运行最快，适合检查买入持有基准。", "不响应趋势、波动或状态变化。"),
+            ("Mean Baseline", "用历史均值形成稳定参照，噪声较少。", "反应偏慢，趋势突变时容易滞后。"),
+            ("Drift Baseline", "能表达延续性趋势，解释直观。", "对趋势反转和异常起点较敏感。"),
+            ("Search · SM", "参数少、速度快、过拟合风险相对较低。", "状态表达较简单，可能遗漏复杂切换。"),
+            ("Search · FSM", "状态更丰富，适合研究多阶段行情。", "参数与搜索空间更大，需要更谨慎看待样本外表现。"),
+            ("Bayesian / Genetic / Random", "贝叶斯更省试验；遗传算法探索更广；随机搜索易复现。", "分别可能受先验、计算预算或采样效率限制。"),
+            ("Adaptive Regime", "按市场状态动态选择候选模型，适应性最强。", "依赖离线产物；缺失或损坏时会降级到 legacy 路径。"),
+            ("Legacy Regime", "路径稳定、便于复现和对照。", "状态定义固定，适应新行情的能力较弱。"),
+            ("News / ML 增强", "可加入新闻残差信号或预测过滤，提高信息维度。", "需要额外数据与样本；复杂度和过拟合风险更高。"),
+        )
+        section_models = "模型选择：优势与限制"
+        advantage = "优势"
+        limitation = "限制"
+    else:
+        intro = "Choose the train ratio and model path, complete that path's configuration, then click Generate Strategy. A generated result is only the current strategy; save it to the in-session library before using it in comparisons."
+        steps = (
+            ("01", "Choose a path", "Use Baseline for transparent references, Search for tunable strategies, and Regime for state switching."),
+            ("02", "Configure", "Choose the base model, search method, and optional news or ML filters required by the path."),
+            ("03", "Generate and save", "Generate the current strategy, review it, then save it to the library; saving does not change its backtest."),
+            ("04", "Compare", "Select at least two current or saved strategies, then switch the right board to Strategy Comparison."),
+        )
+        models = (
+            ("Naive Baseline", "Most transparent and fastest; useful as a buy-and-hold reference.", "Does not react to trend, volatility, or regime changes."),
+            ("Mean Baseline", "A stable historical-mean reference with less noise.", "Reacts slowly and may lag abrupt trend changes."),
+            ("Drift Baseline", "Captures trend continuation with straightforward interpretation.", "Sensitive to reversals and unusual starting points."),
+            ("Search · SM", "Fewer parameters, faster runs, and relatively lower overfitting risk.", "Simpler state representation may miss complex transitions."),
+            ("Search · FSM", "Richer states for studying multi-stage market behavior.", "Larger search space requires extra scrutiny of out-of-sample results."),
+            ("Bayesian / Genetic / Random", "Bayesian saves trials; genetic explores broadly; random search is easy to reproduce.", "They can be limited by priors, compute budget, or sampling efficiency."),
+            ("Adaptive Regime", "Dynamically routes among candidates by market state.", "Depends on offline artifacts and falls back to legacy routing when unavailable."),
+            ("Legacy Regime", "Stable, reproducible, and useful for controlled comparisons.", "Fixed state definitions adapt less readily to new conditions."),
+            ("News / ML add-ons", "Adds news residual signals or predictive filtering.", "Needs extra data and samples, with higher complexity and overfitting risk."),
+        )
+        section_models = "Model choices: strengths and limitations"
+        advantage = "Strength"
+        limitation = "Limitation"
+
+    step_markup = "".join(
+        f"<div class='strategy-help-step'><span>{html.escape(number)}</span><div><strong>{html.escape(title)}</strong><p>{html.escape(copy)}</p></div></div>"
+        for number, title, copy in steps
+    )
+    model_markup = "".join(
+        f"<tr><th>{html.escape(name)}</th><td><strong>{html.escape(advantage)}</strong>{html.escape(pro)}</td><td><strong>{html.escape(limitation)}</strong>{html.escape(con)}</td></tr>"
+        for name, pro, con in models
+    )
+    return f"""
+<div class="strategy-help-dialog">
+  <p class="strategy-help-intro">{html.escape(intro)}</p>
+  <div class="strategy-help-steps">{step_markup}</div>
+  <h4>{html.escape(section_models)}</h4>
+  <div class="strategy-help-table-wrap">
+    <table class="strategy-help-table"><tbody>{model_markup}</tbody></table>
+  </div>
+</div>
+    """
+
+
+def _render_strategy_module_help_dialog() -> None:
+    title = _strategy_copy("如何使用策略模块", "How to use the strategy module")
+
+    @st.dialog(title, width="large")
+    def _dialog() -> None:
+        render_html(_strategy_module_help_markup())
+
+    _dialog()
+
+
+def _render_strategy_library_heading() -> None:
+    title = _strategy_copy("生成与策略库", "Generate & Strategy Library")
+    tooltip = _strategy_copy(
+        "点击“生成策略”只会更新当前策略。确认结果后点击“保存当前策略”将它加入会话策略库；至少选择两条当前或已保存策略，再在右侧切换到“策略比对”。切换股票或训练比例会重建工作区。",
+        "Generate Strategy only updates the current strategy. After reviewing it, use Save Current Strategy to add it to the in-session library. Select at least two current or saved strategies, then switch the right board to Strategy Comparison. Changing the stock or train ratio rebuilds the workspace.",
+    )
+    with st.container(key="single-stock-strategy-library-heading"):
+        st.markdown(f"**{title}**", help=tooltip, width="content")
+
+
 def _render_workbench_entry(
     *,
     total_rows: int,
@@ -1342,8 +1481,6 @@ def _render_workbench_entry(
     df_indicators: pd.DataFrame,
     market: str,
 ) -> str | None:
-    st.caption(tr("strategy.generation_flow"))
-
     if pd.api.types.is_datetime64_any_dtype(df_indicators["date"]):
         date_range = f"{df_indicators['date'].min().date()} 到 {df_indicators['date'].max().date()}"
     else:
@@ -1374,7 +1511,6 @@ def _render_workbench_entry(
             key="single_stock_workflow_family",
         )
 
-    st.caption(tr("strategy.workflowSteps"))
     return family or None
 
 
@@ -1843,61 +1979,48 @@ def _build_market_visualizations(
     render_controls: bool,
 ) -> tuple[go.Figure, go.Figure, go.Figure, str]:
     period_key, chart_scope, indicator_view = _resolve_market_visualization_state(render_controls=render_controls)
-    chart_df = _prepare_chart_dataframe(df_raw, indicator_kwargs, period_key)
-    scope_note = ""
-    if chart_scope == "train":
-        filtered = chart_df[chart_df["date"] <= split_date].copy()
-        if filtered.empty:
-            scope_note = tr("training.insufficient_samples_fallback")
-        else:
-            chart_df = filtered
-
-    visible_range = compute_chart_view_range(chart_df, period_key)
-    latest_close = _format_decimal(chart_df["close"].iloc[-1]) if not chart_df.empty else "N/A"
-    ema_fast_value = _format_decimal(chart_df["ema_fast"].iloc[-1]) if "ema_fast" in chart_df.columns and not chart_df["ema_fast"].isna().all() else "N/A"
-    ema_slow_value = _format_decimal(chart_df["ema_slow"].iloc[-1]) if "ema_slow" in chart_df.columns and not chart_df["ema_slow"].isna().all() else "N/A"
-    scope_label = tr("dataset.training") if chart_scope == "train" and not scope_note else tr("data.full")
-    indicator_title = {"MACD": tr("indicator.macd"), "RSI": tr("indicator.rsi"), "VOL": tr("chart.volume")}[indicator_view]
-
-    candle = _build_candlestick_chart(
-        chart_df=chart_df,
-        symbol=symbol,
-        period_key=period_key,
-        split_date=None if scope_label == tr("dataset.training") else split_date,
-    )
-    ind_fig = _build_indicator_mini_chart(
-        chart_df=chart_df,
-        indicator_view=indicator_view,
-        period_key=period_key,
-        rsi_upper=rsi_upper,
-        rsi_lower=rsi_lower,
-        visible_range=visible_range,
-    )
-
-    score_fig = go.Figure()
-    score_df = None
-    score_label = tr("factor.score")
-    if artifact is not None:
-        score_df = artifact.full_signal_df.copy()
+    with performance_span("single", "figure_build", period_key=period_key, indicator_view=indicator_view):
+        chart_df = _prepare_chart_dataframe(df_raw, indicator_kwargs, period_key)
+        scope_note = ""
         if chart_scope == "train":
-            score_df = score_df[score_df["date"] <= split_date].copy()
+            filtered = chart_df[chart_df["date"] <= split_date].copy()
+            if filtered.empty:
+                scope_note = tr("training.insufficient_samples_fallback")
+            else:
+                chart_df = filtered
 
-    score_input_df, score_label = _build_score_chart_input(score_df)
-    if score_input_df is not None:
-        score_fig = _build_factor_score_chart(score_input_df, score_label=score_label)
+        visible_range = compute_chart_view_range(chart_df, period_key)
+        scope_label = tr("dataset.training") if chart_scope == "train" and not scope_note else tr("data.full")
+        indicator_title = {"MACD": tr("indicator.macd"), "RSI": tr("indicator.rsi"), "VOL": tr("chart.volume")}[indicator_view]
+
+        candle = _build_candlestick_chart(
+            chart_df=chart_df,
+            symbol=symbol,
+            period_key=period_key,
+            split_date=None if scope_label == tr("dataset.training") else split_date,
+        )
+        ind_fig = _build_indicator_mini_chart(
+            chart_df=chart_df,
+            indicator_view=indicator_view,
+            period_key=period_key,
+            rsi_upper=rsi_upper,
+            rsi_lower=rsi_lower,
+            visible_range=visible_range,
+        )
+
+        score_fig = go.Figure()
+        score_df = None
+        score_label = tr("factor.score")
+        if artifact is not None:
+            score_df = artifact.full_signal_df.copy()
+            if chart_scope == "train":
+                score_df = score_df[score_df["date"] <= split_date].copy()
+
+        score_input_df, score_label = _build_score_chart_input(score_df)
+        if score_input_df is not None:
+            score_fig = _build_factor_score_chart(score_input_df, score_label=score_label)
 
     if render_controls:
-        render_html(
-            f"""
-<div class="analysis-chart-meta">
-  <span class="analysis-chart-chip">{html.escape(scope_label)}</span>
-  <span class="analysis-chart-chip">{html.escape({'D': tr("chart.daily_k"), 'W': tr("chart.weekly_k"), 'M': tr("chart.monthlyK")}[period_key])}</span>
-  <span class="analysis-chart-chip">最新收盘 {html.escape(latest_close)}</span>
-  <span class="analysis-chart-chip">EMA 快线 {html.escape(ema_fast_value)}</span>
-  <span class="analysis-chart-chip">EMA 慢线 {html.escape(ema_slow_value)}</span>
-</div>
-            """
-        )
         if scope_note:
             render_status_note(scope_note, tone="warning")
         linked_chart = create_candlestick_indicator_chart(
@@ -2114,10 +2237,9 @@ def _render_strategy_result_empty(
     request_path: str | None,
 ) -> None:
     render_html(
-        """
-<div class="analysis-subsurface">
-  <h4 class="analysis-callout-title">结果板暂未生成</h4>
-  <p class="analysis-callout-copy">{tr("single.strategy.resultPlaceholderCopy")}</p>
+        f"""
+<div class="strategy-result-empty">
+  <div class="strategy-result-empty-wordmark">{tr("single.strategy.emptyBackdrop")}</div>
 </div>
         """
     )
@@ -2125,8 +2247,8 @@ def _render_strategy_result_empty(
         render_status_note(tr("draft.currentPath") + request_path, tone="info")
 
     if page_state == "EMPTY":
-        render_status_note(tr("strategy.configurationHint"), tone="info")
-    elif request_ready:
+        return
+    if request_ready:
         render_status_note(tr("draft.ready.generate"), tone="positive")
     else:
         render_status_note(tr("draft.incomplete"), tone="warning")
@@ -2147,7 +2269,6 @@ def _render_strategy_workspace_result(
         """
 <div class="analysis-subsurface">
   <h4 class="analysis-callout-title">当前工作流链路</h4>
-  <p class="analysis-callout-copy">{tr("single.strategy.workflowCopy")}</p>
 </div>
         """
     )
@@ -2305,9 +2426,82 @@ def _render_strategy_compare_result(
     return suggestion, equity_fig, signal_fig
 
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 图表构建
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _build_single_display_cache_key(
+    *,
+    context_key: str,
+    artifact_id: str | None,
+    split_date: object,
+    period_key: str,
+    chart_scope: str,
+    indicator_view: str,
+    indicator_kwargs: dict[str, Any],
+    rsi_upper: float,
+    rsi_lower: float,
+    language: str,
+    theme: str,
+) -> str:
+    return repr(
+        (
+            context_key,
+            artifact_id,
+            str(split_date),
+            period_key,
+            chart_scope,
+            indicator_view,
+            tuple(sorted(indicator_kwargs.items())),
+            float(rsi_upper),
+            float(rsi_lower),
+            language,
+            theme,
+        )
+    )
+
+
+def _get_single_display_cache() -> dict[str, tuple[go.Figure, go.Figure, go.Figure, str]]:
+    cache = st.session_state.setdefault(SINGLE_DISPLAY_CACHE_KEY, {})
+    return cache
+
+
+def _build_cached_market_visualizations(
+    *,
+    context_key: str,
+    df_raw: pd.DataFrame,
+    indicator_kwargs: dict[str, Any],
+    artifact: StrategyArtifact | None,
+    split_date: pd.Timestamp,
+    symbol: str,
+    rsi_upper: float,
+    rsi_lower: float,
+) -> tuple[go.Figure, go.Figure, go.Figure, str]:
+    period_key, chart_scope, indicator_view = _resolve_market_visualization_state(render_controls=False)
+    cache_key = _build_single_display_cache_key(
+        context_key=context_key,
+        artifact_id=artifact.id if artifact is not None else None,
+        split_date=split_date,
+        period_key=period_key,
+        chart_scope=chart_scope,
+        indicator_view=indicator_view,
+        indicator_kwargs=indicator_kwargs,
+        rsi_upper=rsi_upper,
+        rsi_lower=rsi_lower,
+        language=get_ui_language(),
+        theme=get_ui_theme(),
+    )
+    cache = _get_single_display_cache()
+    if cache_key not in cache:
+        cache[cache_key] = _build_market_visualizations(
+            df_raw=df_raw,
+            indicator_kwargs=indicator_kwargs,
+            artifact=artifact,
+            split_date=split_date,
+            symbol=symbol,
+            rsi_upper=rsi_upper,
+            rsi_lower=rsi_lower,
+            render_controls=False,
+        )
+    return cache[cache_key]
+
+
 
 
 def _prepare_chart_dataframe(
@@ -2836,13 +3030,14 @@ def _render_walk_forward(artifact: StrategyArtifact | None) -> None:
         st.warning(tr("error.window_exceeds_data_length"))
         return
 
-    wf_results, wf_equity = walk_forward_backtest(
-        df,
-        train_window=train_window,
-        test_window=test_window,
-        stop_loss_mult=stop_loss_mult,
-        take_profit_mult=take_profit_mult,
-    )
+    with performance_span("single", "walk_forward"):
+        wf_results, wf_equity = walk_forward_backtest(
+            df,
+            train_window=train_window,
+            test_window=test_window,
+            stop_loss_mult=stop_loss_mult,
+            take_profit_mult=take_profit_mult,
+        )
     if wf_equity.empty:
         st.warning(tr("backtest.walkForward.noResults"))
         return

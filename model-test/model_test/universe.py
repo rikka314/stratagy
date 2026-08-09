@@ -10,11 +10,15 @@ from typing import Any
 
 import pandas as pd
 
-from core.config import DATA_DIR
-from core.data import ensure_date_column, fetch_data, standardize_columns
+from core.data import ensure_date_column, fetch_a_stock, fetch_data, standardize_columns
 
-from model_test import REPO_ROOT
+from model_test import REPO_ROOT, WORKSPACE_ROOT
 from model_test.models import ResearchConfig, StockProfile
+
+
+# Research-fetched history is intentionally separate from the tracked data/
+# samples. Keep this module-level name for tests and local overrides.
+DATA_DIR = str(WORKSPACE_ROOT / "cache" / "history")
 
 
 COMMON_STOCK_NAME_EXCLUSIONS = (
@@ -43,7 +47,7 @@ BUCKET_ORDER = [
     "Down__High",
 ]
 
-UNIVERSE_CACHE_VERSION = "v2"
+UNIVERSE_CACHE_VERSION = "v3"
 _COMMON_STOCK_NAME_EXCLUSION_REGEX = "|".join(re.escape(keyword) for keyword in COMMON_STOCK_NAME_EXCLUSIONS)
 
 
@@ -110,6 +114,7 @@ def _profile_cache_signature(config: ResearchConfig) -> str:
             "market": config.market.upper(),
             "adjust": config.adjust,
             "profile_lookback_days": int(config.profile_lookback_days),
+            "minimum_data_end_date": config.minimum_data_end_date,
         }
     )[:12]
 
@@ -125,8 +130,11 @@ def _pool_cache_signature(config: ResearchConfig, catalog_path: Path) -> str:
             "main_pool_size": int(config.main_pool_size),
             "min_history_days": int(config.min_history_days),
             "main_window_days": int(config.main_window_days),
-            "min_avg_dollar_volume": float(config.min_avg_dollar_volume),
+            "min_avg_traded_value": float(config.effective_min_avg_traded_value),
             "max_catalog_candidates": int(config.max_catalog_candidates),
+            "candidate_selection_mode": config.candidate_selection_mode,
+            "candidate_selection_seed": int(config.candidate_selection_seed),
+            "minimum_data_end_date": config.minimum_data_end_date,
         }
     )[:16]
 
@@ -134,7 +142,15 @@ def _pool_cache_signature(config: ResearchConfig, catalog_path: Path) -> str:
 def _profile_cache_path(symbol: str, config: ResearchConfig) -> Path:
     cache_root = _resolve_cache_root(config)
     signature = _profile_cache_signature(config)
-    return cache_root / "profiles" / signature / f"{symbol.strip().upper()}.json"
+    return cache_root / "profiles" / signature / f"{_normalize_symbol(symbol, config.market)}.json"
+
+
+def _normalize_symbol(symbol: str, market: str) -> str:
+    normalized = str(symbol).strip().upper()
+    if market == "CN_A":
+        digits = re.sub(r"\D", "", normalized)
+        return digits.zfill(6)[-6:]
+    return normalized
 
 
 def _pool_cache_path(config: ResearchConfig, catalog_path: Path) -> Path:
@@ -144,7 +160,7 @@ def _pool_cache_path(config: ResearchConfig, catalog_path: Path) -> Path:
 
 
 def _resolve_history_candidates(symbol: str, config: ResearchConfig, *, prefer_sample: bool) -> list[tuple[str, Path]]:
-    normalized_symbol = str(symbol).strip().upper()
+    normalized_symbol = _normalize_symbol(symbol, config.market)
     sample_path = _resolve_repo_path(Path(config.sample_data_dir) / f"{normalized_symbol.lower()}_daily.csv")
     cache_path = _resolve_data_cache_dir() / f"{normalized_symbol.lower()}_daily.csv"
 
@@ -285,7 +301,7 @@ def _finalize_local_frame(df: pd.DataFrame, symbol: str, config: ResearchConfig)
     if "market" not in frame.columns:
         frame["market"] = config.market.upper()
     if "currency" not in frame.columns:
-        frame["currency"] = "USD"
+        frame["currency"] = "USD" if config.market == "US" else "CNY"
     if "adjust" not in frame.columns:
         frame["adjust"] = config.adjust
     return frame
@@ -299,19 +315,32 @@ def _write_cache(df: pd.DataFrame, symbol: str) -> Path:
     return cache_path
 
 
+def _meets_minimum_data_end_date(df: pd.DataFrame, config: ResearchConfig) -> bool:
+    if not config.minimum_data_end_date:
+        return True
+    if "date" not in df.columns:
+        return False
+    latest = pd.to_datetime(df["date"], errors="coerce").max()
+    return bool(pd.notna(latest) and latest >= pd.Timestamp(config.minimum_data_end_date))
+
+
 def load_symbol_history(symbol: str, config: ResearchConfig, *, prefer_sample: bool) -> tuple[pd.DataFrame, str, Path]:
-    normalized_symbol = str(symbol).strip().upper()
+    normalized_symbol = _normalize_symbol(symbol, config.market)
     for source_kind, path in _resolve_history_candidates(normalized_symbol, config, prefer_sample=prefer_sample):
         try:
             df = _read_market_csv(path)
+            if not _meets_minimum_data_end_date(df, config):
+                continue
             return _finalize_local_frame(df, normalized_symbol, config), source_kind, path.resolve()
         except Exception:
             continue
 
-    if config.market.upper() != "US":
-        raise ValueError("V1 stock loading supports US market only.")
-
-    df = fetch_data(normalized_symbol, config.adjust)
+    if config.market == "US":
+        df = fetch_data(normalized_symbol, config.adjust)
+    else:
+        df = fetch_a_stock(normalized_symbol, config.adjust)
+        if df is None or df.empty:
+            raise ValueError(f"No CN_A history is available for {normalized_symbol}.")
     cache_file = _write_cache(df, normalized_symbol)
     return _finalize_local_frame(df, normalized_symbol, config), "fetched", cache_file.resolve()
 
@@ -343,7 +372,11 @@ def _compute_recent_profile(df: pd.DataFrame, lookback_days: int) -> dict[str, f
     equity = recent["close"] / recent["close"].iloc[0]
     drawdown = (equity / equity.cummax()) - 1.0
     daily_return = recent["close"].pct_change().fillna(0.0)
-    avg_dollar_volume = float((recent["close"] * recent["volume"]).mean())
+    if "amount" in recent.columns:
+        amount = pd.to_numeric(recent["amount"], errors="coerce").dropna()
+        avg_dollar_volume = float(amount.mean()) if not amount.empty else float((recent["close"] * recent["volume"]).mean())
+    else:
+        avg_dollar_volume = float((recent["close"] * recent["volume"]).mean())
     return {
         "recent_days": int(len(recent)),
         "total_return_1y": float(recent["close"].iloc[-1] / recent["close"].iloc[0] - 1.0),
@@ -363,7 +396,7 @@ def _profile_from_history(
 ) -> StockProfile:
     recent_metrics = _compute_recent_profile(df, config.profile_lookback_days)
     return StockProfile(
-        symbol=symbol.upper(),
+        symbol=_normalize_symbol(symbol, config.market),
         company_name=company_name,
         source_kind=source_kind,
         data_path=str(data_path),
@@ -465,6 +498,8 @@ def build_smoke_profiles(config: ResearchConfig) -> list[StockProfile]:
 
 
 def _is_common_stock_candidate(symbol: str, name: str) -> bool:
+    if re.fullmatch(r"\d{6}", symbol):
+        return True
     if not re.fullmatch(r"[A-Z]{1,5}", symbol):
         return False
     upper_name = f" {str(name or '').upper()} "
@@ -476,12 +511,15 @@ def _is_common_stock_candidate(symbol: str, name: str) -> bool:
 
 def _filter_common_stock_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
     filtered = candidates.copy()
-    filtered["symbol"] = filtered["symbol"].astype(str).str.strip().str.upper()
+    if "code" in filtered.columns and "symbol" not in filtered.columns:
+        filtered = filtered.rename(columns={"code": "symbol"})
+    filtered["symbol"] = filtered["symbol"].astype(str).str.extract(r"(\d+|[A-Za-z]+)")[0].fillna("").str.strip().str.upper()
     filtered["name"] = filtered["name"].astype(str).str.strip()
-    symbol_mask = filtered["symbol"].str.fullmatch(r"[A-Z]{1,5}", na=False)
+    symbol_mask = filtered["symbol"].str.fullmatch(r"(?:[A-Z]{1,5}|\d{6})", na=False)
     upper_name = " " + filtered["name"].str.upper() + " "
     name_mask = ~upper_name.str.contains(_COMMON_STOCK_NAME_EXCLUSION_REGEX, regex=True, na=False)
-    return filtered.loc[symbol_mask & name_mask].reset_index(drop=True)
+    cn_a_mask = filtered["symbol"].str.fullmatch(r"\d{6}", na=False)
+    return filtered.loc[symbol_mask & (cn_a_mask | name_mask)].reset_index(drop=True)
 
 
 def _profile_qualifies(profile: StockProfile, config: ResearchConfig, minimum_rows: int) -> bool:
@@ -489,7 +527,7 @@ def _profile_qualifies(profile: StockProfile, config: ResearchConfig, minimum_ro
         return False
     if profile.recent_days < int(config.profile_lookback_days):
         return False
-    if float(profile.avg_dollar_volume_1y or 0.0) < float(config.min_avg_dollar_volume):
+    if float(profile.avg_dollar_volume_1y or 0.0) < config.effective_min_avg_traded_value:
         return False
     return True
 
@@ -500,7 +538,7 @@ def _load_or_build_candidate_profile(
     *,
     minimum_rows: int,
 ) -> tuple[int, StockProfile | None]:
-    symbol = str(candidate_entry["symbol"]).strip().upper()
+    symbol = _normalize_symbol(str(candidate_entry["symbol"]), config.market)
     company_name = str(candidate_entry.get("name") or symbol).strip() or symbol
     order = int(candidate_entry.get("order", 0))
     current_source = _current_history_source(symbol, config, prefer_sample=False)
@@ -526,13 +564,30 @@ def _load_or_build_candidate_profile(
 
 def _build_candidate_entries(config: ResearchConfig, catalog_path: Path) -> list[dict[str, Any]]:
     catalog = pd.read_csv(catalog_path, dtype=str).fillna("")
-    candidates = catalog[["symbol", "name"]].drop_duplicates(subset=["symbol"], keep="first")
+    symbol_column = "symbol" if "symbol" in catalog.columns else "code"
+    if symbol_column not in catalog.columns or "name" not in catalog.columns:
+        raise ValueError(f"Catalog {catalog_path} must contain symbol/code and name columns.")
+    candidates = catalog[[symbol_column, "name"]].rename(columns={symbol_column: "symbol"})
+    candidates = candidates.drop_duplicates(subset=["symbol"], keep="first")
     filtered = _filter_common_stock_candidates(candidates)
-    limited = filtered.head(int(config.max_catalog_candidates)).reset_index(drop=True)
+    candidate_limit = max(1, int(config.max_catalog_candidates))
+    if config.candidate_selection_mode == "hybrid" and len(filtered) > candidate_limit:
+        # Preserve a liquid/popular catalog head while adding deterministic broad-market coverage.
+        head_count = max(1, candidate_limit // 4)
+        head = filtered.head(head_count)
+        remainder = filtered.iloc[head_count:]
+        sampled = remainder.sample(
+            n=min(candidate_limit - head_count, len(remainder)),
+            random_state=int(config.candidate_selection_seed),
+            replace=False,
+        )
+        limited = pd.concat([head, sampled], ignore_index=True)
+    else:
+        limited = filtered.head(candidate_limit).reset_index(drop=True)
     return [
         {
             "order": order,
-            "symbol": str(row.symbol).strip().upper(),
+            "symbol": _normalize_symbol(str(row.symbol), config.market),
             "name": str(row.name).strip(),
         }
         for order, row in enumerate(limited.itertuples(index=False))
@@ -590,7 +645,7 @@ def build_main_research_profiles(config: ResearchConfig) -> list[StockProfile]:
     qualified = _qualified_profiles_from_candidates(candidate_entries, config, minimum_rows=minimum_rows)
 
     if not qualified:
-        raise RuntimeError("No qualified US stocks were found for the research pool.")
+        raise RuntimeError(f"No qualified {config.market} stocks were found for the research pool.")
 
     _assign_buckets(qualified)
     selected = _select_balanced_sample(qualified, config.main_pool_size)

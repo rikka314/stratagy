@@ -1,0 +1,18 @@
+{
+  "name": "smoke_us_deans_gate1",
+  "market": "US",
+  "adjust": "qfq",
+  "output_subdir": "smoke_us_deans_gate1",
+  "smoke_mode": true,
+  "smoke_symbols": ["AAPL"],
+  "selected_model_ids": ["naive"],
+  "run_stage_b": false,
+  "run_robustness": false,
+  "parallelism": 1,
+  "main_window_days": 252,
+  "minimum_window_days": 252,
+  "allow_short_main_window": true,
+  "profile_lookback_days": 252,
+  "commission_bps": 1,
+  "slippage_bps": 2
+}

@@ -5,7 +5,7 @@
 """
 
 from __future__ import annotations
-from ui.i18n import tr
+from ui.i18n import LOCALES, tr
 
 from datetime import datetime
 import html
@@ -13,6 +13,13 @@ from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
+
+
+_ZH_BY_EN = {
+    str(labels.get("en")): str(labels.get("zh"))
+    for labels in LOCALES.values()
+    if isinstance(labels, dict) and labels.get("en") and labels.get("zh")
+}
 
 
 def _lang(language: str | None) -> str:
@@ -24,7 +31,12 @@ def _theme(theme: str | None) -> str:
 
 
 def _t(language: str, zh: str, en: str) -> str:
-    return en if _lang(language) == "en" else zh
+    if _lang(language) == "en":
+        return en
+    # The live site is currently fixed to English, so tr(key) returns English
+    # even when an offline export explicitly requests zh. Recover the matching
+    # Chinese catalog value while keeping literal Chinese call sites unchanged.
+    return _ZH_BY_EN.get(str(zh), str(zh))
 
 
 def _esc(value: object) -> str:
@@ -88,7 +100,8 @@ def _fmt_generated_at(value: datetime | None, language: str) -> str:
     timestamp = value or datetime.now()
     if _lang(language) == "en":
         return timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    return timestamp.strftime(tr("dateTime.formatLong"))
+    date_format = LOCALES.get("dateTime.formatLong", {}).get("zh", "%Y-%m-%d %H:%M:%S")
+    return timestamp.strftime(date_format)
 
 
 def _build_css(theme: str) -> str:
@@ -1301,3 +1314,268 @@ def build_multi_stock_export_html(
 
     html_parts.append(_build_footer(language))
     return "".join(html_parts)
+
+
+def build_model_evaluation_export_html(
+    *,
+    payload: dict[str, Any],
+    news_ablation_fig: go.Figure | None = None,
+    language: str = "en",
+    theme: str = "light",
+    generated_at: datetime | None = None,
+) -> str:
+    """Build an offline, conclusion-first export for the read-only research page."""
+    language = _lang(language)
+    theme = _theme(theme)
+    research = dict(payload.get("research") or {})
+    markets = dict(research.get("markets") or {})
+    matrix = [row for row in (research.get("matrix") or []) if isinstance(row, dict)]
+    news_rows = [row for row in (research.get("news_ablation") or []) if isinstance(row, dict)]
+    failures = [row for row in (payload.get("failures") or []) if isinstance(row, dict)]
+
+    def text(zh: str, en: str) -> str:
+        return _t(language, zh, en)
+
+    def confidence(value: object) -> str:
+        normalized = str(value or "insufficient_evidence").strip().lower()
+        labels = {
+            "high": text("高", "High"),
+            "medium": text("中", "Medium"),
+            "low": text("低", "Low"),
+            "insufficient_evidence": text("证据不足", "Insufficient evidence"),
+        }
+        return labels.get(normalized, labels["insufficient_evidence"])
+
+    recommendation_rows: list[list[str]] = []
+    limitations_rows: list[list[str]] = []
+    for market in ("US", "CN_A"):
+        entry = dict(markets.get(market) or {})
+        recommendation = entry.get("recommendation") or text("无推荐", "No recommendation")
+        trace_rows = [row for row in (entry.get("trace_rows") or []) if isinstance(row, dict)]
+        evidence = _research_export_evidence(entry.get("evidence"), language)
+        sample_trace = _research_export_trace_summary(trace_rows, language)
+        recommendation_rows.append(
+            [
+                _esc(market),
+                _esc(recommendation),
+                _esc(confidence(entry.get("confidence"))),
+                _esc(sample_trace),
+                _esc(evidence),
+            ]
+        )
+        for limitation in _research_export_text_list(entry.get("limitations")):
+            limitations_rows.append([_esc(market), _esc(limitation)])
+
+    for issue in _research_export_text_list(research.get("issues")):
+        limitations_rows.append([_esc(text("产物校验", "Artifact validation")), _esc(issue)])
+    for failure in failures:
+        failure_label = failure.get("display_name") or failure.get("model_id") or text("未知模型", "Unknown model")
+        failure_reason = failure.get("error_message") or failure.get("warnings_json") or failure.get("status") or "N/A"
+        limitations_rows.append([_esc(f"{text('失败', 'Failure')} · {failure_label}"), _esc(failure_reason)])
+
+    matrix_rows = [
+        [
+            _esc(row.get("market") or "N/A"),
+            _esc(row.get("strategy_label") or row.get("strategy_id") or "N/A"),
+            _esc(row.get("evaluation_window") or "N/A"),
+            _esc(_research_export_sample_trace(row, language)),
+            _esc(_fmt_pct(row.get("coverage_rate"))),
+            _esc(_fmt_pct(row.get("net_total_return"), signed=True)),
+            _esc(_fmt_ratio(row.get("sharpe"))),
+            _esc(_fmt_pct(row.get("max_drawdown"), signed=True)),
+            _esc(_fmt_pct(row.get("rolling_direction_consistency"))),
+            _esc(_fmt_pct(row.get("degraded_run_rate"))),
+        ]
+        for row in matrix
+    ]
+    if not matrix_rows:
+        matrix_rows = [[_esc(text("暂无跨市场矩阵", "No cross-market matrix"))] + ["N/A"] * 9]
+
+    news_table_rows = [
+        [
+            _esc(row.get("market") or "N/A"),
+            _esc(row.get("base_strategy_id") or "N/A"),
+            _esc(_fmt_decimal(row.get("news_weight"))),
+            _esc(f"{_fmt_decimal(row.get('lookback_days'), digits=0)}d"),
+            _esc(_fmt_pct(row.get("coverage_rate"))),
+            _esc(_fmt_pct(row.get("fallback_position_match_rate"))),
+            _esc(_fmt_pct(row.get("net_total_return"), signed=True)),
+            _esc(_fmt_ratio(row.get("sharpe"))),
+            _esc(row.get("status") or "N/A"),
+        ]
+        for row in news_rows
+    ]
+
+    source_rows = [
+        [_esc(key.replace("_", " ").title()), _esc(value)]
+        for key, value in dict(research.get("source_paths") or {}).items()
+    ]
+    if not source_rows:
+        source_rows = [[_esc(text("研究产物", "Research artifacts")), _esc(text("当前 run 未提供", "Not provided by this run"))]]
+
+    run_id = str(payload.get("run_id") or "research-run")
+    generated_label = str(payload.get("generated_label") or _fmt_generated_at(generated_at, language))
+    has_recommendations = bool(research.get("has_recommendations"))
+    conclusion_copy = text(
+        "推荐结论已连接到对应市场、策略、评估窗口和样本指标。" if has_recommendations else "当前 run 没有跨市场推荐产物；旧版模型结果仍保留在报告中。",
+        "Recommendations are linked to market, strategy, evaluation-window, and sample metrics."
+        if has_recommendations
+        else "This run has no cross-market recommendation artifact; legacy model evidence remains available.",
+    )
+    cards = [
+        {
+            "label": "US",
+            "value": str(dict(markets.get("US") or {}).get("recommendation") or text("无推荐", "No recommendation")),
+            "meta": confidence(dict(markets.get("US") or {}).get("confidence")),
+        },
+        {
+            "label": "CN_A",
+            "value": str(dict(markets.get("CN_A") or {}).get("recommendation") or text("无推荐", "No recommendation")),
+            "meta": confidence(dict(markets.get("CN_A") or {}).get("confidence")),
+        },
+        {
+            "label": text("策略矩阵", "Strategy matrix"),
+            "value": str(len(matrix)),
+            "meta": text("市场 × 策略 × 窗口", "market × strategy × window rows"),
+        },
+        {
+            "label": text("新闻消融", "News ablation"),
+            "value": str(len(news_rows)),
+            "meta": text("权重 × 回看窗口", "weight × lookback rows"),
+        },
+    ]
+
+    title = text("双市场策略研究证据", "Cross-market strategy research evidence")
+    html_parts = [_build_head(title, theme, language)]
+    html_parts.append(
+        f"""
+    <section class="export-hero">
+      <div class="hero-kicker">Dean's Award · {html.escape(text('研究结果', 'Research results'))}</div>
+      <h1 class="hero-title">{_esc(title)}</h1>
+      <p class="hero-copy">{_esc(conclusion_copy)}</p>
+      <div class="chip-row">
+        <span class="chip accent">{_esc(run_id)}</span>
+        <span class="chip">{_esc(generated_label)}</span>
+        <span class="chip">{_esc(text('只读可复现产物', 'Read-only reproducible artifacts'))}</span>
+      </div>
+      <div class="stat-grid">{_build_stat_cards(cards)}</div>
+    </section>
+    <section class="section-stack">
+      <article class="paper-block">
+        <div class="section-kicker">{_esc(text('结论', 'Conclusion'))}</div>
+        <h2 class="section-title">US vs CN_A {html.escape(text('策略建议', 'strategy recommendations'))}</h2>
+        <p class="section-copy">{_esc(conclusion_copy)}</p>
+        {_build_table(
+            [text('市场', 'Market'), text('推荐策略', 'Recommendation'), text('置信度', 'Confidence'), text('样本追溯', 'Sample trace'), text('证据说明', 'Evidence')],
+            recommendation_rows,
+        )}
+      </article>
+      <article class="paper-block">
+        <div class="section-kicker">{_esc(text('证据', 'Evidence'))}</div>
+        <h2 class="section-title">{_esc(text('市场策略矩阵', 'Market strategy matrix'))}</h2>
+        <p class="section-copy">{_esc(text('统一展示样本覆盖、净收益、风险、滚动一致性和降级率。', 'Comparable sample coverage, net performance, risk, rolling consistency, and degradation rate.'))}</p>
+        {_build_table(
+            [text('市场', 'Market'), text('策略', 'Strategy'), text('窗口', 'Window'), text('样本', 'Samples'), text('覆盖率', 'Coverage'), text('净收益', 'Net return'), 'Sharpe', text('最大回撤', 'Max drawdown'), text('方向一致性', 'Direction consistency'), text('降级率', 'Degraded rate')],
+            matrix_rows,
+        )}
+      </article>
+    </section>
+"""
+    )
+
+    if news_table_rows:
+        html_parts.append(
+            f"""
+    <section class="section-stack">
+      <article class="paper-block">
+        <div class="section-kicker">{_esc(text('稳健性', 'Robustness'))}</div>
+        <h2 class="section-title">{_esc(text('新闻消融与覆盖率', 'News ablation and coverage'))}</h2>
+        <p class="section-copy">{_esc(text('新闻增量必须与覆盖率、无新闻回退一致性和同一基础策略一起解读。', 'News uplift must be read together with coverage, no-news fallback integrity, and the same base strategy.'))}</p>
+        {_build_table(
+            [text('市场', 'Market'), text('基础策略', 'Base strategy'), text('新闻权重', 'News weight'), text('回看', 'Lookback'), text('覆盖率', 'Coverage'), text('回退匹配', 'Fallback match'), text('净收益', 'Net return'), 'Sharpe', text('状态', 'Status')],
+            news_table_rows,
+        )}
+      </article>
+      {(_plot_card_markup(plot_id='research-news-ablation-chart', title=text('新闻消融对比', 'News ablation comparison'), copy=text('净收益、Sharpe 与覆盖率共享同一组权重和回看窗口。', 'Net return, Sharpe, and coverage share the same weight and lookback groups.'), wide=True) if news_ablation_fig is not None else '')}
+    </section>
+"""
+        )
+        if news_ablation_fig is not None:
+            html_parts.append(_plot_script("research-news-ablation-chart", news_ablation_fig))
+
+    html_parts.append(
+        f"""
+    <section class="report-grid">
+      <article class="paper-block">
+        <div class="section-kicker">{_esc(text('失败与限制', 'Failures and limits'))}</div>
+        <h2 class="section-title">{_esc(text('结论边界', 'Conclusion boundaries'))}</h2>
+        <p class="section-copy">{_esc(text('限制和失败记录不是脚注，而是推荐结论的一部分。', 'Limitations and failed records are part of the recommendation, not footnotes.'))}</p>
+        {_build_table(
+            [text('来源', 'Source'), text('限制或失败', 'Limitation or failure')],
+            limitations_rows or [[_esc(text('当前 run', 'Current run')), _esc(text('未记录额外限制', 'No additional limitation recorded'))]],
+        )}
+      </article>
+      <article class="paper-block">
+        <div class="section-kicker">{_esc(text('可追溯性', 'Traceability'))}</div>
+        <h2 class="section-title">{_esc(text('研究产物来源', 'Research artifact sources'))}</h2>
+        <p class="section-copy">{_esc(text('每条结论都应能回到同一 run 的 CSV/JSON 文件。', 'Every conclusion should resolve to CSV/JSON files from the same run.'))}</p>
+        {_build_table([text('产物', 'Artifact'), text('路径', 'Path')], source_rows)}
+      </article>
+    </section>
+"""
+    )
+    html_parts.append(_build_footer(language))
+    return "".join(html_parts)
+
+
+def _research_export_text_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if not isinstance(value, (list, tuple, set)):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _research_export_evidence(value: Any, language: str) -> str:
+    if not isinstance(value, dict) or not value:
+        return _t(language, "未提供结构化证据说明", "No structured evidence note")
+    parts: list[str] = []
+    for key, item in value.items():
+        if item is None:
+            continue
+        if isinstance(item, (dict, list, tuple)) and not item:
+            continue
+        rendered = str(item)
+        if isinstance(item, (dict, list, tuple)):
+            import json
+
+            rendered = json.dumps(item, ensure_ascii=False, sort_keys=True)
+        parts.append(f"{str(key).replace('_', ' ')}: {rendered}")
+    return "; ".join(parts) or _t(language, "未提供结构化证据说明", "No structured evidence note")
+
+
+def _research_export_sample_trace(row: dict[str, Any], language: str) -> str:
+    successful = _safe_float(row.get("successful_symbol_count"))
+    total = _safe_float(row.get("symbol_count"))
+    if successful is None and total is None:
+        return _t(language, "暂无矩阵追溯行", "No matrix trace row")
+    successful_text = "N/A" if successful is None else str(int(successful))
+    total_text = "N/A" if total is None else str(int(total))
+    return _t(
+        language,
+        f"成功 {successful_text} / 总计 {total_text}",
+        f"{successful_text} successful / {total_text} total",
+    )
+
+
+def _research_export_trace_summary(rows: list[dict[str, Any]], language: str) -> str:
+    if not rows:
+        return _research_export_sample_trace({}, language)
+    first = rows[0]
+    strategy = first.get("strategy_label") or first.get("strategy_id") or "N/A"
+    sample = _research_export_sample_trace(first, language)
+    return _t(
+        language,
+        f"{strategy} · {sample} · {len(rows)} 条矩阵证据",
+        f"{strategy} · {sample} · {len(rows)} matrix row(s)",
+    )

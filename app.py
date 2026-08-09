@@ -6,37 +6,37 @@ W6 起改为基于 Streamlit Navigation 的多路由入口：
 - /strategy/stock-analysis
 - /strategy/stocks-analysis
 - /strategy/model-evaluation
+- /strategy/experiment-monitor (local control mode only)
 """
 
 from __future__ import annotations
 
 import os
 import re
+from time import perf_counter
 from typing import Any
 
-import pandas as pd
+_APP_IMPORT_STARTED_AT = perf_counter()
+
 import streamlit as st
 from ui.i18n import tr
 
 from core.config import DATA_DIR
-from core.data import load_uploaded_bytes
-from core.utils import load_or_fetch_stock
-from ui.home import render_home_page
-from ui.model_evaluation import MODEL_EVALUATION_ROUTE, render_model_evaluation_page
-from ui.multi_stock import render_multi_stock_page
-from ui.multi_stock_entry import render_multi_stock_entry_page
-from ui.sidebar import render_sidebar
-from ui.single_stock import render_single_stock_page
-from ui.single_stock_entry import render_single_stock_entry_page
-from pathlib import Path
-
-import streamlit.components.v1 as components
-
-from ui.theme import inject_global_styles, render_route_nav
+from core.perf import emit_performance_event
+from ui.theme import (
+    inject_analysis_styles,
+    inject_base_styles,
+    inject_entry_styles,
+    inject_home_styles,
+    inject_report_styles,
+    render_route_nav,
+)
 
 
 SINGLE_ROUTE_STATE_KEY = "route_single_state"
 MULTI_ROUTE_STATE_KEY = "route_multi_state"
+MODEL_EVALUATION_ROUTE = "model-evaluation"
+EXPERIMENT_MONITOR_ROUTE = "experiment-monitor"
 
 
 st.set_page_config(
@@ -45,7 +45,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-inject_global_styles()
+inject_base_styles()
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
@@ -54,6 +54,7 @@ def _default_single_route_state() -> dict[str, Any]:
         "view": "entry",
         "market": "US",
         "symbol": None,
+        "name": None,
         "uploaded_name": None,
         "uploaded_bytes": None,
         "source": None,
@@ -103,7 +104,9 @@ def _validate_strategy_params(params: dict) -> str | None:
     return None
 
 
-def _apply_date_filter(df_raw: pd.DataFrame, selected_range) -> tuple[pd.DataFrame, bool, Any, Any]:
+def _apply_date_filter(df_raw, selected_range):
+    import pandas as pd
+
     is_datetime = pd.api.types.is_datetime64_any_dtype(df_raw["date"])
     start_ts = end_ts = None
 
@@ -118,7 +121,7 @@ def _apply_date_filter(df_raw: pd.DataFrame, selected_range) -> tuple[pd.DataFra
     return df_raw, is_datetime, start_ts, end_ts
 
 
-def _ensure_valid_dataframe(df_raw: pd.DataFrame, *, empty_message: str) -> bool:
+def _ensure_valid_dataframe(df_raw, *, empty_message: str) -> bool:
     if df_raw is None:
         return False
     if df_raw.empty:
@@ -145,9 +148,23 @@ def _multi_seed_token(state: dict[str, Any]) -> str:
     return f"multi::{state.get('market')}::{selected_symbols}::{uploaded_names}"
 
 
+def _render_home_route() -> None:
+    inject_home_styles()
+    from ui.home import render_home_page
+
+    render_home_page()
+
+
 def _render_single_stock_route() -> None:
+    from core.data import load_uploaded_bytes
+    from core.utils import load_or_fetch_stock
+    from ui.sidebar import render_sidebar
+    from ui.single_stock import render_single_stock_page
+    from ui.single_stock_entry import render_single_stock_entry_page
+
     state = _get_single_route_state()
     if state["view"] != "analysis":
+        inject_entry_styles()
         render_route_nav("single")
         action = render_single_stock_entry_page(initial_market=state.get("market", "US"))
         if action is not None:
@@ -156,6 +173,7 @@ def _render_single_stock_route() -> None:
                     "view": "analysis",
                     "market": action["market"],
                     "symbol": _derive_symbol_from_filename(action["name"]),
+                    "name": None,
                     "uploaded_name": action["name"],
                     "uploaded_bytes": action["bytes"],
                     "source": action.get("source"),
@@ -165,6 +183,7 @@ def _render_single_stock_route() -> None:
                     "view": "analysis",
                     "market": action["market"],
                     "symbol": action["symbol"],
+                    "name": action.get("name"),
                     "uploaded_name": None,
                     "uploaded_bytes": None,
                     "source": action.get("source"),
@@ -172,6 +191,7 @@ def _render_single_stock_route() -> None:
             st.rerun()
         return
 
+    inject_analysis_styles()
     render_route_nav("single")
 
     initial_symbols = [] if state.get("uploaded_bytes") is not None else ([state["symbol"]] if state.get("symbol") else None)
@@ -227,8 +247,10 @@ def _render_single_stock_route() -> None:
     render_single_stock_page(params, df_raw, symbol)
 
 
-def _build_uploaded_multi_sources(uploads: list[dict[str, Any]]) -> dict[str, pd.DataFrame]:
-    prefetched: dict[str, pd.DataFrame] = {}
+def _build_uploaded_multi_sources(uploads: list[dict[str, Any]]) -> dict[str, Any]:
+    from core.data import load_uploaded_bytes
+
+    prefetched: dict[str, Any] = {}
     for item in uploads:
         try:
             df = load_uploaded_bytes(item["bytes"])
@@ -242,8 +264,15 @@ def _build_uploaded_multi_sources(uploads: list[dict[str, Any]]) -> dict[str, pd
 
 
 def _render_multi_stock_route() -> None:
+    import pandas as pd
+
+    from ui.multi_stock import render_multi_stock_page
+    from ui.multi_stock_entry import render_multi_stock_entry_page
+    from ui.sidebar import render_sidebar
+
     state = _get_multi_route_state()
     if state["view"] != "analysis":
+        inject_entry_styles()
         render_route_nav("multi")
         action = render_multi_stock_entry_page(initial_market=state.get("market", "US"))
         if action is not None:
@@ -256,6 +285,7 @@ def _render_multi_stock_route() -> None:
             st.rerun()
         return
 
+    inject_analysis_styles()
     render_route_nav("multi")
 
     params = render_sidebar(
@@ -294,24 +324,49 @@ def _render_multi_stock_route() -> None:
     )
 
 
-def _render_final_report() -> None:
-    """显示 reports/Final_Report.html 的完整内容"""
-    render_route_nav("doc")
-    report_path = Path(__file__).parent / "reports" / "Final_Report.html"
-    if not report_path.exists():
-        st.error("Report file not found: reports/Final_Report.html")
-        return
-    html_content = report_path.read_text(encoding="utf-8")
-    components.html(html_content, height=4000, scrolling=True)
+def _render_model_evaluation_route() -> None:
+    inject_analysis_styles()
+    from ui.model_evaluation import render_model_evaluation_page
+
+    render_model_evaluation_page()
+
+
+def _render_final_report_route() -> None:
+    inject_report_styles()
+    from ui.final_report import render_final_report_page
+
+    render_final_report_page()
+
+
+def _render_experiment_monitor_route() -> None:
+    inject_analysis_styles()
+    from ui.experiment_monitor import render_experiment_monitor_page
+
+    render_experiment_monitor_page()
 
 
 pages = [
-    st.Page(render_home_page, title=tr("nav.home"), icon="🏠", default=True),
+    st.Page(_render_home_route, title=tr("nav.home"), icon="🏠", default=True),
     st.Page(_render_single_stock_route, title=tr("navigation.singleStock.entry"), icon="📈", url_path="stock-analysis"),
     st.Page(_render_multi_stock_route, title=tr("navigation.multiStock.entry"), icon="📚", url_path="stocks-analysis"),
-    st.Page(render_model_evaluation_page, title=tr("section.model_evaluation"), icon="🧪", url_path=MODEL_EVALUATION_ROUTE),
-    st.Page(_render_final_report, title="HTML Report", icon="📄", url_path="final-report"),
+    st.Page(_render_model_evaluation_route, title=tr("section.model_evaluation"), icon="🧪", url_path=MODEL_EVALUATION_ROUTE),
+    st.Page(_render_final_report_route, title="Report", icon="📄", url_path="final-report"),
 ]
+if os.getenv("STRATAGY_RESEARCH_CONTROL", "").strip() == "1":
+    pages.append(
+        st.Page(
+            _render_experiment_monitor_route,
+            title=tr("section.experiment_monitor"),
+            icon="⏱️",
+            url_path=EXPERIMENT_MONITOR_ROUTE,
+        )
+    )
 
 navigation = st.navigation(pages, position="hidden")
-navigation.run()
+emit_performance_event(
+    "app",
+    "route_imports",
+    (perf_counter() - _APP_IMPORT_STARTED_AT) * 1000,
+)
+if os.getenv("STRATAGY_PERF_IMPORT_PROBE") != "1":
+    navigation.run()

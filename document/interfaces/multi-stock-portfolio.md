@@ -154,14 +154,17 @@ get_recommended_stocks(market: str, limit: int = 10) -> dict[str, Any]
 
 当前语义：
 
-- A 股优先走实时涨幅榜
-- 美股优先走知名美股分组实时池
-- 失败时回退默认股票池
+- A 股和美股都优先走百度股市通“今日”热搜，按综合热度降序
+- 热搜不可用时，A 股降级到实时涨幅榜，美股降级到知名美股分组实时涨幅榜
+- 两级实时数据都不可用时返回空列表，不再回退默认股票池
 
 推荐结果包含：
 
+- `source_kind`：稳定来源码，供双语 UI 映射来源说明
 - `source_label`
-- `items`
+- `items`：保留 `symbol/name/price/pct_change`；热搜项额外包含 `rank/heat`
+
+`get_market_context_snapshot()` 在原有 `recommendation_source` 和 `recommendations` 之外，增加兼容字段 `recommendation_source_kind`。格式化后的热搜项带 `heat_text`；实时涨幅榜项继续使用 `price_text`。
 
 ## 多股结果区 contract
 

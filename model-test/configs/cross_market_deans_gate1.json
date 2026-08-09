@@ -1,0 +1,9 @@
+{
+  "name": "cross_market_deans_gate1",
+  "market": "US",
+  "output_subdir": "cross_market_deans_gate1",
+  "cross_market_source_subdirs": {
+    "US": "smoke_us_deans_gate1",
+    "CN_A": "smoke_cn_a_deans_gate1"
+  }
+}

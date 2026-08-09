@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
 
 import pandas as pd
 
 from core.data import ensure_date_column, standardize_columns
 from core.evaluation import compute_performance_metrics
+from core.market_rules import MarketExecutionConfig, using_execution_config
 from ui.single_stock_workflow import build_strategy_context_key, run_strategy_pipeline
 
 from model_test.config import build_search_budget_summary
@@ -17,6 +18,10 @@ from model_test.observability import export_run_artifact_bundle
 
 
 _FRAME_CACHE: dict[str, pd.DataFrame] = {}
+
+
+class ExecutionPaused(RuntimeError):
+    """All submitted batches finished, and no additional batch was started."""
 
 
 def _clear_streamlit_state() -> None:
@@ -80,7 +85,38 @@ def _build_train_metrics(sim_df: pd.DataFrame) -> dict[str, float | None]:
     }
 
 
-def _skipped_record(task: TaskSpec) -> RunRecord:
+def _build_execution_metrics(sim_df: pd.DataFrame | None) -> dict[str, float | None]:
+    """Aggregate the frozen execution-cost fields from a test simulation."""
+    empty = {
+        "total_turnover": None,
+        "total_transaction_cost": None,
+        "gross_total_return": None,
+        "net_total_return": None,
+    }
+    if sim_df is None or sim_df.empty:
+        return empty
+
+    def _sum_column(column: str) -> float | None:
+        if column not in sim_df.columns:
+            return None
+        values = pd.to_numeric(sim_df[column], errors="coerce").dropna()
+        return float(values.sum()) if not values.empty else None
+
+    def _compound_column(column: str) -> float | None:
+        if column not in sim_df.columns:
+            return None
+        values = pd.to_numeric(sim_df[column], errors="coerce").dropna()
+        return float((1.0 + values).prod() - 1.0) if not values.empty else None
+
+    return {
+        "total_turnover": _sum_column("turnover"),
+        "total_transaction_cost": _sum_column("transaction_cost"),
+        "gross_total_return": _compound_column("gross_strategy_return"),
+        "net_total_return": _compound_column("strategy_return"),
+    }
+
+
+def _skipped_record(task: TaskSpec, reason: str | None = None) -> RunRecord:
     return RunRecord(
         symbol=task.symbol,
         company_name=task.company_name,
@@ -99,7 +135,7 @@ def _skipped_record(task: TaskSpec) -> RunRecord:
         display_name=task.model.display_name,
         family_group=task.model.family_group,
         status="SKIPPED",
-        error_message=task.window.reason,
+        error_message=reason or task.skip_reason or task.window.reason,
         params_snapshot_json=json_text(task.params_snapshot),
     )
 
@@ -206,6 +242,21 @@ def _record_from_result(
     record.test_pnl_ratio = _safe_float(eval_result.get("pnl_ratio"))
     record.test_turnover = _safe_float(eval_result.get("turnover"))
     record.test_excess_return = _safe_float(eval_result.get("excess_return"))
+    execution_metrics = _build_execution_metrics(result.artifact.test_sim_df)
+    record.total_turnover = _safe_float(eval_result.get("total_turnover"))
+    if record.total_turnover is None:
+        record.total_turnover = execution_metrics["total_turnover"]
+    record.total_transaction_cost = _safe_float(eval_result.get("total_transaction_cost"))
+    if record.total_transaction_cost is None:
+        record.total_transaction_cost = execution_metrics["total_transaction_cost"]
+    record.gross_total_return = _safe_float(eval_result.get("gross_total_return"))
+    if record.gross_total_return is None:
+        record.gross_total_return = execution_metrics["gross_total_return"]
+    record.net_total_return = _safe_float(eval_result.get("net_total_return"))
+    if record.net_total_return is None:
+        record.net_total_return = execution_metrics["net_total_return"]
+    if record.net_total_return is None:
+        record.net_total_return = record.test_cumret
 
     ml_quality = result.artifact.ml_quality or {}
     record.ml_precision = _safe_float(ml_quality.get("precision"))
@@ -286,10 +337,19 @@ def run_task_batch(task_batch: list[TaskSpec], artifacts_root: str | None = None
     if not task_batch:
         return []
 
-    lead_task = task_batch[0]
+    unsupported_records = [
+        _skipped_record(task, task.skip_reason)
+        for task in task_batch
+        if task.skip_reason
+    ]
+    runnable_tasks = [task for task in task_batch if not task.skip_reason]
+    if not runnable_tasks:
+        return unsupported_records
+
+    lead_task = runnable_tasks[0]
     _clear_streamlit_state()
     if not lead_task.window.available:
-        return [_skipped_record(task) for task in task_batch]
+        return [*unsupported_records, *[_skipped_record(task) for task in runnable_tasks]]
 
     df_full = _load_task_frame(lead_task.data_path)
     df_window = df_full.iloc[lead_task.window.start_idx : lead_task.window.end_idx].copy()
@@ -304,7 +364,7 @@ def run_task_batch(task_batch: list[TaskSpec], artifacts_root: str | None = None
                 window_days=0,
                 error_message="window slice is empty",
             )
-            for task in task_batch
+            for task in runnable_tasks
         ]
 
     split_idx = int(len(df_window) * lead_task.window.train_ratio)
@@ -317,15 +377,17 @@ def run_task_batch(task_batch: list[TaskSpec], artifacts_root: str | None = None
         train_ratio=lead_task.window.train_ratio,
     )
 
-    records: list[RunRecord] = []
-    for task in task_batch:
-        result = run_strategy_pipeline(
-            context_key=context_key,
-            request=task.model.build_request(),
-            request_params_snapshot=task.params_snapshot,
-            df_raw=df_window,
-            split_idx=split_idx,
-        )
+    records: list[RunRecord] = list(unsupported_records)
+    for task in runnable_tasks:
+        execution_config = MarketExecutionConfig(**task.execution) if task.execution else None
+        with using_execution_config(execution_config):
+            result = run_strategy_pipeline(
+                context_key=context_key,
+                request=task.model.build_request(),
+                request_params_snapshot=task.params_snapshot,
+                df_raw=df_window,
+                split_idx=split_idx,
+            )
         records.append(
             _record_from_result(
                 task,
@@ -345,6 +407,8 @@ def execute_tasks(
     *,
     on_record: Callable[[RunRecord], None] | None = None,
     artifacts_root: str | Path | None = None,
+    should_pause: Callable[[], bool] | None = None,
+    on_queue_change: Callable[[int, int], None] | None = None,
 ) -> list[RunRecord]:
     task_list = list(tasks)
     if not task_list:
@@ -363,7 +427,13 @@ def execute_tasks(
 
     if outer_workers == 1:
         _init_execution_worker(nested_workers)
-        for batch in task_batches:
+        for batch_index, batch in enumerate(task_batches):
+            if should_pause is not None and should_pause():
+                if on_queue_change is not None:
+                    on_queue_change(0, batch_count - batch_index)
+                raise ExecutionPaused("Pause requested before the next serial task batch.")
+            if on_queue_change is not None:
+                on_queue_change(1, batch_count - batch_index - 1)
             for record in run_task_batch(batch, artifacts_root_value):
                 completed_records += 1
                 results.append(record)
@@ -373,6 +443,10 @@ def execute_tasks(
                     f"[{completed_records}/{total_records}] "
                     f"{record.model_id} {record.symbol} {record.window_id} -> {record.status}"
                 )
+            if on_queue_change is not None:
+                on_queue_change(0, batch_count - batch_index - 1)
+            if should_pause is not None and should_pause():
+                raise ExecutionPaused("Pause requested after a serial task batch.")
         return results
 
     executor_kwargs = {
@@ -381,19 +455,49 @@ def execute_tasks(
         "initargs": (nested_workers,),
     }
     with ProcessPoolExecutor(**executor_kwargs) as executor:
-        future_to_batch = {
-            executor.submit(run_task_batch, batch, artifacts_root_value): batch
-            for batch in task_batches
-        }
-        for future in as_completed(future_to_batch):
-            batch_records = future.result()
-            for record in batch_records:
-                completed_records += 1
-                results.append(record)
-                if on_record is not None:
-                    on_record(record)
-                print(
-                    f"[{completed_records}/{total_records}] "
-                    f"{record.model_id} {record.symbol} {record.window_id} -> {record.status}"
-                )
+        batch_iterator = iter(task_batches)
+        future_to_batch: dict[Any, list[TaskSpec]] = {}
+        submitted_batches = 0
+        pause_seen = bool(should_pause is not None and should_pause())
+
+        def _submit_until_full() -> None:
+            nonlocal submitted_batches
+            if pause_seen:
+                return
+            while len(future_to_batch) < outer_workers:
+                try:
+                    batch = next(batch_iterator)
+                except StopIteration:
+                    break
+                future = executor.submit(run_task_batch, batch, artifacts_root_value)
+                future_to_batch[future] = batch
+                submitted_batches += 1
+
+        _submit_until_full()
+        if on_queue_change is not None:
+            on_queue_change(len(future_to_batch), batch_count - submitted_batches)
+
+        while future_to_batch:
+            done, _not_done = wait(tuple(future_to_batch), return_when=FIRST_COMPLETED)
+            for future in done:
+                future_to_batch.pop(future, None)
+                batch_records = future.result()
+                for record in batch_records:
+                    completed_records += 1
+                    results.append(record)
+                    if on_record is not None:
+                        on_record(record)
+                    print(
+                        f"[{completed_records}/{total_records}] "
+                        f"{record.model_id} {record.symbol} {record.window_id} -> {record.status}"
+                    )
+
+            if should_pause is not None and should_pause():
+                pause_seen = True
+            _submit_until_full()
+            if on_queue_change is not None:
+                on_queue_change(len(future_to_batch), batch_count - submitted_batches)
+
+        if pause_seen:
+            raise ExecutionPaused("Pause requested after all in-flight task batches checkpointed.")
     return results

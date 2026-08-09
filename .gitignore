@@ -45,6 +45,7 @@ Thumbs.db
 # *.xls
 model-test/cache/
 model-test/outputs/
+model-test/mlruns/
 
 # Claude Code worktrees (auto-generated, should not be tracked)
 .claude/worktrees/
@@ -55,7 +56,14 @@ model-test/outputs/
 pytest_tmp_*/
 tests/.tmp_pytest/
 tests/.tmp_pytest_single/
+tests/.tmp_pytest_gate0/
 tests/pytest-cache-files-*/
+.playwright-cli/
+/output/
+/.codex_*preview*.log
+/.codex_*preview*.py
+/.codex_streamlit_*.log
+document/acceptance/*.log
 
 # Local planning / scratch notes not intended for public submission
 plan/d4_d6_quant_platform_tasks.md
