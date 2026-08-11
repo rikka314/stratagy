@@ -12,6 +12,7 @@
 """
 
 import html
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
@@ -112,7 +113,7 @@ def _normalize_market_key(market: str | None) -> str:
     return "A" if str(market or "US").strip().upper() in {"A", "CN", "CN_A"} else "US"
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=8)
 def add_indicators(
     df: pd.DataFrame,
     rsi_period: int,
@@ -145,7 +146,7 @@ def add_indicators(
         )
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False, max_entries=32)
 def _fetch_ticker_info(symbol: str, market: str) -> dict:
     """Fetch fundamental info for US stocks via yfinance (optional dependency).
 
@@ -2458,7 +2459,10 @@ def _build_single_display_cache_key(
 
 
 def _get_single_display_cache() -> dict[str, tuple[go.Figure, go.Figure, go.Figure, str]]:
-    cache = st.session_state.setdefault(SINGLE_DISPLAY_CACHE_KEY, {})
+    cache = st.session_state.setdefault(SINGLE_DISPLAY_CACHE_KEY, OrderedDict())
+    if not isinstance(cache, OrderedDict):
+        cache = OrderedDict(cache)
+        st.session_state[SINGLE_DISPLAY_CACHE_KEY] = cache
     return cache
 
 
@@ -2499,6 +2503,10 @@ def _build_cached_market_visualizations(
             rsi_lower=rsi_lower,
             render_controls=False,
         )
+        while len(cache) > 12:
+            cache.popitem(last=False)
+    else:
+        cache.move_to_end(cache_key)
     return cache[cache_key]
 
 

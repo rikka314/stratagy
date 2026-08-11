@@ -356,6 +356,7 @@ def render_sidebar(
             5,
             _preset_entry_min,
             help=tr("condition.entry_threshold"),
+            key="entry_min_signals",
         )
 
         st.markdown("---")
@@ -377,6 +378,7 @@ def render_sidebar(
             4,
             _preset_exit_min,
             help=tr("rules.exit.conditions.description"),
+            key="exit_min_signals",
         )
 
         st.markdown("---")
@@ -466,33 +468,35 @@ def render_sidebar(
             )
 
             st.markdown(tr("section.factorScoreParameters"))
-            momentum_short = strategy_form.slider(tr("params.short_momentum_window"), 2, 20, 5, help=tr("label.short_term_return_window"))
-            momentum_long = strategy_form.slider(tr("param.midTermMomentum.window"), 10, 60, 20, help=tr("metrics.midterm_return_window"))
+            momentum_short = strategy_form.slider(tr("params.short_momentum_window"), 2, 20, 5, help=tr("label.short_term_return_window"), key="momentum_short")
+            momentum_long = strategy_form.slider(tr("param.midTermMomentum.window"), 10, 60, 20, help=tr("metrics.midterm_return_window"), key="momentum_long")
             score_lookback = strategy_form.slider(
-                tr("scoring.normalization_window"), 10, 120, 30, help=tr("parameter.zScoreWindow.desc")
+                tr("scoring.normalization_window"), 10, 120, 30, help=tr("parameter.zScoreWindow.desc"), key="score_lookback"
             )
             score_mid_pct = strategy_form.slider(
                 tr("scoring.percentile.mid"), 0.5, 0.9, 0.6, step=0.05,
                 help=tr("position.mid_level_threshold"),
+                key="score_mid_pct",
             )
             score_high_pct = strategy_form.slider(
                 tr("score.quantile.high"), 0.6, 0.95, 0.8, step=0.05,
                 help=tr("position.high_level_threshold"),
+                key="score_high_pct",
             )
             weight_mom_short = strategy_form.slider(
-                tr("weight.short_term_momentum"), 0.0, 3.0, 1.0, step=0.1, help=tr("factor.weight_short_term_momentum")
+                tr("weight.short_term_momentum"), 0.0, 3.0, 1.0, step=0.1, help=tr("factor.weight_short_term_momentum"), key="weight_mom_short"
             )
             weight_mom_long = strategy_form.slider(
-                tr("parameter.midTermMomentumWeight"), 0.0, 3.0, 1.0, step=0.1, help=tr("scoring.weight_midterm_momentum")
+                tr("parameter.midTermMomentumWeight"), 0.0, 3.0, 1.0, step=0.1, help=tr("scoring.weight_midterm_momentum"), key="weight_mom_long"
             )
             weight_macd = strategy_form.slider(
-                tr("parameter.macdWeight"), 0.0, 3.0, 1.0, step=0.1, help=tr("param.macdHistogramWeight")
+                tr("parameter.macdWeight"), 0.0, 3.0, 1.0, step=0.1, help=tr("param.macdHistogramWeight"), key="weight_macd"
             )
             weight_rsi = strategy_form.slider(
-                tr("param.rsi_weight"), 0.0, 3.0, 0.5, step=0.1, help=tr("factor.weight_rsi")
+                tr("param.rsi_weight"), 0.0, 3.0, 0.5, step=0.1, help=tr("factor.weight_rsi"), key="weight_rsi"
             )
             weight_vol = strategy_form.slider(
-                tr("strategy.volatilityPenalty.weight"), 0.0, 3.0, 0.5, step=0.1, help=tr("scoring.volatilityPenalty")
+                tr("strategy.volatilityPenalty.weight"), 0.0, 3.0, 0.5, step=0.1, help=tr("scoring.volatilityPenalty"), key="weight_vol"
             )
 
             st.markdown(tr("factor.weight.phase1.title"))

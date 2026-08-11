@@ -31,6 +31,12 @@ from ui.theme import (
     inject_report_styles,
     render_route_nav,
 )
+from ui.workspace import (
+    checkpoint_workspace,
+    ensure_workspace_session,
+    render_workspace_restore_notice,
+    render_workspace_sidebar_actions,
+)
 
 
 SINGLE_ROUTE_STATE_KEY = "route_single_state"
@@ -47,6 +53,8 @@ st.set_page_config(
 )
 inject_base_styles()
 os.makedirs(DATA_DIR, exist_ok=True)
+if os.getenv("STRATAGY_PERF_IMPORT_PROBE") != "1":
+    ensure_workspace_session()
 
 
 def _default_single_route_state() -> dict[str, Any]:
@@ -153,6 +161,7 @@ def _render_home_route() -> None:
     from ui.home import render_home_page
 
     render_home_page()
+    checkpoint_workspace()
 
 
 def _render_single_stock_route() -> None:
@@ -162,10 +171,12 @@ def _render_single_stock_route() -> None:
     from ui.single_stock import render_single_stock_page
     from ui.single_stock_entry import render_single_stock_entry_page
 
+    render_workspace_sidebar_actions()
     state = _get_single_route_state()
     if state["view"] != "analysis":
         inject_entry_styles()
         render_route_nav("single")
+        render_workspace_restore_notice()
         action = render_single_stock_entry_page(initial_market=state.get("market", "US"))
         if action is not None:
             if action["kind"] == "upload":
@@ -188,11 +199,14 @@ def _render_single_stock_route() -> None:
                     "uploaded_bytes": None,
                     "source": action.get("source"),
                 }
+            checkpoint_workspace()
             st.rerun()
+        checkpoint_workspace()
         return
 
     inject_analysis_styles()
     render_route_nav("single")
+    render_workspace_restore_notice()
 
     initial_symbols = [] if state.get("uploaded_bytes") is not None else ([state["symbol"]] if state.get("symbol") else None)
     params = render_sidebar(
@@ -204,6 +218,7 @@ def _render_single_stock_route() -> None:
     validation_error = _validate_strategy_params(params)
     if validation_error is not None:
         st.sidebar.error(validation_error)
+        checkpoint_workspace()
         return
 
     uploaded_file = params.get("uploaded_file")
@@ -223,6 +238,7 @@ def _render_single_stock_route() -> None:
         compare_stocks = params.get("compare_stocks") or ([symbol] if symbol else [])
         if not compare_stocks:
             st.warning(tr("error.no_stocks_to_analyze"))
+            checkpoint_workspace()
             return
         if len(compare_stocks) > 1:
             st.info(tr("routing.single_stock_mode_notice"))
@@ -232,19 +248,23 @@ def _render_single_stock_route() -> None:
         df_raw = load_or_fetch_stock(symbol, params["adjust"], market=params.get("market", "US"))
         if df_raw is None:
             st.error(tr("message.dataFetchFailed", symbol=symbol))
+            checkpoint_workspace()
             return
 
     if not _ensure_valid_dataframe(df_raw, empty_message=tr("data.loadingFailed")):
+        checkpoint_workspace()
         return
 
     df_raw, _is_datetime, _start_ts, _end_ts = _apply_date_filter(df_raw, params["selected_range"])
     if df_raw.empty:
         st.warning(tr("error.no_data_in_selected_range"))
+        checkpoint_workspace()
         return
 
     params["compare_stocks"] = [symbol] if symbol else []
     params["symbol"] = symbol
     render_single_stock_page(params, df_raw, symbol)
+    checkpoint_workspace()
 
 
 def _build_uploaded_multi_sources(uploads: list[dict[str, Any]]) -> dict[str, Any]:
@@ -270,10 +290,12 @@ def _render_multi_stock_route() -> None:
     from ui.multi_stock_entry import render_multi_stock_entry_page
     from ui.sidebar import render_sidebar
 
+    render_workspace_sidebar_actions()
     state = _get_multi_route_state()
     if state["view"] != "analysis":
         inject_entry_styles()
         render_route_nav("multi")
+        render_workspace_restore_notice()
         action = render_multi_stock_entry_page(initial_market=state.get("market", "US"))
         if action is not None:
             st.session_state[MULTI_ROUTE_STATE_KEY] = {
@@ -282,11 +304,14 @@ def _render_multi_stock_route() -> None:
                 "symbols": action["symbols"],
                 "uploads": action["uploads"],
             }
+            checkpoint_workspace()
             st.rerun()
+        checkpoint_workspace()
         return
 
     inject_analysis_styles()
     render_route_nav("multi")
+    render_workspace_restore_notice()
 
     params = render_sidebar(
         initial_market=state.get("market", "US"),
@@ -297,6 +322,7 @@ def _render_multi_stock_route() -> None:
     validation_error = _validate_strategy_params(params)
     if validation_error is not None:
         st.sidebar.error(validation_error)
+        checkpoint_workspace()
         return
 
     prefetched_sources = _build_uploaded_multi_sources(state.get("uploads", []))
@@ -306,6 +332,7 @@ def _render_multi_stock_route() -> None:
     total_count = len(compare_stocks) + len(prefetched_sources)
     if total_count < 2:
         st.warning(tr("stockPool.insufficientWarning"))
+        checkpoint_workspace()
         return
 
     params["compare_stocks"] = compare_stocks
@@ -322,6 +349,7 @@ def _render_multi_stock_route() -> None:
         end_ts,
         prefetched_stock_data=prefetched_sources,
     )
+    checkpoint_workspace()
 
 
 def _render_model_evaluation_route() -> None:
@@ -329,6 +357,7 @@ def _render_model_evaluation_route() -> None:
     from ui.model_evaluation import render_model_evaluation_page
 
     render_model_evaluation_page()
+    checkpoint_workspace()
 
 
 def _render_final_report_route() -> None:
@@ -336,6 +365,7 @@ def _render_final_report_route() -> None:
     from ui.final_report import render_final_report_page
 
     render_final_report_page()
+    checkpoint_workspace()
 
 
 def _render_experiment_monitor_route() -> None:
@@ -343,6 +373,7 @@ def _render_experiment_monitor_route() -> None:
     from ui.experiment_monitor import render_experiment_monitor_page
 
     render_experiment_monitor_page()
+    checkpoint_workspace()
 
 
 pages = [

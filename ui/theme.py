@@ -229,6 +229,10 @@ def apply_plotly_theme(
         colorway=list(tokens["color_sequence"]),
         legend=legend_update,
     )
+    # Chart context is rendered by the surrounding page surface.  Keeping the
+    # Plotly title unset also avoids Plotly.js materializing an empty title as
+    # the literal text "undefined".
+    fig.layout.title = None
     if hovermode is not None:
         fig.update_layout(hovermode=hovermode)
 
@@ -246,16 +250,6 @@ def apply_plotly_theme(
         tickfont=dict(color=tokens["font_color"]),
         title_font=dict(color=tokens["font_color"]),
     )
-
-    figure_title = getattr(fig.layout, "title", None)
-    figure_title_text = getattr(figure_title, "text", None)
-    if isinstance(figure_title_text, str) and figure_title_text.strip():
-        fig.layout.title.text = translate_text(figure_title_text)
-        fig.layout.title.font = {
-            **(fig.layout.title.font.to_plotly_json() if fig.layout.title.font else {}),
-            "color": tokens["font_color"],
-            "family": tokens["font_family"],
-        }
 
     legend_title = getattr(getattr(fig.layout, "legend", None), "title", None)
     legend_title_text = getattr(legend_title, "text", None)
@@ -345,6 +339,20 @@ def _wrap_streamlit_write() -> None:
     st.write = wrapper
 
 
+def _wrap_streamlit_plotly_chart() -> None:
+    """Apply the site-wide no-title policy to every displayed Plotly figure."""
+    original = st.plotly_chart
+
+    @wraps(original)
+    def wrapper(figure_or_data, *args, **kwargs):
+        layout = getattr(figure_or_data, "layout", None)
+        if layout is not None and hasattr(layout, "title"):
+            layout.title = None
+        return original(figure_or_data, *args, **kwargs)
+
+    st.plotly_chart = wrapper
+
+
 def install_streamlit_localizers() -> None:
     if getattr(st, "_strategy_i18n_patched", False):
         return
@@ -383,6 +391,7 @@ def install_streamlit_localizers() -> None:
         if hasattr(st, method_name):
             _wrap_streamlit_text_method(method_name)
     _wrap_streamlit_write()
+    _wrap_streamlit_plotly_chart()
     st._strategy_i18n_patched = True
 
 
@@ -397,7 +406,14 @@ def route_href(
     base = f"{BASE_ROUTE_PATH}/{normalized}" if normalized else BASE_ROUTE_PATH
     active_language = str(language or get_ui_language()).strip().lower()
     active_language = "zh" if active_language.startswith("zh") else "en"
-    parameters = {"lang": active_language, **(query or {})}
+    parameters = {"lang": active_language}
+    try:
+        workspace_id = st.session_state.get("_strategy_workspace_id") or st.query_params.get("ws")
+    except (AttributeError, KeyError, TypeError):
+        workspace_id = None
+    if isinstance(workspace_id, str) and re.fullmatch(r"[A-Za-z0-9_-]{20,128}", workspace_id):
+        parameters["ws"] = workspace_id
+    parameters.update(query or {})
     return f"{base}?{urlencode(parameters)}"
 
 def render_html(markup: str, *, localize: bool = True) -> None:
@@ -509,6 +525,12 @@ body {
 .stApp {
 __APP_BACKGROUND__
   color: var(--text-primary);
+}
+
+/* Keep the existing page legible while Streamlit finishes a rerun. */
+div.element-container[data-stale="true"] {
+  opacity: 1 !important;
+  transition: none !important;
 }
 
 a,
@@ -3066,7 +3088,16 @@ div[class*="st-key-single-stock-analysis-hero"] {
   border-radius: 24px;
 }
 
+div[class*="st-key-multi-stock-analysis-hero"] {
+  padding: 0.72rem 1rem 0.7rem;
+  border-radius: 24px;
+}
+
 div[class*="st-key-single-stock-hero-compact"] [data-testid="stHorizontalBlock"] {
+  align-items: center;
+}
+
+div[class*="st-key-multi-stock-hero-compact"] [data-testid="stHorizontalBlock"] {
   align-items: center;
 }
 
@@ -3075,7 +3106,18 @@ div[class*="st-key-single-stock-hero-compact"] .analysis-title {
   line-height: 1.05;
 }
 
+div[class*="st-key-multi-stock-hero-compact"] .analysis-title {
+  font-size: clamp(1.35rem, 2.25vw, 2rem);
+  line-height: 1.05;
+}
+
 div[class*="st-key-single-stock-hero-compact"] .analysis-subtitle {
+  margin-top: 0.28rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+div[class*="st-key-multi-stock-hero-compact"] .analysis-subtitle {
   margin-top: 0.28rem;
   font-size: 0.86rem;
   line-height: 1.45;
@@ -3089,7 +3131,20 @@ div[class*="st-key-single-stock-analysis-hero"] div[class*="st-key-single-stock-
   background: transparent;
 }
 
+div[class*="st-key-multi-stock-analysis-hero"] div[class*="st-key-multi-stock-header-range"] {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 div[class*="st-key-single-stock-analysis-hero"] div[class*="st-key-single-stock-header-range"] [data-testid="stCaptionContainer"] {
+  margin-bottom: 0.18rem;
+  font-size: 0.74rem;
+}
+
+div[class*="st-key-multi-stock-analysis-hero"] div[class*="st-key-multi-stock-header-range"] [data-testid="stCaptionContainer"] {
   margin-bottom: 0.18rem;
   font-size: 0.74rem;
 }
@@ -3100,7 +3155,18 @@ div[class*="st-key-single-stock-analysis-hero"] div[class*="st-key-single-stock-
   background: color-mix(in srgb, var(--surface-sheet) 82%, transparent) !important;
 }
 
+div[class*="st-key-multi-stock-analysis-hero"] div[class*="st-key-multi-stock-header-range"] [data-testid="stDateInputField"] {
+  min-height: 42px;
+  border-radius: 16px !important;
+  background: color-mix(in srgb, var(--surface-sheet) 82%, transparent) !important;
+}
+
 div[class*="st-key-single-stock-hero-toggle"] .stButton {
+  display: flex;
+  justify-content: flex-end;
+}
+
+div[class*="st-key-multi-stock-hero-toggle"] .stButton {
   display: flex;
   justify-content: flex-end;
 }
@@ -3118,7 +3184,25 @@ div[class*="st-key-single-stock-hero-toggle"] .stButton button {
   box-shadow: none !important;
 }
 
+div[class*="st-key-multi-stock-hero-toggle"] .stButton button {
+  width: auto;
+  min-height: 2.4rem;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.82rem;
+  font-weight: 580;
+  box-shadow: none !important;
+}
+
 div[class*="st-key-single-stock-hero-toggle"] .stButton button:hover {
+  color: var(--text-strong) !important;
+  background: transparent !important;
+}
+
+div[class*="st-key-multi-stock-hero-toggle"] .stButton button:hover {
   color: var(--text-strong) !important;
   background: transparent !important;
 }
@@ -3168,12 +3252,15 @@ div[class*="st-key-single-stock-section-nav"] :is([data-testid="stSegmentedContr
 }
 
 div[class*="st-key-single-stock-section-nav"] [data-testid="stButtonGroup"] [role="radiogroup"] {
-  width: 100%;
+  display: flex !important;
+  width: 100% !important;
+  max-width: none !important;
   gap: 0 !important;
 }
 
 div[class*="st-key-single-stock-section-nav"] :is([data-testid="stSegmentedControl"], [data-testid="stButtonGroup"]) button {
   flex: 1 1 0;
+  min-width: 0;
   min-height: 2.25rem;
   padding: 0.42rem 0.9rem;
   border: 0 !important;
@@ -3233,6 +3320,203 @@ div[class*="st-key-single-stock-switch-popover"] .stPopover button:hover {
   border: 0 !important;
   background: transparent !important;
   color: var(--text-strong) !important;
+}
+
+div[class*="st-key-multi-stock-section-nav"] {
+  padding: 0.18rem 0.2rem 0.28rem;
+}
+
+div[class*="st-key-multi-stock-section-nav"] [data-testid="stHorizontalBlock"] {
+  align-items: center;
+}
+
+div[class*="st-key-multi-stock-section-nav"] div[class*="st-key-multi_stock_analysis_section"] {
+  width: 100%;
+}
+
+div[class*="st-key-multi-stock-section-nav"] :is([data-testid="stSegmentedControl"], [data-testid="stButtonGroup"]) {
+  width: 100%;
+  padding: 0.16rem;
+  border: 1px solid var(--surface-line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-frost) 82%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-sheet) 72%, transparent);
+}
+
+div[class*="st-key-multi-stock-section-nav"] [data-testid="stButtonGroup"] [role="radiogroup"] {
+  display: flex !important;
+  width: 100% !important;
+  max-width: none !important;
+  gap: 0 !important;
+}
+
+div[class*="st-key-multi-stock-section-nav"] :is([data-testid="stSegmentedControl"], [data-testid="stButtonGroup"]) button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: 0.42rem 0.9rem;
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin: 0 !important;
+  box-shadow: none !important;
+  justify-content: center;
+}
+
+div[class*="st-key-multi-stock-section-nav"] :is([data-testid="stSegmentedControl"], [data-testid="stButtonGroup"]) button:hover {
+  background: color-mix(in srgb, var(--surface-sheet) 54%, transparent) !important;
+  color: var(--text-strong) !important;
+}
+
+div[class*="st-key-multi-stock-section-nav"] :is([data-testid="stSegmentedControl"], [data-testid="stButtonGroup"]) button[aria-selected="true"],
+div[class*="st-key-multi-stock-section-nav"] :is([data-testid="stSegmentedControl"], [data-testid="stButtonGroup"]) button[aria-pressed="true"],
+div[class*="st-key-multi-stock-section-nav"] :is([data-testid="stSegmentedControl"], [data-testid="stButtonGroup"]) button[aria-checked="true"] {
+  background: var(--surface-sheet) !important;
+  color: var(--text-strong) !important;
+  font-weight: 720;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--text-strong) 8%, transparent) !important;
+}
+
+div[class*="st-key-multi-stock-edit-popover"] {
+  width: 100%;
+  align-items: flex-end;
+}
+
+div[class*="st-key-multi-stock-edit-popover"] > [data-testid="stLayoutWrapper"] {
+  width: max-content;
+  margin-left: auto;
+}
+
+div[class*="st-key-multi-stock-edit-popover"] .stPopover {
+  width: max-content;
+  align-self: flex-end;
+}
+
+div[class*="st-key-multi-stock-edit-popover"] .stPopover button {
+  width: auto;
+  min-height: 2.4rem;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  font-weight: 560;
+  box-shadow: none;
+  justify-content: flex-end;
+}
+
+div[class*="st-key-multi-stock-edit-popover"] .stPopover button:hover {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--text-strong) !important;
+}
+
+.analysis-stock-list {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--surface-line);
+}
+
+.analysis-stock-list-title {
+  margin-bottom: 0.16rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 720;
+  letter-spacing: 0.04em;
+}
+
+.analysis-stock-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.58rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-line) 72%, transparent);
+}
+
+.analysis-stock-identity,
+.analysis-stock-performance {
+  display: grid;
+  min-width: 0;
+}
+
+.analysis-stock-identity {
+  gap: 0.12rem;
+}
+
+.analysis-stock-symbol {
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.analysis-stock-name,
+.analysis-stock-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analysis-stock-name {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.analysis-stock-meta {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.analysis-stock-performance {
+  flex: 0 0 auto;
+  gap: 0.1rem;
+  text-align: right;
+}
+
+.analysis-stock-price {
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 680;
+}
+
+.analysis-stock-return {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 680;
+}
+
+div[class*="st-key-multi-stock-chart-switch"] [data-testid="stRadioGroup"] {
+  width: 100%;
+  gap: 0.48rem;
+  align-items: stretch;
+}
+
+div[class*="st-key-multi-stock-chart-switch"] [data-testid="stRadioOption"] {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.55rem;
+  box-sizing: border-box;
+  padding: 0.62rem 0.72rem;
+  border-radius: 14px;
+}
+
+div[class*="st-key-multi-stock-chart-switch"] [data-testid="stRadioOption"] p {
+  white-space: nowrap;
+}
+
+div[class*="st-key-multi-stock-chart-switch"] [data-testid="stRadioOption"][data-selected="true"],
+div[class*="st-key-multi-stock-chart-switch"] [data-testid="stRadioOption"]:has(input:checked) {
+  border-color: var(--surface-line-strong);
+  background: var(--surface-sheet);
+  color: var(--text-strong);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--text-strong) 8%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4278,8 +4562,10 @@ _STYLE_BUNDLE_HINTS = {
         "st-key-multi-stock-analysis",
         "st-key-multi-stock-basic",
         "st-key-multi-stock-chart",
+        "st-key-multi-stock-chart-switch",
         "st-key-multi-stock-edit-popover",
         "st-key-multi-stock-header",
+        "st-key-multi-stock-section-nav",
         "st-key-multi-stock-strategy",
         "st-key-single-stock-analysis",
         "st-key-single-stock-basic",

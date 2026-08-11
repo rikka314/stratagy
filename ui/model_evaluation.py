@@ -235,6 +235,9 @@ def normalize_model_evaluation_payload(
     search_method_summary = _ensure_records(report_payload.get("search_method_summary"))
     robustness_summary = _ensure_records(report_payload.get("robustness_summary"))
     failures = _ensure_records(report_payload.get("failures"))
+    ml_gain = _ensure_records(report_payload.get("ml_gain"))
+    segment_highlights = _ensure_records(report_payload.get("segment_highlights"))
+    adaptive_router = _ensure_mapping(report_payload.get("adaptive_router"))
     quantstats = [
         {
             **row,
@@ -282,6 +285,9 @@ def normalize_model_evaluation_payload(
         "family_summary": family_summary,
         "search_method_summary": search_method_summary,
         "robustness_summary": robustness_summary,
+        "ml_gain": ml_gain,
+        "segment_highlights": segment_highlights,
+        "adaptive_router": adaptive_router,
         "quantstats": quantstats,
         "failures": failures,
         "mlflow": mlflow_payload or {},
@@ -298,6 +304,12 @@ def normalize_model_evaluation_payload(
             "quantstats": quantstats_label,
             "mlflow": tr("mlflow.recorded") if mlflow_payload else tr("mlflow.notRecorded"),
         },
+        "is_us_research_baseline": (
+            str(config.get("name") or run.run_id) == "full_us_deans_60"
+            and str(config.get("market") or "").upper() == "US"
+            and len(model_summary) == 19
+            and bool(robustness_summary)
+        ),
     }
     return normalized
 
@@ -486,6 +498,10 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
 
 
 def _render_research_conclusion(payload: dict[str, Any] | None) -> None:
+    if payload and payload.get("is_us_research_baseline"):
+        _render_us_research_baseline(payload)
+        return
+
     with st.container(key="model-evaluation-research-conclusion"):
         st.markdown(
             f"<div class='surface-kicker'>{html.escape(t('跨市场结论', 'Cross-market conclusion'))}</div>",
@@ -550,6 +566,77 @@ def _render_research_conclusion(payload: dict[str, Any] | None) -> None:
                 ),
                 tone="warning",
             )
+
+
+def _render_us_research_baseline(payload: dict[str, Any]) -> None:
+    """Render the frozen US conclusion before detailed evidence tables."""
+    top_model = _ensure_mapping(payload.get("top_model"))
+    adaptive = _ensure_mapping(payload.get("adaptive_router"))
+    ml_gain = _ensure_records(payload.get("ml_gain"))
+    model_summary = _ensure_records(payload.get("model_summary"))
+    robustness = _ensure_records(payload.get("robustness_summary"))
+    degraded_count = len(_ensure_records(payload.get("failures")))
+    top_name = _display_text(top_model.get("display_name"))
+    top_score = _format_number_text(top_model.get("total_score"))
+    top_excess = _format_pct_text(top_model.get("median_excess_return"))
+    top_sharpe = _format_number_text(top_model.get("median_sharpe"))
+    rolling_sharpe = _format_number_text(top_model.get("robustness_median_sharpe"))
+    beat_naive = _format_pct_text(top_model.get("beat_naive_rate"))
+    negative_ml = sum(1 for row in ml_gain if (_coerce_float(row.get("score_delta")) or 0.0) < 0)
+    state_count = _format_count_label(adaptive.get("state_count"))
+
+    with st.container(key="model-evaluation-research-conclusion"):
+        st.markdown(
+            f"<div class='surface-kicker'>{html.escape(t('已冻结的美股研究基线', 'Frozen US research baseline'))}</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(t("## 美股研究已完成", "## US research completed"))
+        st.markdown(
+            t(
+                "60 只美股、19 个模型、1,260 日主窗口与 4 个 rolling 窗口已经完成。"
+                "当前结论只适用于美股；A 股与跨市场研究已暂停，不能从本结果外推。",
+                "The 60-stock US study is complete across 19 models, a 1,260-day main window, "
+                "and four rolling windows. This conclusion is US-only; CN A and cross-market "
+                "research are paused and must not be inferred from these results.",
+            )
+        )
+        render_html(
+            f"""
+<div class="analysis-kv-grid">
+  <div class="analysis-kv-item">
+    <span class="analysis-kv-label">{html.escape(t('当前离线候选', 'Current offline candidate'))}</span>
+    <span class="analysis-kv-value">{html.escape(top_name)}</span>
+    <span class="analysis-kv-meta">{html.escape(t(f'综合分 {top_score} · rolling Sharpe {rolling_sharpe}', f'Total score {top_score} · rolling Sharpe {rolling_sharpe}'))}</span>
+  </div>
+  <div class="analysis-kv-item">
+    <span class="analysis-kv-label">{html.escape(t('收益边界', 'Return boundary'))}</span>
+    <span class="analysis-kv-value">{html.escape(top_excess)}</span>
+    <span class="analysis-kv-meta">{html.escape(t(f'主窗口中位超额收益 · 跑赢 Naive {beat_naive}', f'Median main-window excess return · beat Naive {beat_naive}'))}</span>
+  </div>
+  <div class="analysis-kv-item">
+    <span class="analysis-kv-label">{html.escape(t('主窗口风险调整表现', 'Main-window risk-adjusted result'))}</span>
+    <span class="analysis-kv-value">{html.escape(top_sharpe)}</span>
+    <span class="analysis-kv-meta">{html.escape(t('中位 Sharpe；综合第一不等于稳定跑赢买入持有', 'Median Sharpe; rank one does not mean consistently beating buy-and-hold'))}</span>
+  </div>
+  <div class="analysis-kv-item">
+    <span class="analysis-kv-label">{html.escape(t('研究完整性', 'Research completeness'))}</span>
+    <span class="analysis-kv-value">{len(model_summary)} / {len(robustness)}</span>
+    <span class="analysis-kv-meta">{html.escape(t(f'主窗口模型 / rolling 模型 · {degraded_count} 条降级', f'main-window / rolling models · {degraded_count} degraded records'))}</span>
+  </div>
+</div>
+            """
+        )
+        render_status_note(
+            t(
+                f"产品口径：{top_name} 作为默认研究候选，Naive 必须并列展示；"
+                f"{len(ml_gain)} 条 ML 对照中 {negative_ml} 条综合分下降，因此 ML 不默认启用；"
+                f"Adaptive router 的 {state_count} 个状态只用于状态感知路由。",
+                f"Product rule: show {top_name} as the default research candidate beside Naive. "
+                f"ML is opt-in because {negative_ml} of {len(ml_gain)} comparisons reduced the total score; "
+                f"the adaptive router's {state_count} states are for state-aware routing only.",
+            ),
+            tone="warning",
+        )
 
 
 def _render_evaluation_export(payload: dict[str, Any] | None) -> None:

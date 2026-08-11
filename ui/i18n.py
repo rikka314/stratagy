@@ -3767,6 +3767,22 @@ LOCALES: dict[str, dict[str, str]] = {
         "zh": "加入",
         "en": "Add"
     },
+    "stockPool.addedToSelection": {
+        "zh": "已加入 {symbol}。当前已选 {count} 只股票。",
+        "en": "Added {symbol}. {count} stock(s) currently selected."
+    },
+    "workspace.temporaryNotice": {
+        "zh": "当前分析会自动临时保存 24 小时。请不要分享含 ws 的地址。",
+        "en": "This analysis is saved for 24 hours. Do not share a URL containing ws."
+    },
+    "workspace.startFresh": {
+        "zh": "开始新的临时分析",
+        "en": "Start a fresh analysis"
+    },
+    "workspace.restoredNotice": {
+        "zh": "已恢复临时分析工作区；请不要分享地址栏中包含 ws 的链接。",
+        "en": "Your temporary analysis workspace was restored. Do not share a URL containing ws."
+    },
     "metric.volatility60d": {
         "zh": "近 60 日波动",
         "en": "60D Volatility"

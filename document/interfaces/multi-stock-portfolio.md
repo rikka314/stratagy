@@ -86,6 +86,12 @@ _build_multi_strategy_signature(
 
 股票池、参数或权重变化后，旧结果会被视为 stale，需要重新生成。
 
+### 临时持久化恢复
+
+- 多股 route state、组合结果和优化结果随 `ws` 临时工作区保留 24 小时；工作区恢复后以同一 strategy signature 判断结果是否仍可消费。
+- `multi_stock_analysis_cache`、图表 `figure_cache` 与组合 `heatmap_cache` 不落盘。分析数据会从行情缓存重载，图表懒重建；进程内图表缓存分别限制为 8 组和 4 组。
+- 上传数据在临时工作区内按哈希保存，工作区过期、容量回收或用户主动清除后会一并删除。
+
 ## 组合生成接口：`core/portfolio.py`
 
 ### `run_portfolio_simulation`

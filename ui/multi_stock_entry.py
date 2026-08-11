@@ -23,6 +23,7 @@ MULTI_ENTRY_QUERY_KEY = "multi_entry_query"
 MULTI_ENTRY_SELECTED_SYMBOL_KEY = "multi_entry_selected_symbol"
 MULTI_ENTRY_SELECTED_LIST_KEY = "multi_entry_selected_symbols"
 MULTI_ENTRY_LAST_MARKET_KEY = "multi_entry_last_market"
+MULTI_ENTRY_ADDITION_NOTICE_KEY = "multi_entry_addition_notice"
 
 
 def _ensure_selected_list() -> list[str]:
@@ -33,12 +34,33 @@ def _ensure_selected_list() -> list[str]:
     return symbols
 
 
-def _add_symbol_to_selection(symbol: str) -> None:
+def _add_symbol_to_selection(symbol: str) -> bool:
     symbols = _ensure_selected_list()
     normalized = str(symbol or "").strip().upper()
-    if normalized and normalized not in symbols:
-        symbols.append(normalized)
-        st.session_state[MULTI_ENTRY_SELECTED_LIST_KEY] = symbols
+    if not normalized or normalized in symbols:
+        return False
+
+    symbols.append(normalized)
+    st.session_state[MULTI_ENTRY_SELECTED_LIST_KEY] = symbols
+    st.session_state[MULTI_ENTRY_ADDITION_NOTICE_KEY] = {
+        "symbol": normalized,
+        "count": len(symbols),
+    }
+    return True
+
+
+def _render_pending_addition_notice() -> None:
+    notice = st.session_state.pop(MULTI_ENTRY_ADDITION_NOTICE_KEY, None)
+    if not isinstance(notice, dict):
+        return
+
+    symbol = str(notice.get("symbol") or "").strip().upper()
+    count = notice.get("count")
+    if symbol and isinstance(count, int):
+        render_status_note(
+            tr("stockPool.addedToSelection", symbol=symbol, count=count),
+            tone="positive",
+        )
 
 
 def _remove_symbols_from_selection(symbols_to_remove: list[str]) -> None:
@@ -271,6 +293,8 @@ def render_multi_stock_entry_page(initial_market: str = "US") -> dict[str, Any] 
                 else:
                     _add_symbol_to_selection(selected_symbol)
                     st.rerun()
+
+            _render_pending_addition_notice()
 
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
             _render_section_header(

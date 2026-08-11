@@ -171,6 +171,12 @@ build_strategy_context_key(
 
 如果 `request_signature` 与当前 artifact 不匹配，也会退回 `REQUEST_DRAFT`。
 
+### 临时持久化恢复
+
+- `single_stock_strategy_workspace` 的 `context_key/current_artifact/saved_artifacts` 会随路由临时工作区保存 24 小时；恢复后仍遵循同一 `request_signature` stale 判定。
+- `single_stock_stage_cache` 和 `single_stock_display_cache` 均只保留在当前进程会话，不参与快照。stage cache 全局 LRU 上限为 12 条，展示图缓存上限为 12 组。
+- 上传 CSV 的原始字节按内容哈希保存在对应临时工作区，并在恢复时重新注入 route state；过期或清除工作区后不再可用。
+
 ## stage cache contract
 
 ### 分桶方式

@@ -175,6 +175,17 @@ def test_public_route_contract_remains_on_strategy_base_path() -> None:
     assert {"stock-analysis", "stocks-analysis"}.issubset(route_paths)
 
 
+def test_route_href_preserves_an_active_workspace_token(monkeypatch) -> None:
+    import ui.theme as theme
+
+    workspace_id = "a" * 32
+    fake_st = type("FakeStreamlit", (), {"session_state": {"_strategy_workspace_id": workspace_id}, "query_params": {}})()
+    monkeypatch.setattr(theme, "st", fake_st)
+    monkeypatch.setattr(theme, "get_ui_language", lambda: "en")
+
+    assert theme.route_href("stock-analysis") == f"/strategy/stock-analysis?lang=en&ws={workspace_id}"
+
+
 def test_apply_plotly_theme_handles_array_trace_text() -> None:
     fig = go.Figure(
         data=[

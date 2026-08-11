@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import html
+from collections import OrderedDict
 from time import perf_counter
 from datetime import datetime
 from typing import Any
@@ -20,7 +21,7 @@ from ui.i18n import tr
 from core.data import get_stock_label_map, search_stock_candidates
 from core.market_context import get_market_indices
 from core.perf import emit_performance_event, performance_span
-from core.portfolio import bayesian_optimize_portfolio, run_portfolio_simulation
+from core.portfolio import build_portfolio_figure, bayesian_optimize_portfolio, run_portfolio_simulation
 from core.utils import load_or_fetch_stock
 from core.visualization import (
     create_correlation_heatmap,
@@ -46,6 +47,7 @@ MULTI_STRATEGY_WORKSPACE_KEY = "multi_stock_strategy_workspace"
 MULTI_ANALYSIS_SECTION_KEY = "multi_stock_analysis_section"
 MULTI_ANALYSIS_CACHE_KEY = "multi_stock_analysis_cache"
 MULTI_APPLIED_ADJUSTMENTS_KEY = "multi_stock_applied_adjustments"
+MULTI_HEADER_DETAILS_KEY = "multi_stock_header_details_expanded"
 
 
 def _prepare_multi_stock_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -353,38 +355,58 @@ def _render_multi_stock_header(
             """
         )
 
+    details_expanded = bool(st.session_state.get(MULTI_HEADER_DETAILS_KEY, False))
+    details_label = tr("analysis.hide_details") if details_expanded else tr("analysis.show_details")
+    details_icon = ":material/expand_less:" if details_expanded else ":material/expand_more:"
+
     with st.container(key="multi-stock-analysis-hero"):
-        render_html(
-            f"""
+        with st.container(key="multi-stock-hero-compact"):
+            identity_col, range_col, toggle_col = st.columns([1.1, 0.9, 0.28], gap="medium", vertical_alignment="center")
+            with identity_col:
+                render_html(
+                    f"""
+<div class="analysis-compact-identity">
+  <h1 class="analysis-title">多股主分析页</h1>
+  <div class="analysis-subtitle">{html.escape(title_suffix)}</div>
+</div>
+                    """
+                )
+            with range_col:
+                render_analysis_date_range_control(
+                    current_range=selected_range,
+                    key_prefix="multi_stock",
+                    label=tr("time.range"),
+                    in_hero=True,
+                )
+            with toggle_col:
+                with st.container(key="multi-stock-hero-toggle"):
+                    if st.button(
+                        details_label,
+                        key="multi_stock_header_details_toggle",
+                        icon=details_icon,
+                    ):
+                        st.session_state[MULTI_HEADER_DETAILS_KEY] = not details_expanded
+                        st.rerun()
+
+        if details_expanded:
+            render_html(
+                f"""
+<div class="analysis-hero-details">
 <div class="analysis-hero-topline">
   <span class="analysis-pill accent">{tr("analysis.multiStock")}</span>
   <span class="analysis-pill">{html.escape(market_label)}</span>
   <span class="analysis-pill">{loaded_count} 个对比标的</span>
   <span class="analysis-pill">{uploaded_count} 个上传数据源</span>
 </div>
-            """
-        )
-        summary_col, quick_col = st.columns([1.08, 0.92], gap="large")
-        with summary_col:
-            render_html(
-                f"""
-<h1 class="analysis-title">多股主分析页</h1>
-<div class="analysis-subtitle">{html.escape(title_suffix)}</div>
 <div class="analysis-chart-meta">
   <span class="analysis-chart-chip">数据区间 {_format_date_text(global_start)} 到 {_format_date_text(global_end)}</span>
   <span class="analysis-chart-chip">当前市场 {html.escape(market_label)}</span>
 </div>
+<div class="analysis-quick-grid">{quick_markup}</div>
+<div class="analysis-market-strip">{''.join(index_cards)}</div>
+</div>
                 """
             )
-            render_analysis_date_range_control(
-                current_range=selected_range,
-                key_prefix="multi_stock",
-                label=tr("time.range"),
-                in_hero=True,
-            )
-        with quick_col:
-            render_html(f"<div class='analysis-quick-grid'>{quick_markup}</div>")
-        render_html(f"<div class='analysis-market-strip'>{''.join(index_cards)}</div>")
 
 
 def _get_multi_route_state() -> dict[str, Any]:
@@ -464,14 +486,16 @@ def _get_multi_strategy_workspace() -> dict[str, Any]:
             "portfolio_result": None,
             "optimization_signature": None,
             "optimization_result": None,
-            "heatmap_cache": {},
+            "heatmap_cache": OrderedDict(),
         },
     )
     workspace.setdefault("signature", None)
     workspace.setdefault("portfolio_result", None)
     workspace.setdefault("optimization_signature", None)
     workspace.setdefault("optimization_result", None)
-    workspace.setdefault("heatmap_cache", {})
+    heatmap_cache = workspace.setdefault("heatmap_cache", OrderedDict())
+    if not isinstance(heatmap_cache, OrderedDict):
+        workspace["heatmap_cache"] = OrderedDict(heatmap_cache)
     return workspace
 
 
@@ -484,7 +508,7 @@ def _get_multi_analysis_cache() -> dict[str, Any]:
             "factor_stock_data_dict": {},
             "symbol_meta": {},
             "comparison_stats": [],
-            "figure_cache": {},
+            "figure_cache": OrderedDict(),
         },
     )
     cache.setdefault("data_signature", None)
@@ -492,7 +516,9 @@ def _get_multi_analysis_cache() -> dict[str, Any]:
     cache.setdefault("factor_stock_data_dict", {})
     cache.setdefault("symbol_meta", {})
     cache.setdefault("comparison_stats", [])
-    cache.setdefault("figure_cache", {})
+    figure_cache = cache.setdefault("figure_cache", OrderedDict())
+    if not isinstance(figure_cache, OrderedDict):
+        cache["figure_cache"] = OrderedDict(figure_cache)
     return cache
 
 
@@ -587,7 +613,7 @@ def _get_multi_chart_figure(
     benchmark: str = "equal_weight",
 ) -> go.Figure | None:
     analysis_cache = _get_multi_analysis_cache()
-    figure_cache: dict[str, go.Figure | None] = analysis_cache.setdefault("figure_cache", {})
+    figure_cache: OrderedDict[str, go.Figure | None] = analysis_cache.setdefault("figure_cache", OrderedDict())
     cache_key = _build_multi_chart_cache_key(
         chart_key,
         stock_data_dict=stock_data_dict,
@@ -596,6 +622,7 @@ def _get_multi_chart_figure(
         benchmark=benchmark,
     )
     if cache_key in figure_cache:
+        figure_cache.move_to_end(cache_key)
         emit_performance_event("multi", "figure_build", 0.0, cache="hit", chart_key=chart_key)
         return figure_cache[cache_key]
 
@@ -637,6 +664,8 @@ def _get_multi_chart_figure(
             figure = None
 
     figure_cache[cache_key] = figure
+    while len(figure_cache) > 8:
+        figure_cache.popitem(last=False)
     return figure
 
 
@@ -647,9 +676,10 @@ def _get_multi_strategy_heatmap_figure(
     portfolio_result: dict[str, Any],
     period: str,
 ) -> go.Figure | None:
-    heatmap_cache: dict[str, go.Figure | None] = workspace.setdefault("heatmap_cache", {})
+    heatmap_cache: OrderedDict[str, go.Figure | None] = workspace.setdefault("heatmap_cache", OrderedDict())
     cache_key = f"{strategy_signature}::{period}"
     if cache_key in heatmap_cache:
+        heatmap_cache.move_to_end(cache_key)
         return heatmap_cache[cache_key]
 
     heatmap_returns: dict[str, pd.Series] = {}
@@ -666,6 +696,8 @@ def _get_multi_strategy_heatmap_figure(
         height=460,
     )
     heatmap_cache[cache_key] = figure
+    while len(heatmap_cache) > 4:
+        heatmap_cache.popitem(last=False)
     return figure
 
 
@@ -759,30 +791,25 @@ def _render_multi_stock_add_popover(*, market: str) -> None:
 
 
 def _render_multi_stock_section_nav(comparison_stats: list[dict[str, Any]], *, market: str) -> str:
-    nav_col, action_col = st.columns([1.4, 1.1], gap="small")
     section_default = _ensure_segmented_value(MULTI_ANALYSIS_SECTION_KEY, ["basics", "strategy"], "basics")
-    with nav_col:
-        st.caption(tr("analysis.areaSwitch"))
-        section_view = st.segmented_control(
-            tr("analysis.areaSwitch"),
-            options=["basics", "strategy"],
-            format_func=lambda value: tr("panel.basicInfo") if value == "basics" else tr("common.strategy"),
-            default=section_default,
-            key=MULTI_ANALYSIS_SECTION_KEY,
-            width="stretch",
-            label_visibility="collapsed",
-        ) or section_default
-    with action_col:
-        st.caption(tr("stock_pool.operations"))
-        remove_col, add_col = st.columns(2, gap="small")
-        with remove_col:
-            with st.container(key="multi-stock-remove-popover"):
-                with st.popover(tr("portfolio.removeStock"), use_container_width=True):
-                    _render_multi_stock_remove_popover(comparison_stats)
-        with add_col:
-            with st.container(key="multi-stock-add-popover"):
-                with st.popover(tr("action.addStock"), use_container_width=True):
-                    _render_multi_stock_add_popover(market=market)
+    with st.container(key="multi-stock-section-nav"):
+        nav_col, edit_col = st.columns([1.0, 0.28], gap="small", vertical_alignment="center")
+        with nav_col:
+            section_view = st.segmented_control(
+                tr("analysis.areaSwitch"),
+                options=["basics", "strategy"],
+                format_func=lambda value: tr("panel.basicInfo") if value == "basics" else tr("common.strategy"),
+                default=section_default,
+                key=MULTI_ANALYSIS_SECTION_KEY,
+                label_visibility="collapsed",
+            ) or section_default
+        with edit_col:
+            with st.container(key="multi-stock-edit-popover"):
+                with st.popover(tr("stock.pool"), use_container_width=False):
+                    with st.expander(tr("portfolio.removeStock"), expanded=False):
+                        _render_multi_stock_remove_popover(comparison_stats)
+                    with st.expander(tr("action.addStock"), expanded=False):
+                        _render_multi_stock_add_popover(market=market)
     return section_view
 
 
@@ -818,55 +845,46 @@ def _render_multi_stock_basic_section(
             (tr("data.coverageRange"), f"{_format_date_text(global_start)} → {_format_date_text(global_end)}", tr("multiStock.sharedFilter")),
         ]
     )
+    stock_rows_markup = "".join(
+        f"""
+<div class="analysis-stock-row">
+  <div class="analysis-stock-identity">
+    <span class="analysis-stock-symbol">{html.escape(item['symbol'])}</span>
+    <span class="analysis-stock-name">{html.escape(item['display_name'])}</span>
+    <span class="analysis-stock-meta">{html.escape(item['source_label'])} · {html.escape(_format_date_text(item['date_min']))} — {html.escape(_format_date_text(item['date_max']))} · {item['data_days']} {html.escape(tr("data.days"))}</span>
+  </div>
+  <div class="analysis-stock-performance">
+    <span class="analysis-stock-price">{html.escape(_format_decimal(item['latest_price']))}</span>
+    <span class="analysis-stock-return">{html.escape(_format_signed_pct((item['total_return'] or 0.0) * 100.0 if item['total_return'] is not None else None))}</span>
+  </div>
+</div>
+        """
+        for item in comparison_stats
+    )
 
     with st.container(key="multi-stock-basic-section"):
-        render_html(
-            """
-<div id="multi-stock-basics"></div>
-<div class="analysis-section-header">
-  <div class="surface-kicker">{tr("panel.basicInfo")}</div>
-  <h2 class="analysis-section-title">多股基础信息区</h2>
-  <p class="analysis-section-copy">顶部先给出股票池摘要和明细表，右侧主图在价格对比、相对强弱、风险收益、最新因子评分和相关性之间切换，不再顺序堆叠成长页面。</p>
-</div>
-            """
-        )
         summary_col, chart_col, switch_col = st.columns([0.8, 1.46, 0.42], gap="large")
-
         with switch_col:
-            st.caption(tr("chart.switch"))
-            selected_chart = st.radio(
-                tr("chart.view"),
-                options=list(chart_configs.keys()),
-                format_func=lambda key: chart_configs[key]["label"],
-                key="multi_stock_basic_chart_view",
-                label_visibility="collapsed",
-            )
-            render_status_note(tr("note.chart_relocation"), tone="info")
-
+            with st.container(key="multi-stock-chart-switch"):
+                st.caption(tr("chart.switch"))
+                selected_chart = st.radio(
+                    tr("chart.view"),
+                    options=list(chart_configs.keys()),
+                    format_func=lambda key: chart_configs[key]["label"],
+                    key="multi_stock_basic_chart_view",
+                    label_visibility="collapsed",
+                )
+                render_status_note(tr("note.chart_relocation"), tone="info")
         with summary_col:
             render_html(f"<div class='analysis-kv-grid'>{metrics_markup}</div>")
-            render_status_note(tr("data.missingFieldFallback"), tone="info")
-
-            detail_rows = [
-                {
-                    tr("field.symbol"): item["symbol"],
-                    tr("common.name"): item["display_name"],
-                    tr("common.source"): item["source_label"],
-                    tr("metric.startPrice"): _format_decimal(item["start_price"]),
-                    tr("price.latest"): _format_decimal(item["latest_price"]),
-                    tr("metric.totalReturn"): _format_signed_pct((item["total_return"] or 0.0) * 100.0 if item["total_return"] is not None else None),
-                    tr("metrics.annualizedReturn"): _format_signed_pct((item["annualized_return"] or 0.0) * 100.0 if item["annualized_return"] is not None else None),
-                    tr("price.highest"): _format_decimal(item["high_price"]),
-                    tr("price.low"): _format_decimal(item["low_price"]),
-                    tr("data.days"): item["data_days"],
-                }
-                for item in comparison_stats
-            ]
-            with st.expander(tr("table.detailedComparison"), expanded=False):
-                if detail_rows:
-                    st.dataframe(pd.DataFrame(detail_rows), width="stretch", hide_index=True)
-                else:
-                    render_status_note(tr("results.notAvailable"), tone="warning")
+            render_html(
+                f"""
+<div class="analysis-stock-list">
+  <div class="analysis-stock-list-title">{html.escape(tr("table.detailedComparison"))}</div>
+  {stock_rows_markup}
+</div>
+                """
+            )
 
         chart_meta = chart_configs[selected_chart]
         with chart_col:
@@ -907,6 +925,7 @@ def _render_multi_stock_basic_section(
                 if figure is None:
                     render_status_note(chart_meta.get("empty_text", tr("results.notAvailable")), tone="warning")
                 else:
+                    figure.layout.title = None
                     st.plotly_chart(figure, width="stretch")
                     render_status_note(chart_meta["note"], tone="info")
 
@@ -1179,7 +1198,11 @@ def _render_multi_stock_strategy_section(
                         else:
                             render_status_note(tr("chart.insufficientDataForHeatmap"), tone="warning")
                     else:
-                        portfolio_fig = _style_display_figure(portfolio_result.get("fig"), height=520)
+                        portfolio_fig = portfolio_result.get("fig")
+                        if portfolio_fig is None:
+                            portfolio_fig = build_portfolio_figure(portfolio_result)
+                            portfolio_result["fig"] = portfolio_fig
+                        portfolio_fig = _style_display_figure(portfolio_fig, height=520)
                         if portfolio_fig is not None:
                             st.plotly_chart(portfolio_fig, width="stretch")
                             render_status_note(tr("chart.shared_net_drawdown_component"), tone="info")

@@ -35,6 +35,13 @@
 | `route_single_state` | `{view, market, symbol, name, uploaded_name, uploaded_bytes, source}` | 单股入口页与主分析页切换；推荐入口可把名称带到分析页作为目录缺失时的本地化回退 |
 | `route_multi_state` | `{view, market, symbols, uploads}` | 多股入口页与主分析页切换 |
 
+### 临时工作区恢复
+
+- 所有站内路由链接会在保留 `lang` 的同时传播可选 `ws=<opaque-token>` 查询参数。
+- `ws` 对应服务器磁盘上的临时工作区：默认保存 24 小时，可跨首页跳转、刷新和 Streamlit 重连恢复；它不是用户登录或分享链接。
+- 工作区保存 route state、sidebar/页面选择、单股 artifact 与多股组合结果；stage cache、Plotly figure 与页面展示缓存不落盘，恢复后按已有数据懒重建。
+- `ws` 是短期 bearer 标识。页面必须提示用户不要分享包含该参数的 URL；“开始新的临时分析”会删除当前工作区并清除该参数。
+
 `/strategy/model-evaluation` 是只读浏览页，不新增 route state key；页面只维护本地 selector 的 widget 状态。
 
 ### 语言状态与路由传播
@@ -334,6 +341,7 @@ render_model_evaluation_page(
 - 可选：`model-test/outputs/<run>/mlflow_run.json`
 - 可选：`report.json.quantstats[*].quantstats_html_path`
 - 可选：`report.json.adaptive_router`
+- `full_us_deans_60` 完整产物在通用明细表之前展示冻结的美股研究基线：当前离线候选、Naive 对照边界、ML 增量结论、adaptive router 状态数和市场适用范围；不得因缺少 CN_A 产物而显示为跨市场证据错误。
 
 兼容约定：
 
@@ -362,6 +370,7 @@ render_model_evaluation_page(
 - `安全暂停` 只写 cooperative pause request，不终止进程。
 - `pause_requested` 与 `paused` 必须分开展示；前者表示仍有在途批次尚未落盘。
 - `恢复` 只允许 paused/failed campaign，并由后台校验 Git commit 和 config hash。
+- 当 `full_us_deans_60` 已通过完整性校验且当前决策明确暂停 CN_A / CROSS 时，监控页把旧 manager failure 映射为“美股已完成 / 研究范围已冻结”，不再提供恢复按钮；底层 campaign/checkpoint 状态保持不变。
 
 ## 共享图表 contract：`core/visualization.py`
 
@@ -383,7 +392,7 @@ render_model_evaluation_page(
 - `create_factor_score_comparison`
 - `create_periodic_returns_heatmap`
 
-这些接口默认返回 Plotly figure；前端只负责展示和主题一致性，不应在页面里重写第二套主题体系。
+这些接口默认返回 Plotly figure；前端只负责展示和主题一致性，不应在页面里重写第二套主题体系。共享 `apply_plotly_theme()` 与 `st.plotly_chart` 展示入口会统一移除内置 `layout.title`，图表上下文标题由外层页面 surface 承载。
 
 ## 前端任务的停止边界
 

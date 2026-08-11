@@ -7,12 +7,27 @@
 import os
 import re
 import time
+from time import perf_counter
 
 import pandas as pd
 import streamlit as st
 
 from core.config import DATA_DIR, DEFAULT_A_STOCKS, DEFAULT_STOCKS
 from core.data import fetch_a_stock, fetch_data, load_csv
+from core.market_cache import MARKET_CACHE_STALE_SECONDS, MarketDataCache
+
+
+_MARKET_DATA_CACHE = MarketDataCache()
+
+
+def _emit_market_load_event(elapsed_ms: float, **fields: object) -> None:
+    """Keep performance tracing lazy so importing ``core`` stays lightweight."""
+    try:
+        from core.perf import emit_performance_event
+
+        emit_performance_event("data", "market_load", elapsed_ms, **fields)
+    except Exception:
+        pass
 
 
 def format_pct(value: float) -> str:
@@ -80,12 +95,10 @@ def load_or_fetch_stock(symbol: str, adjust: str, market: str = "US") -> pd.Data
     """
     加载或下载股票数据，优先使用临时缓存
 
-    1. 先尝试从临时目录缓存加载
-    2. 缓存超过 24 小时视为过期，重新下载
-    3. 缓存不存在则从网络下载并保存
+    1. 先读取按市场 / 股票 / 复权方式隔离的版本化缓存
+    2. 24 小时内直接命中；7 天内陈旧缓存立即返回并后台刷新
+    3. 首次请求或缓存超过 7 天时才同步下载
     """
-    CACHE_TTL_SECONDS = 24 * 3600  # 24 小时
-
     market_key = _normalize_market(market)
     adjust_key = _normalize_adjust(adjust)
     symbol_key = _normalize_symbol(symbol, market_key)
@@ -97,41 +110,59 @@ def load_or_fetch_stock(symbol: str, adjust: str, market: str = "US") -> pd.Data
     os.makedirs(DATA_DIR, exist_ok=True)
     data_path = os.path.join(DATA_DIR, f"{symbol_key.lower()}_daily.csv")
 
-    if os.path.exists(data_path):
-        file_age = time.time() - os.path.getmtime(data_path)
-        if file_age > CACHE_TTL_SECONDS:
-            # 缓存过期，删除后重新下载
-            try:
-                os.remove(data_path)
-            except Exception:
-                pass
-        else:
-            try:
-                df = load_csv(data_path)
-                if _cache_matches_request(df, market_key, adjust_key):
-                    return df
-                st.info(f"检测到 {symbol_key} 缓存与当前市场或复权方式不一致，重新下载最新数据。")
-            except Exception as e:
-                st.warning(f"加载缓存数据失败 ({symbol_key}): {e}，尝试重新下载...")
+    # Migrate a still-usable legacy CSV once.  Its modification time remains
+    # the freshness source, so migration cannot incorrectly make stale data
+    # look new.
+    if _MARKET_DATA_CACHE.read(market_key, symbol_key, adjust_key) is None and os.path.exists(data_path):
+        try:
+            file_age = time.time() - os.path.getmtime(data_path)
+            legacy_df = load_csv(data_path)
+            if file_age <= MARKET_CACHE_STALE_SECONDS and _cache_matches_request(legacy_df, market_key, adjust_key):
+                _MARKET_DATA_CACHE.write(
+                    market_key,
+                    symbol_key,
+                    adjust_key,
+                    legacy_df,
+                    fetched_at=os.path.getmtime(data_path),
+                )
+        except Exception as exc:
+            st.warning(f"加载缓存数据失败 ({symbol_key}): {exc}，尝试重新下载...")
+
+    def fetch_latest() -> pd.DataFrame | None:
+        if market_key == "CN_A":
+            return fetch_a_stock(symbol_key, adjust_key, report_errors=False)
+        return fetch_data(symbol_key, adjust_key)
 
     try:
-        with st.spinner(f"正在下载 {symbol_key} 数据..."):
-            if market_key == "CN_A":
-                df = fetch_a_stock(symbol_key, adjust_key)
-            else:
-                df = fetch_data(symbol_key, adjust_key)
-
-            if df is None or df.empty:
-                return None
-
-            df.to_csv(data_path, index=False)
-        return df
-    except Exception as e:
-        st.error(f"下载 {symbol_key} 数据失败: {e}")
+        load_started_at = perf_counter()
+        with st.spinner(f"正在加载 {symbol_key} 数据..."):
+            cache_hit = _MARKET_DATA_CACHE.get_or_fetch(
+                market=market_key,
+                symbol=symbol_key,
+                adjust=adjust_key,
+                fetcher=fetch_latest,
+            )
+        if cache_hit is None:
+            _emit_market_load_event(
+                (perf_counter() - load_started_at) * 1000,
+                cache="miss", market=market_key, symbol=symbol_key, status="empty",
+            )
+            st.error(f"下载 {symbol_key} 数据失败：未获得有效日线数据。")
+            return None
+        _emit_market_load_event(
+            (perf_counter() - load_started_at) * 1000,
+            cache=cache_hit.freshness, market=market_key, symbol=symbol_key,
+        )
+        return cache_hit.dataframe
+    except Exception as exc:
+        _emit_market_load_event(
+            0.0, cache="error", market=market_key, symbol=symbol_key,
+        )
+        st.error(f"下载 {symbol_key} 数据失败: {exc}")
         return None
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False, max_entries=4)
 def get_available_stocks(market: str = "US") -> list:
     """
     获取可用的股票列表（默认列表 + 用户添加的股票）
@@ -167,6 +198,10 @@ def get_available_stocks(market: str = "US") -> list:
 
             if cached_symbol and cached_symbol not in stocks:
                 stocks.append(cached_symbol)
+
+    for cached_symbol in _MARKET_DATA_CACHE.list_symbols(market_key):
+        if cached_symbol not in stocks:
+            stocks.append(cached_symbol)
 
     return stocks
 

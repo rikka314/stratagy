@@ -1,6 +1,6 @@
 # AI 快速上下文（薄路由版）
 
-> 最近更新：2026-08-09
+> 最近更新：2026-08-11
 > 用途：项目级路由文档。先读本文件，再按任务跳到对应 skill 和接口文档。
 > 约定：详细接口统一维护在 `document/interfaces/`，本文件只保存 durable project facts。
 
@@ -77,7 +77,9 @@
 - **Web 性能 Phase 5（2026-08-09）**：`ui/theme.py` 的单一主题源按 selector 编译为 `base / home / entry / analysis / report` 五个 CSS bundle；`app.py` 每条真实 route 只注入 `base + 当前页面 bundle`，单股 / 多股入口态与分析态分别使用 entry / analysis。`inject_global_styles()` 仅保留兼容用途。首页实际 CSS payload 约 30.6k 字符（原完整源约 77.5k），非报告 bundle 不含 `.native-report-*`，报告 bundle 不含首页动画；移动端首页通过增加舞台垂直节奏保持标题、星图、控件和市场镜头不重叠。验收记录见 `document/acceptance/web_performance_phase_5_20260809.md`。
 - **Web 性能 Phase 6（2026-08-09）**：本地 `run.bat` 与远端增量同步都以 `requirements.txt` SHA-256 指纹跳过未变化的依赖安装；全量部署写入相同指纹。`requirements.txt` 固定支持 `streamlit>=1.60.0,<1.62.0`。`deploy/check_runtime.sh` 统一输出 Python / Streamlit 版本并轮询 `/strategy/_stcore/health`；Nginx 模板把 content-hashed `/strategy/static/` 长期 immutable 缓存与 no-store、无缓冲的 `/strategy/_stcore/` 明确分离，真实主机的 HTML / JS / CSS gzip 由全局配置承载。详细 contract 见 `document/interfaces/deploy-runtime.md`。
 - **Web 性能 Phase 7（2026-08-09）**：本地最终矩阵以 `156 passed` 收口，冷 `import app` p50 为 `736 ms`；首页固定壳层再次与三个 `st.fragment(parallel=True)` 数据区解耦，三次独立服务进程首访的壳层 p50 `2.235 s`、完整数据 p50 `5.859 s`，外部接口慢时页面不再空白。报告默认章为 `1424` 个 DOM 节点、约 `115.8k` 页面 HTML。功能与原始冷/热样本见 `document/acceptance/web_performance_phase_7_20260809.md`；生产未部署，发布后仍需单独复测。
+- **共享图表无标题约定（2026-08-11）**：所有 Plotly 图表默认不渲染内置 `layout.title`；页面上下文标题由外层 surface 文案承载，避免图表出现重复标题或 `undefined`。
 - **性能优化（W9+）**：`rolling_rank` / `rolling_percentile`（`core/indicators.py`）改用 `raw=True + numpy` 实现，比 `raw=False + pandas.rank` 快约 5-10x；`add_indicators` 在 UI 层（`ui/single_stock.py`）包装为 `@st.cache_data` cached wrapper，消除每次 slider 交互的重复计算；`get_available_stocks`（`core/utils.py`）加 `@st.cache_data(ttl=300)`，避免每次 rerun 重复扫描缓存文件目录。
+- **临时分析工作区与缓存（2026-08-11）**：`core/workspace_cache.py` + `ui/workspace.py` 为无登录单机站点提供 24 小时、URL `ws` 驱动的临时工作区恢复；单股/多股 route、参数、选择、已完成策略/组合结果与上传 CSV 可跨首页、刷新和重连恢复，stage/展示图缓存不落盘。工作区单项上限 160 MiB、全局 LRU 上限 1.5 GiB；`ws` 是不可分享的短期 bearer 标识。`core/market_cache.py` 以 `market/symbol/adjust` 隔离日线磁盘缓存：24 小时 fresh、7 天 stale-while-refresh，且在 4 GiB 服务器上为 session stage/figure 与 `st.cache_data` 明确设置 LRU 上限。
 - **依赖变更**：`requirements.txt` 新增 `yfinance>=0.2.0`（可选，仅在 HTML 导出时 lazy import，失败则 ticker_info 回退为空 dict）。
 - 站点 UI 支持中文 / 英文双语；顶部语言切换通过 `?lang=zh` / `?lang=en` 保留当前页面，并由 `ui/i18n.py` 的 `ui_language` 会话状态与查询参数共同驱动。共享 `route_href()` 会在站内路由间继续传播当前语言。
 - 单股分析页的标的身份区按当前语言切换主次名称：中文页显示“中文名 → 英文名 → 代码”，英文页显示“英文名 → 中文名 → 代码”；推荐入口会把名称写入 `route_single_state.name`，在本地股票目录暂未覆盖新标的时作为回退。
@@ -94,6 +96,7 @@
 - **Dean's Award Window 4（2026-08-09）**：`core/news_factor.py` 已冻结 US/CN_A 新闻 schema 校验、按股票交易日历滞后对齐、无新闻/零权重上游仓位回退和独立 `run_news_ablation()` API；输出遵循 `news_ablation_summary.csv` contract，零覆盖或缺失文件使用明确 `skipped` 原因。接口说明见 `document/news_sentiment_schema.md`，验收记录见 `document/acceptance/window_4_news_factor_20260809.md`。
 - **Dean's Award full-run 准备（2026-08-09）**：市场推荐与 shared benchmark 已拆分，US/CN_A 分别从本市场已验证候选中选策略，共同候选只用于横向比较。标准 full tier 为每市场 60 只（1,260 日主窗口、4 个 756 日 rolling、统一 240 次搜索预算），120 只为参数冻结后的确认层；正式 config 要求 clean worktree、行情至少覆盖到 `minimum_data_end_date=2026-07-31`（旧 sample/cache 自动重拉），并把入选行情冻结到 run 的 `data_snapshot/`、在 manifest 记录 SHA-256。`model-test/preflight_research.py` 统一检查目录、依赖、预算、数据新鲜度门槛、磁盘、Git 与 LightGBM device。GPU 仅可选加速 LightGBM 路径；当前本机 LightGBM 4.7.0 wheel 为 CPU-only，`gpu/cuda` probe 会明确失败，不能静默降级。
 - **Window 3B 本地 campaign（2026-08-09）**：`model-test/manage_campaign.py` 独立于 Streamlit 顺序调度 `full_us_deans_60 -> full_cn_a_deans_60 -> full_cross_market_deans_60`，状态与日志位于 `model-test/outputs/_campaigns/<campaign_id>/`。runner 支持可选 control directory、有限在途批次和退出码 `75` 的任务边界安全暂停；恢复要求相同 clean Git commit 与 config SHA-256，并复用现有 checkpoint。`/strategy/experiment-monitor` 每 2 秒展示阶段、进度、日志和 Stage A / Stage B / rolling / final 分榜。
+- **美股研究基线（2026-08-11）**：`full_us_deans_60` 已完成（60 只、1,260 日主窗口、4 个 756 日 rolling、统一 240 次搜索预算），输出冻结在 `model-test/outputs/full_us_deans_60/`。策略与后续产品边界见 `document/strategy_research_baseline_us_20260811.md`：`SM+Bayesian` 是当前离线综合第一候选，但主窗口中位超额收益为负，必须持续与 `Naive` 并列展示；ML 为条件化候选，adaptive router 仅作为状态感知路由。`/strategy/model-evaluation` 会在明细证据前展示这份冻结结论；本地监控页将旧 manager failure 映射为“美股已完成 / 研究范围已冻结”。A 股与跨市场研究当前暂停，不从本结论外推。
 
 ## 默认阅读路线
 

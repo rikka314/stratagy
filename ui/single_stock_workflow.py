@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from collections import OrderedDict
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import date, datetime
 from typing import Any, Literal
@@ -60,6 +61,8 @@ from core.signals import compute_signals
 
 WORKSPACE_STATE_KEY = "single_stock_strategy_workspace"
 STAGE_CACHE_STATE_KEY = "single_stock_stage_cache"
+STAGE_CACHE_LRU_KEY = "single_stock_stage_cache_lru"
+STAGE_CACHE_MAX_ENTRIES = 12
 
 _INDICATOR_PARAM_KEYS = (
     "rsi_period",
@@ -348,9 +351,26 @@ def get_workspace_status(
     return "CURRENT_AND_SAVED" if workspace.get("saved_artifacts") else "CURRENT_READY"
 
 
-def _stage_cache_bucket(stage_key: str) -> dict[str, StageResult]:
+def _stage_cache_bucket(stage_key: str) -> OrderedDict[str, StageResult]:
     stage_cache = st.session_state.setdefault(STAGE_CACHE_STATE_KEY, {})
-    return stage_cache.setdefault(stage_key, {})
+    bucket = stage_cache.setdefault(stage_key, OrderedDict())
+    if not isinstance(bucket, OrderedDict):
+        bucket = OrderedDict(bucket)
+        stage_cache[stage_key] = bucket
+    return bucket
+
+
+def _touch_stage_cache_entry(stage_key: str, cache_key: str) -> None:
+    stage_cache = st.session_state.setdefault(STAGE_CACHE_STATE_KEY, {})
+    lru: OrderedDict[tuple[str, str], None] = st.session_state.setdefault(STAGE_CACHE_LRU_KEY, OrderedDict())
+    token = (stage_key, cache_key)
+    lru.pop(token, None)
+    lru[token] = None
+    while len(lru) > STAGE_CACHE_MAX_ENTRIES:
+        evicted_stage_key, evicted_cache_key = lru.popitem(last=False)[0]
+        bucket = stage_cache.get(evicted_stage_key)
+        if isinstance(bucket, dict):
+            bucket.pop(evicted_cache_key, None)
 
 
 def _build_stage_cache_key(
@@ -384,10 +404,13 @@ def _cached_stage(
     )
     cached = bucket.get(cache_key)
     if cached is not None:
+        bucket.move_to_end(cache_key)
+        _touch_stage_cache_entry(stage_key, cache_key)
         return cached, True
 
     stage_result = builder()
     bucket[cache_key] = stage_result
+    _touch_stage_cache_entry(stage_key, cache_key)
     return stage_result, False
 
 

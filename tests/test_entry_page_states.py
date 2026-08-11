@@ -125,6 +125,32 @@ def test_multi_recommendation_rows_share_heat_metadata(monkeypatch) -> None:
     assert "heat=123,456 change=+1.25%" in fake_st.markdowns[0]
 
 
+def test_multi_entry_shows_one_time_addition_feedback(monkeypatch) -> None:
+    fake_st = type("FakeStreamlit", (), {"session_state": {}})()
+    status_calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(multi_entry, "st", fake_st)
+    monkeypatch.setattr(
+        multi_entry,
+        "tr",
+        lambda key, **kwargs: f"{key}:{kwargs['symbol']}:{kwargs['count']}",
+    )
+    monkeypatch.setattr(
+        multi_entry,
+        "render_status_note",
+        lambda message, tone="info": status_calls.append((message, tone)),
+    )
+
+    assert multi_entry._add_symbol_to_selection("nvda") is True
+    assert multi_entry._add_symbol_to_selection("NVDA") is False
+    assert fake_st.session_state[multi_entry.MULTI_ENTRY_SELECTED_LIST_KEY] == ["NVDA"]
+
+    multi_entry._render_pending_addition_notice()
+
+    assert status_calls == [("stockPool.addedToSelection:NVDA:1", "positive")]
+    assert multi_entry.MULTI_ENTRY_ADDITION_NOTICE_KEY not in fake_st.session_state
+
+
 def test_csv_requirements_popover_includes_required_columns_and_example(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
     translations = {

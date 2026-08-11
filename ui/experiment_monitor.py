@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -31,10 +32,41 @@ from model_test.monitoring import build_stage_leaderboards, leaderboard_view, lo
 
 EXPERIMENT_MONITOR_ROUTE = "experiment-monitor"
 CONTROL_ENV = "STRATAGY_RESEARCH_CONTROL"
+US_BASELINE_DIR = MODEL_TEST_ROOT / "outputs" / "full_us_deans_60"
 
 
 def research_control_enabled() -> bool:
     return os.getenv(CONTROL_ENV, "").strip() == "1"
+
+
+def _completed_us_baseline() -> dict[str, Any] | None:
+    """Return a compact verified snapshot for the intentionally completed US scope."""
+    report_path = US_BASELINE_DIR / "report.json"
+    runs_path = US_BASELINE_DIR / "runs.csv"
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        config = report.get("config") or {}
+        models = report.get("model_summary") or []
+        top_models = report.get("top_models") or []
+        records = pd.read_csv(runs_path, usecols=["status"])
+    except (OSError, ValueError, KeyError, pd.errors.ParserError):
+        return None
+    if (
+        config.get("name") != "full_us_deans_60"
+        or str(config.get("market") or "").upper() != "US"
+        or len(models) != 19
+        or len(records) != 5460
+        or not top_models
+    ):
+        return None
+    counts = records["status"].astype(str).str.lower().value_counts().to_dict()
+    return {
+        "record_count": len(records),
+        "success": int(counts.get("success", 0)),
+        "degraded": int(counts.get("degraded", 0)),
+        "failed": int(counts.get("failed", 0)),
+        "top_model": str(top_models[0].get("display_name") or top_models[0].get("model_id") or "N/A"),
+    }
 
 
 def _parse_datetime(value: Any) -> datetime | None:
@@ -79,7 +111,7 @@ def _status_counts(progress: dict[str, Any]) -> dict[str, int]:
     return {str(key).lower(): int(value) for key, value in raw.items()}
 
 
-def _render_controls(campaign_id: str, status: str, enabled: bool) -> None:
+def _render_controls(campaign_id: str, status: str, enabled: bool, *, scope_complete: bool = False) -> None:
     left, middle, right = st.columns([1, 1, 3])
     with left:
         if status in {"preflight", "running", "resuming", "pause_requested"}:
@@ -94,7 +126,7 @@ def _render_controls(campaign_id: str, status: str, enabled: bool) -> None:
                     st.rerun()
                 except Exception as exc:
                     st.error(str(exc))
-        elif status in {"paused", "failed"}:
+        elif status in {"paused", "failed"} and not scope_complete:
             if st.button(
                 t("恢复实验", "Resume"),
                 disabled=not enabled,
@@ -115,7 +147,7 @@ def _render_controls(campaign_id: str, status: str, enabled: bool) -> None:
             st.caption(t("暂停已请求，正在等待在途批次完整落盘。", "Pause requested; waiting for in-flight batches to checkpoint."))
 
 
-def _render_run_table(snapshot) -> None:
+def _render_run_table(snapshot, *, scope_complete: bool = False) -> None:
     rows = []
     for run in snapshot.campaign.get("runs") or []:
         estimate = run.get("task_estimate") or {}
@@ -123,7 +155,11 @@ def _render_run_table(snapshot) -> None:
             {
                 t("市场", "Market"): run.get("market"),
                 t("配置", "Config"): run.get("config_name"),
-                t("状态", "Status"): run.get("status"),
+                t("状态", "Status"): (
+                    t("已完成", "completed") if scope_complete and run.get("market") == "US"
+                    else t("已暂停", "paused") if scope_complete
+                    else run.get("status")
+                ),
                 t("最大记录数", "Max records"): estimate.get("total_records_max") or "—",
                 t("输出目录", "Output"): run.get("output_subdir"),
             }
@@ -191,22 +227,36 @@ def _render_campaign(campaign_id: str, *, enabled: bool) -> None:
         return
     campaign = snapshot.campaign
     status = str(campaign.get("status") or "unknown")
-    _render_controls(campaign_id, status, enabled)
+    us_baseline = _completed_us_baseline()
+    scope_complete = bool(us_baseline and status == "failed")
+    _render_controls(campaign_id, status, enabled, scope_complete=scope_complete)
 
     completed, total = _overall_progress(snapshot)
+    if scope_complete and us_baseline:
+        completed = total = int(us_baseline["record_count"])
     progress_ratio = min(1.0, completed / total) if total else 0.0
     st.progress(progress_ratio, text=f"{completed:,} / {total:,}" if total else t("正在计算任务规模", "Estimating workload"))
 
     counts = _status_counts(snapshot.progress)
+    if scope_complete and us_baseline:
+        counts = {key: int(us_baseline[key]) for key in ("success", "degraded", "failed")}
     metrics = st.columns(6)
-    metrics[0].metric(t("状态", "Status"), status)
-    metrics[1].metric(t("阶段", "Phase"), snapshot.phase or "N/A")
+    metrics[0].metric(t("状态", "Status"), t("美股已完成", "US complete") if scope_complete else status)
+    metrics[1].metric(t("阶段", "Phase"), t("研究范围已冻结", "Scope frozen") if scope_complete else snapshot.phase or "N/A")
     metrics[2].metric(t("成功", "Success"), counts.get("success", 0))
     metrics[3].metric(t("降级", "Degraded"), counts.get("degraded", 0))
     metrics[4].metric(t("失败", "Failed"), counts.get("failed", 0))
     metrics[5].metric(t("运行时间", "Elapsed"), _duration_text(campaign.get("started_at"), campaign.get("completed_at")))
 
-    if snapshot.error:
+    if scope_complete and us_baseline:
+        st.success(
+            t(
+                f"美股全量研究已经完成，当前候选为 {us_baseline['top_model']}。A 股与跨市场阶段按当前研究范围暂停，无需恢复实验。",
+                f"The full US study is complete; the current candidate is {us_baseline['top_model']}. "
+                "CN A and cross-market stages are paused by scope, so the campaign does not need to resume.",
+            )
+        )
+    elif snapshot.error:
         st.error(str(snapshot.error.get("message") or snapshot.error))
     if snapshot.progress.get("last_record_key"):
         st.caption(
@@ -218,7 +268,7 @@ def _render_campaign(campaign_id: str, *, enabled: bool) -> None:
     st.caption(t(f"在途批次 {in_flight} · 待提交批次 {pending}", f"In flight {in_flight} · pending {pending}"))
 
     st.subheader(t("市场运行序列", "Run sequence"))
-    _render_run_table(snapshot)
+    _render_run_table(snapshot, scope_complete=scope_complete)
     st.subheader(t("实时策略排名", "Live strategy rankings"))
     _render_rankings(snapshot, campaign_id)
     with st.expander(t("最近运行日志", "Recent log"), expanded=False):
@@ -265,4 +315,3 @@ def render_experiment_monitor_page() -> None:
         _render_campaign(campaign_id, enabled=enabled)
 
     _live_fragment()
-

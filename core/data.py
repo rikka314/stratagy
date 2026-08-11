@@ -93,7 +93,7 @@ def _coerce_numeric_columns(df: pd.DataFrame, columns: Iterable[str]) -> pd.Data
     return df
 
 
-def _write_market_cache(df: pd.DataFrame, symbol: str) -> None:
+def _write_market_cache(df: pd.DataFrame, symbol: str, *, report_errors: bool = True) -> None:
     """将已标准化的行情写入临时缓存，失败时不影响主流程。"""
     os.makedirs(DATA_DIR, exist_ok=True)
     cache_path = os.path.join(DATA_DIR, f"{str(symbol).strip().lower()}_daily.csv")
@@ -101,7 +101,8 @@ def _write_market_cache(df: pd.DataFrame, symbol: str) -> None:
     try:
         df.to_csv(cache_path, index=False)
     except Exception as exc:
-        st.warning(f"{symbol} 缓存写入失败：{exc}")
+        if report_errors:
+            st.warning(f"{symbol} 缓存写入失败：{exc}")
 
 
 def _get_a_symbol_with_exchange(symbol: str) -> str:
@@ -224,7 +225,7 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(show_spinner=False, ttl=86400)
+@st.cache_data(show_spinner=False, ttl=86400, max_entries=1)
 def load_a_stock_catalog() -> pd.DataFrame:
     """加载 A 股代码名称索引，供侧边栏搜索使用。"""
     snapshot_columns = ["code", "name", "search_name", "label"]
@@ -251,7 +252,7 @@ def load_a_stock_catalog() -> pd.DataFrame:
     return df[["code", "name", "search_name", "label"]]
 
 
-@st.cache_data(show_spinner=False, ttl=86400)
+@st.cache_data(show_spinner=False, ttl=86400, max_entries=1)
 def load_us_stock_catalog() -> pd.DataFrame:
     """加载美股代码名称索引，优先使用本地快照。"""
     snapshot_columns = ["symbol", "name", "cname", "search_symbol", "search_name", "search_cname", "label"]
@@ -442,7 +443,12 @@ def fetch_data(symbol: str, adjust: str) -> pd.DataFrame:
     )
 
 
-def fetch_a_stock(symbol: str, adjust: str = "qfq") -> pd.DataFrame | None:
+def fetch_a_stock(
+    symbol: str,
+    adjust: str = "qfq",
+    *,
+    report_errors: bool = True,
+) -> pd.DataFrame | None:
     """
     从 AkShare 下载 A 股日线数据并转换为统一标准结构。
 
@@ -455,7 +461,8 @@ def fetch_a_stock(symbol: str, adjust: str = "qfq") -> pd.DataFrame | None:
     ak_adjust = "" if normalized_adjust == "none" else normalized_adjust
 
     if not normalized_symbol or len(normalized_symbol) != 6:
-        st.error("A 股代码无效，请输入 6 位代码或从候选结果中选择。")
+        if report_errors:
+            st.error("A 股代码无效，请输入 6 位代码或从候选结果中选择。")
         return None
 
     symbol_with_exchange = _get_a_symbol_with_exchange(normalized_symbol)
@@ -527,23 +534,23 @@ def fetch_a_stock(symbol: str, adjust: str = "qfq") -> pd.DataFrame | None:
                 adjust=normalized_adjust,
                 volume_multiplier=100.0,
             )
-            _write_market_cache(result_df, normalized_symbol)
+            _write_market_cache(result_df, normalized_symbol, report_errors=report_errors)
             return result_df
         except ValueError as exc:
             last_error = exc
             continue
 
-    if last_error is not None:
+    if last_error is not None and report_errors:
         st.error(
             f"A股 {normalized_symbol} 数据获取失败：东方财富/腾讯/新浪三路历史行情均未成功。"
             f" 最近错误：{last_error}"
         )
-    else:
+    elif report_errors:
         st.error(f"A股 {normalized_symbol} 无可用数据，请检查代码是否存在或当前复权方式是否可用。")
     return None
 
 
-@st.cache_data(show_spinner=False, ttl=82800)
+@st.cache_data(show_spinner=False, ttl=82800, max_entries=16)
 def load_csv(path: str) -> pd.DataFrame:
     """从本地 CSV 文件加载数据（内存缓存 23 小时，与磁盘 TTL 24 小时配合）"""
     df = pd.read_csv(path)
@@ -552,7 +559,7 @@ def load_csv(path: str) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=2)
 def load_uploaded_bytes(data: bytes) -> pd.DataFrame:
     """从上传的字节数据加载 CSV"""
     df = pd.read_csv(io.BytesIO(data))

@@ -47,6 +47,16 @@ def test_single_stock_navigation_uses_compact_segmented_control_and_right_aligne
     assert '"st-key-single-stock-section-nav",' in theme_source
     assert 'div[class*="st-key-single-stock-section-nav"] div[class*="st-key-single_stock_analysis_section"]' in theme_source
     assert 'div[class*="st-key-single-stock-switch-popover"] > [data-testid="stLayoutWrapper"]' in theme_source
+    assert '''div[class*="st-key-single-stock-section-nav"] [data-testid="stButtonGroup"] [role="radiogroup"] {
+  display: flex !important;
+  width: 100% !important;
+  max-width: none !important;
+  gap: 0 !important;
+}''' in theme_source
+    assert '''div[class*="st-key-single-stock-section-nav"] :is([data-testid="stSegmentedControl"], [data-testid="stButtonGroup"]) button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 2.25rem;''' in theme_source
     assert "align-items: flex-end;" in theme_source
     assert "animation: analysis-detail-slide-down" in theme_source
     assert "help=details_label" not in source
@@ -122,7 +132,8 @@ def test_invalid_plotly_legend_names_are_hidden() -> None:
 
 def test_plotly_theme_does_not_materialize_an_empty_chart_title() -> None:
     fig = go.Figure(data=[go.Scatter(x=[1], y=[1], name="MACD")])
+    fig.update_layout(title="A title supplied by a chart builder")
 
     apply_plotly_theme(fig)
 
-    assert fig.layout.title.to_plotly_json() == {}
+    assert fig.to_plotly_json()["layout"].get("title") is None

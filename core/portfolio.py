@@ -14,6 +14,51 @@ from core.backtest import simulate_strategy, sharpe_ratio, max_drawdown
 from core.visualization import create_equity_drawdown_chart
 
 
+def build_portfolio_figure(portfolio_result: dict | None):
+    """Rebuild the presentation figure from persisted portfolio result data."""
+    if not isinstance(portfolio_result, dict):
+        return None
+    portfolio_equity = portfolio_result.get("portfolio_equity")
+    bh_equity = portfolio_result.get("bh_equity")
+    individual_results = portfolio_result.get("individual_results") or {}
+    if not isinstance(portfolio_equity, pd.Series) or portfolio_equity.empty:
+        return None
+    if not isinstance(bh_equity, pd.Series) or bh_equity.empty:
+        return None
+
+    colors_list = [
+        '#8c674a', '#b28762', '#6d5a49', '#c49a73', '#5a4c3f',
+        '#8e725d', '#b89d85', '#9a8268', '#735f4b', '#c1a17d',
+    ]
+    figure_specs = [
+        {
+            'name': '组合策略', 'series': portfolio_equity, 'color': '#ba7349',
+            'dash': 'solid', 'width': 3.0, 'fill_alpha': 0.18, 'drawdown_fill': True,
+        },
+        {
+            'name': '买入持有基准', 'series': bh_equity, 'color': '#1f1914',
+            'dash': 'dash', 'width': 2.4, 'fill_alpha': 0.10, 'drawdown_fill': True,
+        },
+    ]
+    for index, (symbol, result) in enumerate(individual_results.items()):
+        strategy_return = result.get("strategy_return") if isinstance(result, dict) else None
+        if not isinstance(strategy_return, pd.Series):
+            continue
+        equity = (1 + strategy_return.reindex(portfolio_equity.index).fillna(0)).cumprod()
+        figure_specs.append(
+            {
+                'name': f'{symbol} 策略', 'hover_name': symbol, 'series': equity,
+                'color': colors_list[index % len(colors_list)], 'dash': 'dot',
+                'width': 1.45, 'fill_alpha': 0.08, 'drawdown_fill': False,
+            }
+        )
+    return create_equity_drawdown_chart(
+        figure_specs,
+        height=620,
+        subplot_titles=('组合净值', '组合回撤'),
+    )
+
+
 def run_portfolio_simulation(stock_data_dict: dict, **kwargs) -> dict | None:
     """
     投资组合模拟：对每只股票独立跑完整策略流程，然后按权重合成组合净值
