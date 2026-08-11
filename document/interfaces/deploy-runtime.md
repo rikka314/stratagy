@@ -1,6 +1,6 @@
 # Deploy And Runtime Interfaces
 
-> 最近更新：2026-08-09
+> 最近更新：2026-08-11
 > 适用范围：`.streamlit/config.toml`、`deploy/*.bat`、`deploy/*.sh`、`deploy/nginx_strategy.conf`。
 
 ## 当前运行时事实
@@ -131,15 +131,17 @@ bash /opt/stratagy/deploy/deploy.sh
 
 这是线上子路径运行成立的关键。如果改成别的路径，不仅要改 nginx，还要同步 `baseUrlPath` 和 `app.py` 路由认知。
 
-## 本地一键启动：`run.bat`
+## 本地一键启动：`run.bat` / `run.sh`
 
-- 使用 PowerShell `Get-FileHash` 计算 `requirements.txt` 的 SHA-256。
+- Windows 使用 `run.bat`，macOS / Linux 使用根目录 `run.sh`；两者都直接调用虚拟环境内的 Python，不依赖手工 activate。
+- `run.bat` 使用 PowerShell `Get-FileHash`，`run.sh` 使用 Python 标准库计算 `requirements.txt` 的 SHA-256。
 - 指纹保存在忽略版本控制的 `.venv/.requirements.sha256`。
 - venv 不存在时先创建；指纹缺失或变化时才执行 `python -m pip install -r requirements.txt`。
 - 安装成功后才更新指纹；普通二次启动直接跳过 pip。
 - 每次启动输出 Python / Streamlit 版本，并通过该 venv 的 Python 启动 Streamlit。
 - 启动 Streamlit 前设置 `STRATAGY_RESEARCH_CONTROL=1`，开放本机实验监控与安全暂停页；远端 systemd 未设置该变量，因此生产默认不注册控制页。
-- `run.bat --setup-only` 执行相同依赖检查与版本输出后退出，用于无服务启动的验收。
+- `run.bat --setup-only` / `./run.sh --setup-only` 执行相同依赖检查与版本输出后退出，用于无服务启动的验收。
+- `run.sh` 默认优先选择 `python3`，也可通过 `PYTHON_BIN=/path/to/python` 显式指定解释器。
 
 ## 常用运维命令
 

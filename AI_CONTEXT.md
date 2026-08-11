@@ -10,9 +10,9 @@
 
 ## 关键运行事实
 
-- **Windows 一键启动**：双击项目根目录 `run.bat`，自动创建 venv、安装依赖、启动 Streamlit
+- **本地一键启动**：Windows 使用项目根目录 `run.bat`，macOS / Linux 使用 `./run.sh`；两者都会自动创建 `.venv`、按 `requirements.txt` 指纹安装依赖并启动 Streamlit，`--setup-only` 可只做环境验收
 - 公开路径：`/strategy`、`/strategy/stock-analysis`、`/strategy/stocks-analysis`、`/strategy/model-evaluation`
-- 本地控制路径：`/strategy/experiment-monitor`；仅 `run.bat` 设置 `STRATAGY_RESEARCH_CONTROL=1` 时注册，生产默认不暴露
+- 本地控制路径：`/strategy/experiment-monitor`；`run.bat` / `run.sh` 设置 `STRATAGY_RESEARCH_CONTROL=1` 时注册，生产默认不暴露
 - Streamlit 配置：`server.baseUrlPath = "strategy"`
 - 服务器 SSH 别名：`stratagy`
 - 服务器应用目录：`/opt/stratagy`
@@ -25,6 +25,8 @@
 
 - `run.bat`
   作用：Windows 一键安装 + 启动脚本（创建 venv → 安装依赖 → 启动 Streamlit）。
+- `run.sh`
+  作用：macOS / Linux 一键安装 + 启动脚本，与 `run.bat` 共享依赖指纹和本地实验监控约定。
 - `app.py`
   作用：路由壳层、入口页、单股 / 多股 route state。
 - `core/`

@@ -38,7 +38,41 @@ http://localhost:8501/strategy
 
 如果 Streamlit 输出了不同端口，以终端实际地址为准。
 
+### macOS / Linux 一键启动
+
+首次在 Mac 上参与开发时，建议通过 [Homebrew](https://brew.sh/) 安装 Git 和 Python 3.12，然后克隆仓库：
+
+```bash
+xcode-select --install
+brew install git python@3.12
+git clone https://github.com/rikka314/stratagy.git
+cd stratagy
+./run.sh
+```
+
+如果 macOS 阻止脚本执行，可先运行 `chmod +x run.sh`。脚本与 Windows 的 `run.bat` 保持相同行为：创建 `.venv/`、仅在 `requirements.txt` 变化时安装依赖，然后启动 Streamlit。只检查环境而不启动服务时使用：
+
+```bash
+./run.sh --setup-only
+```
+
+Apple Silicon 和 Intel Mac 均使用 Python 虚拟环境，不需要激活环境即可运行。如果需要指定其他 Python，可使用 `PYTHON_BIN`：
+
+```bash
+PYTHON_BIN=/opt/homebrew/bin/python3.12 ./run.sh
+```
+
 ### 手动启动
+
+macOS / Linux：
+
+```bash
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+STRATAGY_RESEARCH_CONTROL=1 ./.venv/bin/python -m streamlit run app.py
+```
+
+Windows PowerShell：
 
 ```powershell
 python -m venv .venv
