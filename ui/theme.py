@@ -522,15 +522,22 @@ body {
   color: var(--text-primary);
 }
 
+/*
+ * Streamlit keeps the previous element tree around while a full rerun or a
+ * fragment rerun is being reconciled.  Its native stale style only fades the
+ * old tree to 33% opacity, which still leaves old entry/analysis surfaces
+ * visible underneath the new tree (and keeps their controls clickable).  The
+ * current tree is rendered independently, so stale element containers can be
+ * removed from layout until Streamlit discards them.
+ */
+[data-testid="stElementContainer"][data-stale="true"] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .stApp {
 __APP_BACKGROUND__
   color: var(--text-primary);
-}
-
-/* Keep the existing page legible while Streamlit finishes a rerun. */
-div.element-container[data-stale="true"] {
-  opacity: 1 !important;
-  transition: none !important;
 }
 
 a,

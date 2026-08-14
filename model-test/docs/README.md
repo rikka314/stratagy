@@ -112,6 +112,47 @@ Each run writes to `model-test/outputs/<output_subdir>/` and produces:
 - `quantstats/<rank>_<model_id>/...` when `enable_quantstats=true`
 - `mlflow_run.json` when `enable_mlflow=true`
 
+## Dynamic-Ensemble Phase A
+
+The Post-Gate-2 baseline contract is frozen in
+`document/interfaces/dynamic-ensemble-research.md`. After the ignored Window 3B
+and full-run source outputs are available locally, materialize the three frozen
+controls and their source-lock manifest with:
+
+```bash
+python model-test/prepare_moe_baseline.py --config model-test/configs/moe_baseline_us.json
+python model-test/prepare_moe_baseline.py --config model-test/configs/moe_baseline_cn_a.json
+```
+
+Strict mode refuses missing files, market/cost/seed mismatches, missing data
+snapshot hashes, unequal expert coverage, and missing return artifacts. For
+coordination only, `--allow-pending` writes a manifest with `status=pending` and
+explicit unavailable result rows; it is not valid research evidence.
+
+The generated Phase-A directory contains `data_manifest.json`,
+`baseline_results.csv`, `baseline_daily_returns.csv`, and
+`train_selection_summary.csv`. Every baseline consumes the already-net
+`strategy_return` field and never charges the source transaction cost twice.
+
+## Dynamic-Ensemble Phase B
+
+Once the Phase-A source locks are ready, materialize the market-specific
+expert-day panel with:
+
+```bash
+python model-test/prepare_expert_panel.py --config model-test/configs/moe_baseline_us.json
+python model-test/prepare_expert_panel.py --config model-test/configs/moe_baseline_cn_a.json
+```
+
+The command writes `expert_day_panel.parquet`,
+`expert_panel_walk_forward_splits.csv`, `expert_panel_manifest.json`, and a
+JSON/Markdown quality report under the same output directory. The panel is
+keyed by `date / symbol / market / expert_id`, uses point-in-time trailing
+features, and labels the next 20 trading days with the already-net
+`strategy_return`. Missing or unsupported experts remain explicit unavailable
+rows. Optional news factors are joined only from the prior completed trading
+day; no Phase-B output is imported by Streamlit or the online workflow.
+
 The runner also maintains resumable internal checkpoint files in the same
 output directory:
 

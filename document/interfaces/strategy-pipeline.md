@@ -1,6 +1,6 @@
 # Strategy Pipeline Interfaces
 
-> 最近更新：2026-04-01
+> 最近更新：2026-08-12
 > 适用范围：`core/data.py` 到 `core/backtest.py` 的主链，以及 `core/regime_model.py`、`core/adaptive_regime.py`、FA / ML / baseline / evaluation / optimizer。
 
 ## 共享前提
@@ -29,6 +29,7 @@ data / utils
 - ML-SM：`signals` + `ml_filter` + `backtest`
 - Legacy Regime / RSM：`regime_model` + `backtest`
 - Adaptive Regime Router：`adaptive_regime` + workflow candidate routing + `backtest`
+- Dynamic Ensemble Phase A：`model-test/model_test/moe_baseline.py` 只读取冻结研究输出，生成三个对照与可追溯 manifest；不训练门控模型、不接入 UI
 
 ## 分阶段 contract
 
@@ -279,5 +280,6 @@ Dean's Award 正式研究配置采用市场内独立推荐：US 与 CN_A 分别�
 - 单股 workflow 通过 `params_snapshot + request_signature + context_key` 消费主链结果。
 - adaptive regime 的在线候选执行、路由拼接和 degraded fallback 都在 `ui/single_stock_workflow.py`，不写回 `core/` 主链。
 - 多股组合通过 `run_portfolio_simulation()` 在多股页内部消费核心链，不复用单股 artifact。
+- 动态专家组合 Phase A/B 仅存在于 `model-test`。`prepare_moe_baseline.py` 消费已冻结的 Window 3B / full-run 产物，使用已扣费的 `strategy_return` 且不重复扣成本；`prepare_expert_panel.py` 在同一 source lock 下生成带 purged walk-forward / embargo 的逐日专家面板，缺失专家显式标记 unavailable。详细 contract 见 `document/interfaces/dynamic-ensemble-research.md`。
 
 如果任务只是在 UI 层消费这些输出，优先读 `document/interfaces/frontend-contracts.md` 或 `document/interfaces/single-stock-workflow.md`，不要直接深挖全部核心模块。

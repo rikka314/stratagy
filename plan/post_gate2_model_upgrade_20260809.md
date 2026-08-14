@@ -59,6 +59,8 @@
 
 ### Phase A：冻结基线与研究 contract（2–3 天）
 
+> 实现状态（2026-08-12）：Phase-A contract、双市场配置、三项对照和可追溯 baseline materializer 已完成；验收记录见 `document/acceptance/post_gate2_model_upgrade_phase_a_20260812.md`。被 Git 忽略的源 run 不在当前 checkout 时会明确保持 `pending`，不会伪造研究结果。
+
 **目标：** 确保以后所有提升都能与同一套 Gate 2 结果公平比较。
 
 任务：
@@ -84,6 +86,8 @@
 完成标准：同一命令、相同 seed 和冻结数据可重现基线；所有收益均能确认是否已扣成本。
 
 ### Phase B：构建无泄漏的专家逐日面板（3–5 天）
+
+> 实现状态（2026-08-12）：Phase-B 面板 materializer、逐日 simulation export、point-in-time 特征、20 日 future utility 标签、purged walk-forward/embargo split、source lineage、质量报告与缺失专家 unavailable contract 已完成；验收记录见 `document/acceptance/post_gate2_model_upgrade_phase_b_20260812.md`。当前仍只存在于 `model-test`，未接入线上 workflow。
 
 **目标：** 把 3B 的策略输出转成门控模型可训练的数据。
 
@@ -348,4 +352,3 @@ Phase G：先 shadow mode，再决定是否设为默认
 - 不为了得到更好曲线反复修改测试窗口、成本或胜出规则。
 - 不在 MoE 基线尚未稳定前引入 PPO / SAC。
 - 不让新研究改动污染 Gate 2、RC 或 8 月 23 日提交版本。
-

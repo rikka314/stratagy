@@ -364,3 +364,79 @@ def test_run_strategy_pipeline_marks_adaptive_regime_fallback_as_degraded(monkey
     assert result.status == "degraded"
     assert result.artifact is not None
     assert result.warnings == ["adaptive fallback"]
+
+
+def test_adaptive_regime_cache_key_includes_the_full_frozen_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[dict] = []
+
+    def capture_cached_stage(**kwargs):
+        captured.append(kwargs)
+        return object(), False
+
+    monkeypatch.setattr(ssw, "_cached_stage", capture_cached_stage)
+    params_snapshot = {
+        "stop_loss_mult": 2.0,
+        "take_profit_mult": 4.0,
+        "ema_fast": 20,
+        "ema_slow": 60,
+        "entry_threshold": 0.5,
+    }
+
+    ssw.run_regime_stage(
+        context_key="ctx-adaptive",
+        request=ssw.StrategyRequest(family="regime", regime_kind="adaptive_router_v1"),
+        params_snapshot=params_snapshot,
+        df_raw=pd.DataFrame(),
+        split_idx=1,
+    )
+
+    assert captured[0]["stage_input_params_snapshot"] == params_snapshot
+
+
+def test_adaptive_artifact_id_changes_with_frozen_request_parameters() -> None:
+    dates = pd.date_range("2024-01-01", periods=2, freq="D")
+    frame = pd.DataFrame(
+        {
+            "date": dates,
+            "strategy_equity": [1.0, 1.01],
+            "strategy_return": [0.0, 0.01],
+        }
+    )
+    stage = ssw.StageResult(
+        stage_key="regime",
+        display_label="Adaptive Router V1",
+        short_label="Adaptive",
+        params_snapshot={
+            "stop_loss_mult": 2.0,
+            "take_profit_mult": 4.0,
+            "market": "US",
+            "adjust": "qfq",
+            "regime_kind": "adaptive_router_v1",
+        },
+        train_sim_df=frame.copy(),
+        test_sim_df=frame.copy(),
+        trades_df=None,
+        eval={},
+        equity_series=pd.Series([1.0, 1.01], index=dates),
+        returns_series=pd.Series([0.0, 0.01], index=dates),
+        ml_quality=None,
+        upstream_stage_key=None,
+        full_signal_df=frame.copy(),
+    )
+    request = ssw.StrategyRequest(family="regime", regime_kind="adaptive_router_v1")
+
+    first = ssw.assemble_strategy_artifact(
+        context_key="ctx-adaptive",
+        request=request,
+        request_params_snapshot={"ema_fast": 20, "entry_threshold": 0.5},
+        lineage=[stage],
+    )
+    second = ssw.assemble_strategy_artifact(
+        context_key="ctx-adaptive",
+        request=request,
+        request_params_snapshot={"ema_fast": 10, "entry_threshold": 0.8},
+        lineage=[stage],
+    )
+
+    assert first.request_signature != second.request_signature
+    assert first.id != second.id

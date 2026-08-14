@@ -1,6 +1,6 @@
 # Multi-Stock And Portfolio Interfaces
 
-> 最近更新：2026-03-28
+> 最近更新：2026-08-13
 > 适用范围：`ui/multi_stock.py`、`core/portfolio.py`、`core/market_context.py`。
 
 ## 页面与结果边界
@@ -90,6 +90,7 @@ _build_multi_strategy_signature(
 
 - 多股 route state、组合结果和优化结果随 `ws` 临时工作区保留 24 小时；工作区恢复后以同一 strategy signature 判断结果是否仍可消费。
 - `multi_stock_analysis_cache`、图表 `figure_cache` 与组合 `heatmap_cache` 不落盘。分析数据会从行情缓存重载，图表懒重建；进程内图表缓存分别限制为 8 组和 4 组。
+- `multi_stock_analysis_cache` 的数据签名包含上传字节内容摘要、session-local 行情刷新代次，以及每个市场标的磁盘缓存的轻量版本 token；同名同长度但内容变化的 CSV、侧边栏手动刷新、或 stale-while-refresh 后台成功写入新行情，都会在下一次 rerun 重新加载分析 DataFrame。相应的组合策略签名基于实际 OHLCV 输入 fingerprint，因此历史 K 线修订也会让旧组合结果变为 stale。
 - 上传数据在临时工作区内按哈希保存，工作区过期、容量回收或用户主动清除后会一并删除。
 
 ## 组合生成接口：`core/portfolio.py`

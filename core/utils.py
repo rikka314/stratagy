@@ -7,6 +7,7 @@
 import os
 import re
 import time
+from contextlib import nullcontext
 from time import perf_counter
 
 import pandas as pd
@@ -18,6 +19,31 @@ from core.market_cache import MARKET_CACHE_STALE_SECONDS, MarketDataCache
 
 
 _MARKET_DATA_CACHE = MarketDataCache()
+# Session-local generation used by multi-stock analysis to invalidate its
+# in-memory DataFrame cache after the sidebar performs a manual refresh.
+MARKET_DATA_REFRESH_EPOCH_KEY = "_strategy_market_data_refresh_epoch"
+
+
+def market_data_cache_entry_version(
+    symbol: str,
+    adjust: str,
+    market: str = "US",
+) -> str | None:
+    """Return the currently published disk-cache version for one symbol.
+
+    This is intentionally a metadata-only probe.  It lets result pages detect
+    a successful stale-while-refresh update without loading the parquet data
+    just to inspect it.
+    """
+    market_key = _normalize_market(market)
+    symbol_key = _normalize_symbol(symbol, market_key)
+    if not symbol_key:
+        return None
+    return _MARKET_DATA_CACHE.entry_version(
+        market_key,
+        symbol_key,
+        _normalize_adjust(adjust),
+    )
 
 
 def _emit_market_load_event(elapsed_ms: float, **fields: object) -> None:
@@ -91,13 +117,22 @@ def _cache_matches_request(df: pd.DataFrame, market: str, adjust: str) -> bool:
     return True
 
 
-def load_or_fetch_stock(symbol: str, adjust: str, market: str = "US") -> pd.DataFrame | None:
+def load_or_fetch_stock(
+    symbol: str,
+    adjust: str,
+    market: str = "US",
+    *,
+    force_refresh: bool = False,
+    show_spinner: bool = True,
+) -> pd.DataFrame | None:
     """
     加载或下载股票数据，优先使用临时缓存
 
     1. 先读取按市场 / 股票 / 复权方式隔离的版本化缓存
     2. 24 小时内直接命中；7 天内陈旧缓存立即返回并后台刷新
     3. 首次请求或缓存超过 7 天时才同步下载
+    4. ``force_refresh=True`` 绕过新鲜缓存并把最新结果写回同一缓存键
+    5. ``show_spinner=False`` 供外层批量刷新器复用，避免嵌套 loading UI
     """
     market_key = _normalize_market(market)
     adjust_key = _normalize_adjust(adjust)
@@ -135,23 +170,87 @@ def load_or_fetch_stock(symbol: str, adjust: str, market: str = "US") -> pd.Data
 
     try:
         load_started_at = perf_counter()
-        with st.spinner(f"正在加载 {symbol_key} 数据..."):
-            cache_hit = _MARKET_DATA_CACHE.get_or_fetch(
+
+        # A fresh/stale disk hit is already usable data.  Do not wrap it in a
+        # spinner: the spinner itself creates a transient Streamlit element on
+        # every rerun and makes a cache hit look like a full reload.  Stale
+        # data is returned immediately while ``get_or_fetch`` schedules the
+        # bounded background refresh.
+        cache_hit = None if force_refresh else _MARKET_DATA_CACHE.read(
+            market_key,
+            symbol_key,
+            adjust_key,
+        )
+        if cache_hit is not None:
+            if cache_hit.freshness == "stale":
+                _MARKET_DATA_CACHE.get_or_fetch(
+                    market=market_key,
+                    symbol=symbol_key,
+                    adjust=adjust_key,
+                    fetcher=fetch_latest,
+                )
+            _emit_market_load_event(
+                (perf_counter() - load_started_at) * 1000,
+                cache=cache_hit.freshness,
                 market=market_key,
                 symbol=symbol_key,
-                adjust=adjust_key,
-                fetcher=fetch_latest,
             )
+            return cache_hit.dataframe
+
+        spinner = (
+            st.spinner(
+                f"正在刷新 {symbol_key} 数据..."
+                if force_refresh
+                else f"正在加载 {symbol_key} 数据..."
+            )
+            if show_spinner
+            else nullcontext()
+        )
+        with spinner:
+            if force_refresh:
+                refreshed = fetch_latest()
+                if refreshed is not None and not refreshed.empty:
+                    _MARKET_DATA_CACHE.write(
+                        market_key,
+                        symbol_key,
+                        adjust_key,
+                        refreshed,
+                    )
+                    cache_hit = _MARKET_DATA_CACHE.read(
+                        market_key,
+                        symbol_key,
+                        adjust_key,
+                    )
+                    if cache_hit is None:
+                        # The freshly fetched frame is still safe to use if a
+                        # filesystem read races with the atomic cache write.
+                        return refreshed
+                else:
+                    cache_hit = None
+            else:
+                cache_hit = _MARKET_DATA_CACHE.get_or_fetch(
+                    market=market_key,
+                    symbol=symbol_key,
+                    adjust=adjust_key,
+                    fetcher=fetch_latest,
+                )
         if cache_hit is None:
             _emit_market_load_event(
                 (perf_counter() - load_started_at) * 1000,
-                cache="miss", market=market_key, symbol=symbol_key, status="empty",
+                cache="miss" if not force_refresh else "refresh",
+                market=market_key,
+                symbol=symbol_key,
+                status="empty",
             )
-            st.error(f"下载 {symbol_key} 数据失败：未获得有效日线数据。")
+            st.error(
+                f"{'刷新' if force_refresh else '下载'} {symbol_key} 数据失败：未获得有效日线数据。"
+            )
             return None
         _emit_market_load_event(
             (perf_counter() - load_started_at) * 1000,
-            cache=cache_hit.freshness, market=market_key, symbol=symbol_key,
+            cache="refresh" if force_refresh else cache_hit.freshness,
+            market=market_key,
+            symbol=symbol_key,
         )
         return cache_hit.dataframe
     except Exception as exc:

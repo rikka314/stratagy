@@ -1,6 +1,6 @@
 # Single-Stock Workflow Interfaces
 
-> 最近更新：2026-04-01
+> 最近更新：2026-08-12
 > 适用范围：`ui/single_stock_workflow.py`、`ui/single_stock.py` 的 request / stage / artifact / workspace / stage cache，以及 adaptive regime 在单股 workflow 的接入语义。
 
 ## 入口与责任分层
@@ -127,7 +127,7 @@ build_strategy_context_key(
 作用：决定当前页面是不是同一组策略上下文。输入包括：
 
 - 市场
-- 股票代码或上传数据 fingerprint
+- 股票代码、输入数据 fingerprint（无论是行情缓存还是上传 CSV）
 - 复权方式
 - 数据日期范围
 - 训练集比例
@@ -198,6 +198,7 @@ stage cache key 由以下三部分组合哈希：
 - 下游 ML / 搜索不会回写污染基础 stage。
 - ML 阶段 cache key 还显式包含 `ml_model_type / ml_horizon_days / ml_min_excess_samples`。
 - regime 阶段 cache key 显式包含 `regime_kind`；adaptive 与 legacy 不共享同一桶。
+- adaptive regime 的 stage input snapshot 使用完整冻结参数；指标或信号参数变化不得复用旧路由结果。
 
 ## 流水线入口
 
