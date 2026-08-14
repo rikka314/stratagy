@@ -111,6 +111,11 @@ def resolve_universe_parallelism(raw_value: Any, parallelism: int) -> int:
 def load_research_config(config_path: str | Path) -> ResearchConfig:
     path = Path(config_path)
     raw: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    if str(raw.get("phase") or "").strip().upper() == "A" and "source_runs" in raw:
+        raise ValueError(
+            "Dynamic-ensemble Phase-A configs are materialization contracts; "
+            "use model-test/prepare_moe_baseline.py instead of run_research.py."
+        )
     market = normalize_market(raw.get("market", "US"))
     defaults = market_defaults(market)
     parallelism = resolve_parallelism(raw.get("parallelism", 0))

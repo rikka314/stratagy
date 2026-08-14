@@ -89,6 +89,10 @@ def export_run_artifact_bundle(
     returns_path = artifact_dir / "returns.csv"
     benchmark_returns_path = artifact_dir / "benchmark_returns.csv"
     equity_path = artifact_dir / "equity.csv"
+    # Phase-B consumes point-in-time positions/turnover when available.  Keep
+    # the existing compact artifacts unchanged and add a deliberately narrow
+    # daily simulation export for reproducible expert panels.
+    daily_path = artifact_dir / "daily.csv"
     trades_path = artifact_dir / "trades.csv"
     metadata_path = artifact_dir / "metadata.json"
 
@@ -99,6 +103,24 @@ def export_run_artifact_bundle(
     returns_df.to_csv(returns_path, index=False)
     benchmark_returns_df.to_csv(benchmark_returns_path, index=False)
     equity_df.to_csv(equity_path, index=False)
+
+    daily_frame = artifact.test_sim_df.copy()
+    if "date" not in daily_frame.columns:
+        daily_frame = daily_frame.copy()
+        daily_frame["date"] = _date_strings(daily_frame.index)
+    daily_columns = [
+        "date",
+        "target_position",
+        "position",
+        "turnover",
+        "transaction_cost",
+        "gross_strategy_return",
+        "strategy_return",
+        "buy_hold_equity",
+    ]
+    daily_columns = [column for column in daily_columns if column in daily_frame.columns]
+    if "date" in daily_columns:
+        daily_frame[daily_columns].to_csv(daily_path, index=False)
 
     trades_exists = artifact.trades_df is not None and not artifact.trades_df.empty
     if trades_exists:
@@ -124,6 +146,7 @@ def export_run_artifact_bundle(
         "eval": artifact.eval or {},
         "ml_quality": artifact.ml_quality or {},
         "lineage": lineage,
+        "daily_path": str(daily_path) if daily_path.is_file() else None,
     }
     metadata_path.write_text(json.dumps(metadata_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
 

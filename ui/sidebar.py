@@ -4,23 +4,20 @@
 渲染 Streamlit 侧边栏的所有控件，返回完整的参数字典。
 """
 
-import os
 import re
 from datetime import date as _date, timedelta as _timedelta
 
 import numpy as np
 import pandas as pd
 import streamlit as st
-from core.config import DATA_DIR, DEFAULT_A_STOCKS, DEFAULT_SYMBOL, STRATEGY_PRESETS
+from core.config import DEFAULT_A_STOCKS, DEFAULT_SYMBOL, STRATEGY_PRESETS
 from ui.i18n import tr
-from core.data import (
-    fetch_a_stock,
-    fetch_data,
-    get_stock_label_map,
-    load_csv,
-    search_stock_candidates,
+from core.data import get_stock_label_map, search_stock_candidates
+from core.utils import (
+    MARKET_DATA_REFRESH_EPOCH_KEY,
+    get_available_stocks,
+    load_or_fetch_stock,
 )
-from core.utils import load_or_fetch_stock, get_available_stocks
 
 
 def _load_st_keyup():
@@ -229,19 +226,21 @@ def render_sidebar(
 
                     for stock_symbol in compare_stocks:
                         try:
-                            if market == "A":
-                                df_temp = fetch_a_stock(stock_symbol, adjust)
-                            else:
-                                df_temp = fetch_data(stock_symbol, adjust)
+                            # Bypass the fresh read and update the same
+                            # market-keyed cache consumed by the route.  The
+                            # previous implementation only overwrote the
+                            # legacy CSV, so the parquet cache kept serving
+                            # the old quote after a manual refresh.
+                            df_temp = load_or_fetch_stock(
+                                stock_symbol,
+                                adjust,
+                                market=market,
+                                force_refresh=True,
+                                show_spinner=False,
+                            )
 
                             if df_temp is None or df_temp.empty:
                                 raise ValueError(tr("error.noValidData"))
-
-                            os.makedirs(DATA_DIR, exist_ok=True)
-                            cache_path = os.path.join(
-                                DATA_DIR, f"{stock_symbol.lower()}_daily.csv"
-                            )
-                            df_temp.to_csv(cache_path, index=False)
 
                             if not df_temp.empty and "date" in df_temp.columns:
                                 latest_date = df_temp["date"].max()
@@ -254,10 +253,12 @@ def render_sidebar(
                             st.error(f"✗ {stock_symbol} 刷新失败: {e}")
                             fail_count += 1
 
-                    load_csv.clear()
                     get_available_stocks.clear()
 
                     if success_count > 0:
+                        st.session_state[MARKET_DATA_REFRESH_EPOCH_KEY] = int(
+                            st.session_state.get(MARKET_DATA_REFRESH_EPOCH_KEY, 0) or 0
+                        ) + 1
                         st.success(
                             f"✓ 数据刷新完成：成功 {success_count} 个，失败 {fail_count} 个"
                         )

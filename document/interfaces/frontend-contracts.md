@@ -1,6 +1,6 @@
 # Frontend Contracts
 
-> 最近更新：2026-08-06
+> 最近更新：2026-08-13
 > 适用范围：路由壳层、入口页、主分析页、共享 HTML、共享图表、页面导出。
 
 ## 推荐读取顺序
@@ -39,7 +39,7 @@
 
 - 所有站内路由链接会在保留 `lang` 的同时传播可选 `ws=<opaque-token>` 查询参数。
 - `ws` 对应服务器磁盘上的临时工作区：默认保存 24 小时，可跨首页跳转、刷新和 Streamlit 重连恢复；它不是用户登录或分享链接。
-- 工作区保存 route state、sidebar/页面选择、单股 artifact 与多股组合结果；stage cache、Plotly figure 与页面展示缓存不落盘，恢复后按已有数据懒重建。
+- 工作区保存 route state、sidebar/页面选择、单股 artifact 与多股组合结果；stage cache、Plotly figure 与页面展示缓存不落盘，恢复后按已有数据懒重建。checkpoint 先比较轻量状态 marker；无状态变化的普通 rerun 不重复深拷贝或写入结果快照。一次性 button/action widget key 不写入或恢复，避免 Streamlit 禁止赋值的 widget 状态导致页面异常。
 - `ws` 是短期 bearer 标识。页面必须提示用户不要分享包含该参数的 URL；“开始新的临时分析”会删除当前工作区并清除该参数。
 
 `/strategy/model-evaluation` 是只读浏览页，不新增 route state key；页面只维护本地 selector 的 widget 状态。
@@ -224,6 +224,8 @@ render_sidebar(
 - 高级策略 slider 通过 `sidebar_strategy_parameters` form 批量提交；`render_sidebar()` 返回的参数 key 集合保持不变。
 - 股票池、市场、日期、上传等上下文控件仍可即时改变数据上下文；策略高级参数只在提交 form 后作为一组生效。
 - 单股纯展示图缓存位于 `single_stock_display_cache`，缓存键包含 workflow `context_key`、artifact ID、split date、周期、数据范围、指标视图、指标参数、语言和主题。context reset 只清理该展示缓存，不清理 stage cache。
+- 行情 fresh/stale 命中直接返回数据，不显示一次性的加载 spinner；侧边栏“刷新行情”会绕过 fresh 命中并更新同一市场/标的/复权键的磁盘缓存。多股页还会比较市场缓存的 metadata 版本 token，故 stale-while-refresh 后台更新会在下一次 rerun 失效旧 DataFrame 和组合结果。
+- Streamlit rerun/fragment 对账期间带 `data-stale="true"` 的旧 element container 由基础主题隐藏且禁用交互，避免旧页面与新页面短暂重叠。
 - 多股策略权重通过 `multi_stock_portfolio_weights` form 批量提交；`_build_multi_strategy_signature()`、`portfolio_result` 和优化结果状态键保持原语义。
 
 ## 单股页 contract：`ui/single_stock.py`

@@ -279,7 +279,12 @@ def build_strategy_context_key(
     payload = {
         "market": market,
         "symbol": symbol if uploaded_file is None else None,
-        "uploaded_data_fingerprint": _fingerprint_dataframe(df_raw) if uploaded_file is not None else None,
+        # Date range and ticker alone are not a sufficient identity: a
+        # refreshed market cache can revise an existing bar, and an entry-page
+        # upload is restored from route state rather than ``uploaded_file``.
+        # Fingerprinting the normalized input for every source prevents either
+        # path from reusing a stale workflow/artifact for different data.
+        "data_fingerprint": _fingerprint_dataframe(df_raw),
         "data_source_kind": "uploaded" if uploaded_file is not None else "cached",
         "adjust": adjust,
         "date_range": date_range,
@@ -1088,6 +1093,15 @@ def run_regime_stage(
         raise ValueError(tr("regime.missing_kind"))
 
     stage_params_snapshot = _build_regime_stage_params_snapshot(params_snapshot)
+    # The legacy router only consumes execution-risk parameters, while the
+    # adaptive router builds SM/FSM/search candidates from the complete
+    # frozen request.  Reusing an adaptive final stage after an indicator or
+    # signal change would otherwise return a stale routed result.
+    cache_input_params_snapshot = (
+        params_snapshot
+        if request.regime_kind == ADAPTIVE_REGIME_KIND
+        else stage_params_snapshot
+    )
 
     def _builder() -> StageResult:
         if request.regime_kind != ADAPTIVE_REGIME_KIND:
@@ -1245,7 +1259,7 @@ def run_regime_stage(
         stage_key="regime",
         context_key=context_key,
         stage_request_slice={"family": "regime", "regime_kind": request.regime_kind},
-        stage_input_params_snapshot=stage_params_snapshot,
+        stage_input_params_snapshot=cache_input_params_snapshot,
         builder=_builder,
     )
 
@@ -1560,6 +1574,11 @@ def assemble_strategy_artifact(
         {
             "context_key": context_key,
             "request": asdict(request),
+            # ``request_signature`` already treats this snapshot as the
+            # strategy identity.  Include it here too so display-cache and
+            # strategy-library IDs cannot collide when a final stage exposes
+            # only a reduced execution snapshot (notably adaptive regime).
+            "request_params_snapshot": request_params_snapshot,
             "params_snapshot": final_stage.params_snapshot,
             "display_label": final_stage.display_label,
         },

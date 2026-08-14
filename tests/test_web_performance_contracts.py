@@ -271,6 +271,22 @@ def test_phase_five_css_bundles_stay_route_scoped_and_within_budget() -> None:
     assert ".entry-title" not in bundles["report"]
 
 
+def test_stale_streamlit_elements_are_hidden_during_reconciliation() -> None:
+    """Old rerun trees must not remain visible or interactive while replaced."""
+    from ui.theme import get_style_bundle_css
+
+    # The global stale rule belongs to the base bundle, which every route
+    # injects before its page-specific bundle.
+    base_css = get_style_bundle_css("base")
+    assert '[data-testid="stElementContainer"][data-stale="true"]' in base_css
+    assert "display: none !important" in base_css
+    assert "pointer-events: none !important" in base_css
+
+    for bundle in ("home", "entry", "analysis", "report"):
+        css = get_style_bundle_css(bundle)
+        assert 'div.element-container[data-stale="true"]' not in css
+
+
 def test_phase_five_routes_inject_only_their_style_bundle() -> None:
     app_source = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
 

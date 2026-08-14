@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import html
+import hashlib
 from collections import OrderedDict
 from time import perf_counter
 from datetime import datetime
@@ -22,7 +23,11 @@ from core.data import get_stock_label_map, search_stock_candidates
 from core.market_context import get_market_indices
 from core.perf import emit_performance_event, performance_span
 from core.portfolio import build_portfolio_figure, bayesian_optimize_portfolio, run_portfolio_simulation
-from core.utils import load_or_fetch_stock
+from core.utils import (
+    MARKET_DATA_REFRESH_EPOCH_KEY,
+    load_or_fetch_stock,
+    market_data_cache_entry_version,
+)
 from core.visualization import (
     create_correlation_heatmap,
     create_factor_score_comparison,
@@ -536,10 +541,25 @@ def _build_multi_analysis_data_signature(
             (
                 str(item.get("symbol") or "").strip().upper(),
                 str(item.get("name") or "").strip(),
-                len(item.get("bytes") or b""),
+                hashlib.sha256(bytes(item.get("bytes") or b"")).hexdigest()
+                if isinstance(item.get("bytes"), (bytes, bytearray))
+                else str(item.get("upload_ref") or ""),
             )
             for item in uploads
         )
+    )
+    refresh_epoch = int(
+        st.session_state.get(MARKET_DATA_REFRESH_EPOCH_KEY, 0) or 0
+    )
+    normalized_symbols = sorted(
+        {str(symbol).strip().upper() for symbol in compare_stocks if str(symbol).strip()}
+    )
+    market_data_versions = tuple(
+        (
+            symbol,
+            market_data_cache_entry_version(symbol, adjust, market=market),
+        )
+        for symbol in normalized_symbols
     )
     return repr(
         (
@@ -547,8 +567,10 @@ def _build_multi_analysis_data_signature(
             str(adjust or "none").strip().lower(),
             tuple(compare_stocks),
             upload_signature,
+            market_data_versions,
             _serialize_signature_value(start_ts),
             _serialize_signature_value(end_ts),
+            refresh_epoch,
         )
     )
 
@@ -560,9 +582,7 @@ def _build_multi_strategy_signature(
 ) -> str:
     stock_signature = []
     for symbol, df in stock_data_dict.items():
-        last_date = _format_date_text(df["date"].iloc[-1]) if "date" in df.columns and not df.empty else "N/A"
-        latest_close = _safe_float(df["close"].iloc[-1]) if "close" in df.columns and not df.empty else None
-        stock_signature.append((symbol, len(df), last_date, latest_close))
+        stock_signature.append((symbol, _dataframe_strategy_fingerprint(df)))
 
     param_signature = []
     for key, value in sorted(_strategy_params(params).items()):
@@ -574,6 +594,30 @@ def _build_multi_strategy_signature(
 
     weight_signature = tuple(sorted((symbol, round(float(weight), 6)) for symbol, weight in weights.items()))
     return repr((tuple(stock_signature), tuple(param_signature), weight_signature))
+
+
+def _dataframe_strategy_fingerprint(df: pd.DataFrame) -> str:
+    """Fingerprint the actual analysis inputs, including historical revisions."""
+    if df is None or df.empty:
+        return "empty"
+    relevant_columns = [
+        column
+        for column in ("date", "open", "high", "low", "close", "volume", "adjust", "market")
+        if column in df.columns
+    ]
+    if not relevant_columns:
+        return f"rows:{len(df)}"
+    normalized = df.loc[:, relevant_columns].copy()
+    if "date" in normalized.columns:
+        normalized["date"] = pd.to_datetime(normalized["date"], errors="coerce").astype(str)
+    for column in ("open", "high", "low", "close", "volume"):
+        if column in normalized.columns:
+            normalized[column] = pd.to_numeric(normalized[column], errors="coerce")
+    try:
+        values = pd.util.hash_pandas_object(normalized, index=False).values.tobytes()
+    except (TypeError, ValueError):
+        values = normalized.to_csv(index=False).encode("utf-8")
+    return hashlib.sha256(values).hexdigest()
 
 
 def _build_multi_chart_cache_key(

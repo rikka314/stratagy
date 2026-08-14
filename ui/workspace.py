@@ -31,6 +31,12 @@ _EXCLUDED_KEYS = {
     "single_stock_stage_cache_lru",
     "single_stock_display_cache",
     "multi_stock_analysis_cache",
+    # These two objects have dedicated, portable snapshot branches below.  Do
+    # not also collect them through the broad ``single_stock_`` /
+    # ``multi_stock_`` widget prefixes: that duplicates large DataFrames and
+    # Plotly figures in a checkpoint, and defeats the lightweight marker.
+    SINGLE_WORKSPACE_KEY,
+    MULTI_WORKSPACE_KEY,
     WORKSPACE_SESSION_ID_KEY,
     WORKSPACE_HYDRATED_ID_KEY,
     WORKSPACE_MARKER_KEY,
@@ -80,6 +86,37 @@ _PERSISTED_PREFIXES = (
     "indicator_",
     "feedback_",
 )
+# Streamlit action widgets are write-protected: restoring their boolean
+# value through ``st.session_state`` before the widget is created raises
+# ``StreamlitValueAssignmentNotAllowedError``.  Keep durable controls (text,
+# selectbox, slider, segmented control, etc.) but never persist one-shot
+# button state, including dynamically keyed list actions.
+_NON_PERSISTED_WIDGET_KEYS = {
+    "home_stock_market_us",
+    "home_stock_market_cn",
+    "home_stock_next",
+    "single_entry_upload_btn",
+    "single_entry_refresh_market_context",
+    "single_stock_header_details_toggle",
+    "single_stock_strategy_help",
+    "single_stock_generate_strategy",
+    "single_stock_save_current_artifact",
+    "single_stock_switch_direct",
+    "single_export_btn",
+    "multi_entry_refresh_market_context",
+    "multi_stock_header_details_toggle",
+    "multi_stock_generate_strategy",
+    "multi_stock_add_direct",
+    "btn_optimize_portfolio",
+}
+_NON_PERSISTED_WIDGET_PREFIXES = (
+    "single_entry_rec_",
+    "single_stock_switch_",
+    "multi_entry_rec_",
+    "multi_entry_remove_",
+    "multi_stock_add_",
+    "multi_stock_remove_",
+)
 
 
 def _store() -> WorkspaceSnapshotStore:
@@ -118,7 +155,7 @@ def ensure_workspace_session() -> str:
             st.session_state[WORKSPACE_RESTORED_NOTICE_KEY] = True
         st.session_state[WORKSPACE_SESSION_ID_KEY] = requested_id
         st.session_state[WORKSPACE_HYDRATED_ID_KEY] = requested_id
-        st.session_state[WORKSPACE_MARKER_KEY] = _snapshot_marker(_snapshot_payload())
+        st.session_state[WORKSPACE_MARKER_KEY] = _current_workspace_marker()
         emit_performance_event(
             "workspace", "restore", (perf_counter() - restore_started_at) * 1000,
             cache="hit" if payload is not None else "miss",
@@ -143,10 +180,13 @@ def checkpoint_workspace() -> bool:
     workspace_id = ensure_workspace_session()
     checkpoint_started_at = perf_counter()
     try:
-        payload = _snapshot_payload()
-        marker = _snapshot_marker(payload)
+        # Compute the compact state marker before building a portable snapshot.
+        # The latter deep-copies result series, so doing it first prevents every
+        # ordinary rerun from serializing completed analyses again.
+        marker = _current_workspace_marker()
         if marker == st.session_state.get(WORKSPACE_MARKER_KEY):
             return False
+        payload = _snapshot_payload()
         _store().save(workspace_id, payload)
     except Exception:
         emit_performance_event(
@@ -226,6 +266,8 @@ def _collect_widget_state() -> dict[str, Any]:
     for key, value in st.session_state.items():
         if not isinstance(key, str) or key in _EXCLUDED_KEYS:
             continue
+        if _is_non_persisted_widget_key(key):
+            continue
         if key in _DIRECT_KEYS or key.startswith(_PERSISTED_PREFIXES):
             try:
                 pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
@@ -248,7 +290,7 @@ def _apply_snapshot(payload: dict[str, Any]) -> None:
     widget_state = payload.get("widget_state", {})
     if isinstance(widget_state, dict):
         for key, value in widget_state.items():
-            if isinstance(key, str):
+            if isinstance(key, str) and not _is_non_persisted_widget_key(key):
                 st.session_state[key] = value
 
     routes = payload.get("routes", {})
@@ -277,15 +319,48 @@ def _apply_snapshot(payload: dict[str, Any]) -> None:
         }
 
 
+def _current_workspace_marker() -> str:
+    """Build a marker from live state without copying result payloads."""
+    return _workspace_marker(
+        routes={
+            "single": st.session_state.get(SINGLE_ROUTE_STATE_KEY, {}),
+            "multi": st.session_state.get(MULTI_ROUTE_STATE_KEY, {}),
+        },
+        widget_state=_collect_widget_state(),
+        single_workspace=st.session_state.get(SINGLE_WORKSPACE_KEY, {}),
+        multi_workspace=st.session_state.get(MULTI_WORKSPACE_KEY, {}),
+    )
+
+
+def _is_non_persisted_widget_key(key: str) -> bool:
+    if key == "single_stock_switch_query":
+        return False
+    return key in _NON_PERSISTED_WIDGET_KEYS or key.startswith(_NON_PERSISTED_WIDGET_PREFIXES)
+
+
 def _snapshot_marker(payload: dict[str, Any]) -> str:
-    """Use lightweight result identities so ordinary reruns avoid re-pickling artifacts."""
-    single_workspace = payload.get("single_workspace", {})
-    multi_workspace = payload.get("multi_workspace", {})
+    """Return the equivalent lightweight marker for a serialized payload."""
+    return _workspace_marker(
+        routes=payload.get("routes", {}),
+        widget_state=payload.get("widget_state", {}),
+        single_workspace=payload.get("single_workspace", {}),
+        multi_workspace=payload.get("multi_workspace", {}),
+    )
+
+
+def _workspace_marker(
+    *,
+    routes: object,
+    widget_state: object,
+    single_workspace: object,
+    multi_workspace: object,
+) -> str:
+    """Hash only state that can alter a persisted workspace result."""
     current = single_workspace.get("current_artifact") if isinstance(single_workspace, dict) else None
     saved = single_workspace.get("saved_artifacts", []) if isinstance(single_workspace, dict) else []
     marker = {
-        "routes": _route_marker(payload.get("routes", {})),
-        "widgets": payload.get("widget_state", {}),
+        "routes": _route_marker(routes),
+        "widgets": widget_state,
         "single": {
             "context_key": single_workspace.get("context_key") if isinstance(single_workspace, dict) else None,
             "current_id": getattr(current, "id", None),
@@ -295,26 +370,106 @@ def _snapshot_marker(payload: dict[str, Any]) -> str:
         "multi": {
             "signature": multi_workspace.get("signature") if isinstance(multi_workspace, dict) else None,
             "optimization_signature": multi_workspace.get("optimization_signature") if isinstance(multi_workspace, dict) else None,
-            "portfolio_result_identity": id(multi_workspace.get("portfolio_result")) if isinstance(multi_workspace, dict) and multi_workspace.get("portfolio_result") is not None else None,
-            "optimization_result_identity": id(multi_workspace.get("optimization_result")) if isinstance(multi_workspace, dict) and multi_workspace.get("optimization_result") is not None else None,
+            "portfolio_result": _portfolio_result_marker(
+                multi_workspace.get("portfolio_result") if isinstance(multi_workspace, dict) else None
+            ),
+            "optimization_result_identity": (
+                id(multi_workspace.get("optimization_result"))
+                if isinstance(multi_workspace, dict)
+                and multi_workspace.get("optimization_result") is not None
+                else None
+            ),
         },
     }
     return hashlib.sha256(pickle.dumps(marker, protocol=pickle.HIGHEST_PROTOCOL)).hexdigest()
 
 
+def _portfolio_result_marker(value: object) -> object:
+    """Return a stable, compact identity for a persisted portfolio result.
+
+    ``_portable_portfolio_result`` deep-copies the result to remove its
+    figure.  Using ``id()`` on that copy made every ordinary rerun look like a
+    new result and forced another disk checkpoint.  Keep only scalar outcome
+    fields that change when a portfolio result materially changes.
+    """
+    if not isinstance(value, dict):
+        return None
+
+    metrics = tuple(
+        (key, value.get(key))
+        for key in (
+            "port_total_return",
+            "port_sharpe",
+            "port_max_dd",
+            "bh_total_return",
+            "bh_sharpe",
+            "bh_max_dd",
+        )
+    )
+    weights = value.get("weights")
+    weight_marker = (
+        tuple(sorted((str(symbol), weight) for symbol, weight in weights.items()))
+        if isinstance(weights, dict)
+        else None
+    )
+    individual_results = value.get("individual_results")
+    individual_marker = (
+        tuple(
+            sorted(
+                (
+                    str(symbol),
+                    result.get("total_return"),
+                    result.get("sharpe"),
+                    result.get("max_dd"),
+                )
+                for symbol, result in individual_results.items()
+                if isinstance(result, dict)
+            )
+        )
+        if isinstance(individual_results, dict)
+        else None
+    )
+    return metrics, weight_marker, individual_marker
+
+
 def _route_marker(routes: object) -> object:
     if not isinstance(routes, dict):
         return routes
-    route_copy = copy.deepcopy(routes)
-    for route_name in ("single", "multi"):
-        state = route_copy.get(route_name)
-        if not isinstance(state, dict):
+    # Route state may contain a user-uploaded CSV of several megabytes.  A
+    # marker is computed on every rerun, so a recursive deepcopy here would
+    # copy the entire upload even when nothing changed.  Build a shallow,
+    # schema-shaped copy and replace only byte payloads with fingerprints.
+    route_marker: dict[object, object] = {}
+    for route_name, route_state in routes.items():
+        if not isinstance(route_state, dict):
+            route_marker[route_name] = route_state
             continue
-        if isinstance(state.get("uploaded_bytes"), (bytes, bytearray)):
-            raw = bytes(state["uploaded_bytes"])
-            state["uploaded_bytes"] = ("bytes", len(raw), hashlib.sha256(raw).hexdigest())
-        for item in state.get("uploads", []):
-            if isinstance(item, dict) and isinstance(item.get("bytes"), (bytes, bytearray)):
-                raw = bytes(item["bytes"])
-                item["bytes"] = ("bytes", len(raw), hashlib.sha256(raw).hexdigest())
-    return route_copy
+        state_marker = dict(route_state)
+        raw = state_marker.get("uploaded_bytes")
+        if isinstance(raw, (bytes, bytearray)):
+            raw_bytes = bytes(raw)
+            state_marker["uploaded_bytes"] = (
+                "bytes",
+                len(raw_bytes),
+                hashlib.sha256(raw_bytes).hexdigest(),
+            )
+        uploads = state_marker.get("uploads")
+        if isinstance(uploads, list):
+            upload_markers: list[object] = []
+            for item in uploads:
+                if not isinstance(item, dict):
+                    upload_markers.append(item)
+                    continue
+                item_marker = dict(item)
+                raw_upload = item_marker.get("bytes")
+                if isinstance(raw_upload, (bytes, bytearray)):
+                    raw_bytes = bytes(raw_upload)
+                    item_marker["bytes"] = (
+                        "bytes",
+                        len(raw_bytes),
+                        hashlib.sha256(raw_bytes).hexdigest(),
+                    )
+                upload_markers.append(item_marker)
+            state_marker["uploads"] = upload_markers
+        route_marker[route_name] = state_marker
+    return route_marker

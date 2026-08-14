@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0",
+  "name": "moe_baseline_us",
+  "phase": "A",
+  "market": "US",
+  "output_subdir": "moe_baseline_us",
+  "random_seed": 42,
+  "training_scope": "market_specific",
+  "cross_market_policy": "ablation_only",
+  "source_runs": {
+    "window3b": {
+      "output_dir": "model-test/outputs/deans_window3b_us",
+      "config_path": "model-test/configs/deans_window3b_us.json"
+    },
+    "full_run": {
+      "output_dir": "model-test/outputs/full_us_deans_60",
+      "config_path": "model-test/configs/full_us_deans_60.json"
+    }
+  },
+  "horizons": {
+    "primary_days": 20,
+    "ablation_days": [5, 60]
+  },
+  "returns": {
+    "net_return_field": "strategy_return",
+    "gross_return_field": "gross_strategy_return",
+    "transaction_cost_field": "transaction_cost",
+    "cost_treatment": "source_net_no_recharge"
+  },
+  "execution": {
+    "commission_bps": 1,
+    "slippage_bps": 2
+  },
+  "train_selection": {
+    "scope": "market_train_only",
+    "forbid_test_columns": true,
+    "score_formula": "median(train_sharpe) + 2.0 * median(train_annret) - 0.5 * abs(median(train_maxdd))",
+    "score_weights": {
+      "train_sharpe": 1.0,
+      "train_annret": 2.0,
+      "train_maxdd_penalty": 0.5
+    },
+    "tie_break": ["coverage_rate_desc", "median_train_annret_desc", "model_id_asc"]
+  },
+  "experts": [
+    {
+      "expert_id": "naive",
+      "source_model_id": "naive",
+      "role": "buy_and_hold_baseline",
+      "availability": "required",
+      "include_in_equal_weight": true
+    },
+    {
+      "expert_id": "drift",
+      "source_model_id": "drift",
+      "role": "trend_baseline",
+      "availability": "required",
+      "include_in_equal_weight": true
+    },
+    {
+      "expert_id": "sm",
+      "source_model_id": "sm",
+      "role": "fixed_signal_model",
+      "availability": "required",
+      "include_in_equal_weight": true
+    },
+    {
+      "expert_id": "fsm",
+      "source_model_id": "fsm",
+      "role": "factor_signal_model",
+      "availability": "required",
+      "include_in_equal_weight": true
+    },
+    {
+      "expert_id": "best_search",
+      "source_model_id": "sm_bayesian",
+      "role": "frozen_search_representative",
+      "availability": "required",
+      "include_in_equal_weight": true
+    },
+    {
+      "expert_id": "ml_filter",
+      "source_model_id": "sm_bayesian_ml_lgbm",
+      "role": "ml_filter_representative",
+      "availability": "required",
+      "include_in_equal_weight": true
+    },
+    {
+      "expert_id": "adaptive_router",
+      "source_model_id": "rsm_adaptive_v1",
+      "role": "hard_regime_router",
+      "availability": "required",
+      "include_in_equal_weight": true
+    },
+    {
+      "expert_id": "cash",
+      "source_model_id": null,
+      "role": "zero_return_fallback",
+      "availability": "required",
+      "include_in_equal_weight": false
+    }
+  ],
+  "baseline_controls": [
+    {
+      "control_id": "best_single_expert",
+      "selection": "train_only_market_level",
+      "test_use": "apply the frozen selected expert without reselection"
+    },
+    {
+      "control_id": "equal_weight_experts",
+      "selection": "all required experts with include_in_equal_weight=true",
+      "missing_policy": "unavailable; do not silently renormalize"
+    },
+    {
+      "control_id": "adaptive_router_v1",
+      "source_model_id": "rsm_adaptive_v1",
+      "availability": "required",
+      "selection": "existing hard routing artifact"
+    }
+  ]
+}
