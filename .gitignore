@@ -52,6 +52,7 @@ model-test/mlruns/
 .claude/settings.local.json
 
 # Local test and tool temp directories
+.omx/
 .codex_pytest_tmp/
 pytest_tmp_*/
 tests/.tmp_pytest/
