@@ -403,7 +403,9 @@ def route_href(
 ) -> str:
     """system.routing.buildPath"""
     normalized = str(url_path or "").strip().strip("/")
-    base = f"{BASE_ROUTE_PATH}/{normalized}" if normalized else BASE_ROUTE_PATH
+    # Keep the home route's trailing slash so Nginx does not redirect away
+    # query parameters such as ``lang`` and ``ws``.
+    base = f"{BASE_ROUTE_PATH}/{normalized}" if normalized else f"{BASE_ROUTE_PATH}/"
     active_language = str(language or get_ui_language()).strip().lower()
     active_language = "zh" if active_language.startswith("zh") else "en"
     parameters = {"lang": active_language}
@@ -4768,6 +4770,10 @@ def render_route_nav(current: str) -> None:
             section = ""
         if re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", section):
             preserved_query["section"] = section
+    language_options = (
+        ("zh", "中", t("切换为中文", "Switch to Chinese")),
+        ("en", "EN", t("切换为英文", "Switch to English")),
+    )
     language_links = "".join(
         (
             f"<a class='site-language-link {'active' if code == active_language else ''}' "
@@ -4775,10 +4781,7 @@ def render_route_nav(current: str) -> None:
             f"lang='{'zh-CN' if code == 'zh' else 'en'}' "
             f"aria-label='{label}' title='{label}'>{short_label}</a>"
         )
-        for code, short_label, label in (
-            ("zh", "中", "切换为中文"),
-            ("en", "EN", "Switch to English"),
-        )
+        for code, short_label, label in language_options
     )
     evidence_href = route_href("model-evaluation")
     evidence_label = t("浏览研究证据", "Browse evidence")
@@ -4797,7 +4800,7 @@ def render_route_nav(current: str) -> None:
   </div>
 </header>
             """
-        )
+        , localize=False)
 
 
 def render_status_note(message: str, tone: str = "info") -> None:

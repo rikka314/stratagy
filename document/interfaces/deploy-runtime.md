@@ -115,7 +115,7 @@ bash /opt/stratagy/deploy/deploy.sh
 当前模板固定四段：
 
 - `location = /strategy`
-  - 302 到 `/strategy/`
+  - 302 到 `/strategy/`，并通过 `$is_args$args` 保留 `lang`、`ws` 等查询参数
 - `location ^~ /strategy/static/`
   - 保留 `/strategy` 前缀反代静态资源
   - 开启代理缓冲，隐藏上游 Cache-Control 后返回单一 `Cache-Control: public, max-age=31536000, immutable`
