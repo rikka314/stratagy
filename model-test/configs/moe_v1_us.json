@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "name": "moe_v1_us",
+  "phase": "C",
+  "market": "US",
+  "panel_output_dir": "model-test/outputs/moe_baseline_us",
+  "output_subdir": "moe_v1_us",
+  "random_seed": 42,
+  "training_scope": "market_specific",
+  "cross_market_policy": "ablation_only",
+  "primary_horizon_days": 20,
+  "return_field": "strategy_return",
+  "cost_treatment": "source_net_no_recharge",
+  "model": {
+    "n_estimators": 200,
+    "learning_rate": 0.05,
+    "num_leaves": 15,
+    "min_child_samples": 20,
+    "n_jobs": 1,
+    "minimum_train_rows": 100,
+    "device_type": "cpu"
+  },
+  "gating": {
+    "temperature": 0.05,
+    "max_risk_expert_weight": 0.4,
+    "smoothing_alpha": 0.35,
+    "cash_expert_id": "cash"
+  }
+}

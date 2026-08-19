@@ -5,7 +5,10 @@ import pandas as pd
 import pytest
 import streamlit as st
 
+import core.adaptive_regime as adaptive_regime
 import core.regime_model as regime_model
+from model_test.config import build_stage_a_model_specs
+from model_test.models import ResearchConfig
 from ui import single_stock_workflow as ssw
 
 
@@ -89,6 +92,42 @@ def test_compute_regime_signals_routes_into_trend_follow(monkeypatch: pytest.Mon
     assert {"anchor_mean_position", "anchor_drift_position", "regime_score_percentile"}.issubset(signal_df.columns)
 
 
+def test_cn_a_proxy_is_market_native_for_regime_and_adaptive_features(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_regime_dependencies(monkeypatch)
+    stock_df = _make_indicator_frame(direction="up")
+    proxy_df = _make_indicator_frame(direction="up")
+    calls: list[tuple[str, str, str]] = []
+
+    def fetcher(symbol: str, adjust: str, market: str) -> pd.DataFrame:
+        calls.append((symbol, adjust, market))
+        return proxy_df
+
+    _proxy_frame, proxy_metadata = regime_model.build_market_proxy_frame(
+        stock_df,
+        market="CN_A",
+        fetcher=fetcher,
+    )
+    feature_df, feature_metadata = adaptive_regime.build_adaptive_feature_frame(
+        stock_df,
+        market="CN_A",
+        fetcher=fetcher,
+    )
+
+    assert calls == [("000300", "qfq", "CN_A"), ("000300", "qfq", "CN_A")]
+    assert proxy_metadata["market"] == "CN_A"
+    assert proxy_metadata["market_proxy_symbol"] == "000300"
+    assert feature_metadata["market"] == "CN_A"
+    assert feature_metadata["market_proxy_symbol"] == "000300"
+    assert {"spy_ret_5", "spy_ret_20", "spy_ret_60"}.issubset(feature_df.columns)
+
+
+def test_adaptive_router_spec_supports_cn_a_with_market_native_proxy() -> None:
+    config = ResearchConfig(name="cn-adaptive", market="CN_A")
+    adaptive_spec = next(spec for spec in build_stage_a_model_specs(config) if spec.model_id == "rsm_adaptive_v1")
+
+    assert adaptive_spec.skip_reason_for_market("CN_A") is None
+
+
 def test_no_router_ablation_ignores_market_risk_off(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_regime_dependencies(monkeypatch)
     stock_df = _make_indicator_frame(direction="up")
@@ -162,7 +201,13 @@ def test_run_strategy_pipeline_supports_regime_family(monkeypatch: pytest.Monkey
             },
         },
     )
-    monkeypatch.setattr(ssw, "run_regime_stage", lambda **kwargs: (stage, False))
+    captured: dict[str, object] = {}
+
+    def capture_regime_stage(**kwargs):
+        captured.update(kwargs)
+        return stage, False
+
+    monkeypatch.setattr(ssw, "run_regime_stage", capture_regime_stage)
 
     result = ssw.run_strategy_pipeline(
         context_key="ctx_regime",
@@ -170,12 +215,16 @@ def test_run_strategy_pipeline_supports_regime_family(monkeypatch: pytest.Monkey
         request_params_snapshot={"stop_loss_mult": 0.0, "take_profit_mult": 0.0},
         df_raw=pd.DataFrame({"date": date_index, "close": [100.0, 101.0, 102.0, 103.0]}),
         split_idx=2,
+        market="CN_A",
+        adjust="hfq",
     )
 
     assert result.status == "success"
     assert result.artifact is not None
     assert result.artifact.display_label == "Regime (Experimental)"
     assert result.warnings == ["market_proxy_unavailable: SPY data missing"]
+    assert captured["market"] == "CN_A"
+    assert captured["adjust"] == "hfq"
 
 
 def _make_candidate_stage(

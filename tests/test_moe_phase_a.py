@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -29,10 +30,6 @@ def _phase_a_config() -> dict:
         "training_scope": "market_specific",
         "cross_market_policy": "ablation_only",
         "source_runs": {
-            "window3b": {
-                "output_dir": "model-test/outputs/window3b_fixture",
-                "config_path": "model-test/configs/window3b_fixture.json",
-            },
             "full_run": {
                 "output_dir": "model-test/outputs/full_fixture",
                 "config_path": "model-test/configs/full_fixture.json",
@@ -96,6 +93,23 @@ def _write_source(root: Path, config: dict, source_name: str, *, with_runs: bool
     source_dir = root / source["output_dir"]
     source_dir.mkdir(parents=True, exist_ok=True)
     _write_json(root / source["config_path"], {"name": source_name})
+    snapshot_file = source_dir / "data_snapshot" / "AAA_daily.csv"
+    snapshot_file.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_file.write_bytes(b"date,close\n2026-01-05,100\n")
+    snapshot_digest = hashlib.sha256(snapshot_file.read_bytes()).hexdigest()
+    snapshot_entry = {
+        "symbol": "AAA",
+        "path": str(snapshot_file.resolve()),
+        "sha256": snapshot_digest,
+        "size_bytes": snapshot_file.stat().st_size,
+    }
+    snapshot_aggregate = hashlib.sha256(
+        json.dumps(
+            [{key: snapshot_entry[key] for key in ("symbol", "sha256", "size_bytes")}],
+            ensure_ascii=False,
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
     _write_json(
         source_dir / "data_manifest.json",
         {
@@ -104,7 +118,8 @@ def _write_source(root: Path, config: dict, source_name: str, *, with_runs: bool
             "run_id": f"{source_name}-run",
             "code_version": "abc123",
             "random_seed": 42,
-            "data": {"snapshot_sha256": f"{source_name}-data-sha"},
+            "data": {"snapshot_sha256": snapshot_aggregate},
+            "universe": {"files": [snapshot_entry]},
             "execution": {"market": "US", "commission_bps": 1, "slippage_bps": 2},
         },
     )
@@ -174,6 +189,8 @@ def test_repository_phase_a_configs_freeze_market_specific_contracts() -> None:
     assert us["execution"] == {"commission_bps": 1, "slippage_bps": 2}
     assert cn["execution"] == {"commission_bps": 3, "slippage_bps": 5}
     assert us["returns"]["cost_treatment"] == cn["returns"]["cost_treatment"] == "source_net_no_recharge"
+    assert set(us["source_runs"]) == set(cn["source_runs"]) == {"full_run"}
+    assert us["historical_runs"][0]["classification"] == "non_authoritative_smoke"
     assert [row["control_id"] for row in us["baseline_controls"]] == [
         "best_single_expert",
         "equal_weight_experts",
@@ -189,7 +206,6 @@ def test_materializer_uses_train_only_selection_and_reuses_net_returns(tmp_path:
     config = _phase_a_config()
     config_path = tmp_path / "model-test" / "configs" / "moe_fixture.json"
     _write_json(config_path, config)
-    _write_source(tmp_path, config, "window3b", with_runs=False)
     _write_source(tmp_path, config, "full_run", with_runs=True)
 
     output_dir = tmp_path / "phase_a_output"
@@ -247,6 +263,33 @@ def test_missing_sources_fail_strict_mode_and_remain_explicit_when_allowed(tmp_p
     }
 
 
+def test_source_snapshot_must_match_manifest_and_historical_smoke_does_not_gate(tmp_path: Path) -> None:
+    config = _phase_a_config()
+    config["historical_runs"] = [
+        {
+            "run_id": "historical-smoke",
+            "output_dir": "model-test/outputs/historical-smoke",
+            "config_path": "model-test/configs/historical-smoke.json",
+            "classification": "non_authoritative_smoke",
+            "reason": "diagnostic-only",
+        }
+    ]
+    config_path = tmp_path / "model-test" / "configs" / "moe_fixture.json"
+    _write_json(config_path, config)
+    _write_source(tmp_path, config, "full_run", with_runs=True)
+
+    manifest = build_phase_a_manifest(config_path, repo_root=tmp_path)
+    assert manifest["status"] == "ready"
+    assert manifest["sources"][0]["snapshot_file_count"] == 1
+    assert manifest["historical_runs"] == config["historical_runs"]
+
+    snapshot_file = tmp_path / config["source_runs"]["full_run"]["output_dir"] / "data_snapshot" / "AAA_daily.csv"
+    snapshot_file.write_bytes(b"tampered")
+    tampered = build_phase_a_manifest(config_path, repo_root=tmp_path)
+    assert tampered["status"] == "pending"
+    assert any("source snapshot hash mismatch" in issue for issue in tampered["sources"][0]["issues"])
+
+
 def test_known_unavailable_router_is_not_silently_substituted(tmp_path: Path) -> None:
     config = _phase_a_config()
     router_expert = next(row for row in config["experts"] if row["expert_id"] == "rsm_adaptive_v1")
@@ -259,7 +302,6 @@ def test_known_unavailable_router_is_not_silently_substituted(tmp_path: Path) ->
     router_control["unavailable_reason"] = "market-native artifact unavailable"
     config_path = tmp_path / "model-test" / "configs" / "moe_fixture.json"
     _write_json(config_path, config)
-    _write_source(tmp_path, config, "window3b", with_runs=False)
     _write_source(tmp_path, config, "full_run", with_runs=True)
 
     outputs = materialize_phase_a_baseline(

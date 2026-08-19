@@ -8,15 +8,20 @@
   "training_scope": "market_specific",
   "cross_market_policy": "ablation_only",
   "source_runs": {
-    "window3b": {
-      "output_dir": "model-test/outputs/deans_window3b_us",
-      "config_path": "model-test/configs/deans_window3b_us.json"
-    },
     "full_run": {
       "output_dir": "model-test/outputs/full_us_deans_60",
       "config_path": "model-test/configs/full_us_deans_60.json"
     }
   },
+  "historical_runs": [
+    {
+      "run_id": "deans_window3b_us",
+      "output_dir": "model-test/outputs/deans_window3b_us",
+      "config_path": "model-test/configs/deans_window3b_us.json",
+      "classification": "non_authoritative_smoke",
+      "reason": "This six-symbol smoke run has no frozen data snapshot and is retained only as historical diagnostics; it must not gate or supply Phase-A evidence."
+    }
+  ],
   "horizons": {
     "primary_days": 20,
     "ablation_days": [5, 60]

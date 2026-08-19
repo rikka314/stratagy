@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--horizon-days", type=int, default=20, help="Primary future-label horizon (default: 20)")
     parser.add_argument("--lambda-downside", type=float, default=1.0)
     parser.add_argument("--lambda-turnover", type=float, default=0.1)
-    parser.add_argument("--n-splits", type=int, default=3)
+    parser.add_argument("--n-splits", type=int, help="Optional split count for configs without frozen phase_b.n_splits")
     parser.add_argument("--min-train-days", type=int)
     parser.add_argument("--validation-days", type=int)
     parser.add_argument("--test-days", type=int)

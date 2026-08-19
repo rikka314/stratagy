@@ -257,12 +257,12 @@ def test_unknown_market_is_rejected(tmp_path: Path) -> None:
         load_research_config(config_path)
 
 
-def test_cn_a_regime_specs_are_explicitly_skipped() -> None:
+def test_cn_a_regime_specs_have_explicit_market_boundaries() -> None:
     specs = {spec.model_id: spec for spec in build_stage_a_model_specs(ResearchConfig(name="cn_case", market="CN_A"))}
 
     assert specs["sm"].skip_reason_for_market("CN_A") is None
     assert "SPY market proxy" in specs["rsm"].skip_reason_for_market("CN_A")
-    assert "adaptive state artifacts" in specs[ADAPTIVE_MODEL_ID].skip_reason_for_market("CN_A")
+    assert specs[ADAPTIVE_MODEL_ID].skip_reason_for_market("CN_A") is None
 
 
 def test_cn_a_catalog_and_profile_use_six_digit_symbols_and_amount_filter() -> None:

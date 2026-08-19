@@ -28,7 +28,7 @@ from model_test.config import (
 )
 from model_test.control import PAUSED_EXIT_CODE, ResearchControl, ResearchPauseRequested
 from model_test.execution import ExecutionPaused, execute_tasks
-from model_test.models import ModelSpec, RunRecord, TaskSpec
+from model_test.models import ModelSpec, RunRecord, StockProfile, TaskSpec
 from model_test.observability import (
     ensure_optional_dependencies,
     generate_quantstats_outputs,
@@ -387,6 +387,63 @@ def _freeze_stock_profile_data(stock_profiles, output_dir: Path, *, control: Res
             replace(profile, source_kind="frozen_csv", data_path=str(destination.resolve()))
         )
     return frozen_profiles
+
+
+def load_replay_stock_profiles(config) -> list[StockProfile]:
+    """Load an immutable research universe directly from a prior frozen snapshot."""
+
+    if not config.replay_source_subdir:
+        raise ValueError("replay_source_subdir is required for frozen replay profiles.")
+    source_dir = (WORKSPACE_ROOT / "outputs" / config.replay_source_subdir).resolve()
+    stocks_path = source_dir / "stocks.csv"
+    manifest_path = source_dir / "data_manifest.json"
+    snapshot_dir = source_dir / "data_snapshot"
+    if not stocks_path.is_file() or not manifest_path.is_file() or not snapshot_dir.is_dir():
+        raise FileNotFoundError(f"Frozen replay source is incomplete: {source_dir}")
+    try:
+        source_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Frozen replay manifest is unreadable: {manifest_path}") from exc
+    if source_manifest.get("market") != config.market:
+        raise ValueError(
+            f"Frozen replay market is {source_manifest.get('market')!r}, expected {config.market!r}."
+        )
+    if not (source_manifest.get("data") or {}).get("snapshot_sha256"):
+        raise ValueError("Frozen replay source has no data.snapshot_sha256.")
+    stocks = pd.read_csv(stocks_path, dtype={"symbol": "string"})
+    required = {
+        "symbol", "company_name", "history_days", "recent_days", "total_return_1y", "annualized_vol_1y",
+        "max_drawdown_1y", "avg_dollar_volume_1y", "trend_bucket", "volatility_bucket", "segment_key",
+    }
+    missing = sorted(required - set(stocks.columns))
+    if missing:
+        raise ValueError(f"Frozen replay stocks.csv is missing columns: {missing}")
+    profiles: list[StockProfile] = []
+    for row in stocks.to_dict("records"):
+        symbol = str(row["symbol"]).strip().zfill(6) if config.market == "CN_A" else str(row["symbol"]).strip()
+        data_path = snapshot_dir / f"{symbol.lower()}_daily.csv"
+        if not data_path.is_file():
+            raise FileNotFoundError(f"Frozen replay snapshot is missing {data_path.name}")
+        profiles.append(
+            StockProfile(
+                symbol=symbol,
+                company_name=str(row["company_name"]),
+                source_kind="frozen_replay",
+                data_path=str(data_path.resolve()),
+                history_days=int(row["history_days"]),
+                recent_days=int(row["recent_days"]),
+                total_return_1y=row.get("total_return_1y"),
+                annualized_vol_1y=row.get("annualized_vol_1y"),
+                max_drawdown_1y=row.get("max_drawdown_1y"),
+                avg_dollar_volume_1y=row.get("avg_dollar_volume_1y"),
+                trend_bucket=str(row["trend_bucket"]),
+                volatility_bucket=str(row["volatility_bucket"]),
+                segment_key=str(row["segment_key"]),
+            )
+        )
+    if not profiles:
+        raise ValueError("Frozen replay stocks.csv contains no profiles.")
+    return profiles
 
 
 def _data_snapshot_manifest(stocks_df: pd.DataFrame) -> tuple[str | None, list[dict[str, Any]]]:
@@ -767,7 +824,11 @@ def run_research(
     )
     control.raise_if_pause_requested("data_preparation")
     params_snapshot = build_request_params_snapshot(config)
-    stock_profiles = build_stock_profiles(config)
+    stock_profiles = (
+        load_replay_stock_profiles(config)
+        if config.replay_source_subdir
+        else build_stock_profiles(config)
+    )
     control.raise_if_pause_requested("data_preparation")
     if config.freeze_data_snapshot:
         stock_profiles = _freeze_stock_profile_data(stock_profiles, output_dir, control=control)

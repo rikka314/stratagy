@@ -111,10 +111,31 @@ def resolve_universe_parallelism(raw_value: Any, parallelism: int) -> int:
 def load_research_config(config_path: str | Path) -> ResearchConfig:
     path = Path(config_path)
     raw: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
-    if str(raw.get("phase") or "").strip().upper() == "A" and "source_runs" in raw:
+    phase = str(raw.get("phase") or "").strip().upper()
+    if phase == "A" and "source_runs" in raw:
         raise ValueError(
             "Dynamic-ensemble Phase-A configs are materialization contracts; "
             "use model-test/prepare_moe_baseline.py instead of run_research.py."
+        )
+    if phase == "C" and "panel_output_dir" in raw:
+        raise ValueError(
+            "Dynamic-ensemble Phase-C configs are gating contracts; "
+            "use model-test/run_dynamic_ensemble.py instead of run_research.py."
+        )
+    if phase == "D" and "panel_output_dir" in raw:
+        raise ValueError(
+            "Dynamic-ensemble Phase-D configs are uncertainty-gating contracts; "
+            "use model-test/run_dynamic_ensemble_v2.py instead of run_research.py."
+        )
+    if phase == "E" and "panel_output_dir" in raw:
+        raise ValueError(
+            "Dynamic-ensemble Phase-E configs are online expert-weighting contracts; "
+            "use model-test/run_dynamic_ensemble_online.py instead of run_research.py."
+        )
+    if phase == "F" and "panel_output_dir" in raw:
+        raise ValueError(
+            "Dynamic-ensemble Phase-F configs are contextual-bandit comparison contracts; "
+            "use model-test/run_dynamic_ensemble_bandit.py instead of run_research.py."
         )
     market = normalize_market(raw.get("market", "US"))
     defaults = market_defaults(market)
@@ -183,6 +204,7 @@ def load_research_config(config_path: str | Path) -> ResearchConfig:
         "stage_b_request_overrides": dict(raw.get("stage_b_request_overrides", {})),
         "selected_model_ids": tuple(str(item) for item in raw.get("selected_model_ids", []) if str(item).strip()),
         "merge_into_existing_output": bool(raw.get("merge_into_existing_output", False)),
+        "replay_source_subdir": raw.get("replay_source_subdir"),
         "commission_bps": raw.get("commission_bps"),
         "slippage_bps": raw.get("slippage_bps"),
         "cross_market_source_subdirs": normalized_cross_market_sources,
@@ -315,10 +337,7 @@ def build_stage_a_model_specs(config: ResearchConfig) -> list[ModelSpec]:
             "rsm",
             {"family": "regime", "regime_kind": ADAPTIVE_REGIME_KIND},
             notes="Adaptive regime router with offline state artifacts and online local fallback hierarchy",
-            supported_markets=("US",),
-            unsupported_market_reasons={
-                "CN_A": "CN_A adaptive regime routing is skipped: adaptive state artifacts currently use the US SPY proxy feature schema.",
-            },
+            supported_markets=("US", "CN_A"),
         ),
         ModelSpec(
             "sm_bayesian",

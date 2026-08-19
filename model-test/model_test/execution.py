@@ -387,6 +387,8 @@ def run_task_batch(task_batch: list[TaskSpec], artifacts_root: str | None = None
                 request_params_snapshot=task.params_snapshot,
                 df_raw=df_window,
                 split_idx=split_idx,
+                market=task.market,
+                adjust=task.adjust,
             )
         records.append(
             _record_from_result(

@@ -145,13 +145,34 @@ def validate_moe_baseline_config(config: dict[str, Any]) -> None:
             raise MoEBaselineError(f"execution.{key} must be finite and non-negative.")
 
     sources = config.get("source_runs")
-    if not isinstance(sources, dict) or set(sources) != {"window3b", "full_run"}:
-        raise MoEBaselineError("source_runs must contain exactly window3b and full_run.")
+    if not isinstance(sources, dict) or set(sources) != {"full_run"}:
+        raise MoEBaselineError("source_runs must contain exactly one authoritative full_run.")
     for source_name, source in sources.items():
         if not isinstance(source, dict):
             raise MoEBaselineError(f"source_runs.{source_name} must be an object.")
         _clean_relative_path(source.get("output_dir"), field_name=f"source_runs.{source_name}.output_dir")
         _clean_relative_path(source.get("config_path"), field_name=f"source_runs.{source_name}.config_path")
+
+    historical_runs = config.get("historical_runs", [])
+    if not isinstance(historical_runs, list):
+        raise MoEBaselineError("historical_runs must be a list when provided.")
+    for index, historical in enumerate(historical_runs):
+        if not isinstance(historical, dict):
+            raise MoEBaselineError(f"historical_runs[{index}] must be an object.")
+        if not str(historical.get("run_id") or "").strip():
+            raise MoEBaselineError(f"historical_runs[{index}].run_id must be non-empty.")
+        if historical.get("classification") != "non_authoritative_smoke":
+            raise MoEBaselineError(
+                f"historical_runs[{index}].classification must be 'non_authoritative_smoke'."
+            )
+        if not str(historical.get("reason") or "").strip():
+            raise MoEBaselineError(f"historical_runs[{index}].reason must be non-empty.")
+        _clean_relative_path(
+            historical.get("output_dir"), field_name=f"historical_runs[{index}].output_dir"
+        )
+        _clean_relative_path(
+            historical.get("config_path"), field_name=f"historical_runs[{index}].config_path"
+        )
 
     experts = config.get("experts")
     if not isinstance(experts, list) or not 6 <= len(experts) <= 8:
@@ -192,6 +213,75 @@ def validate_moe_baseline_config(config: dict[str, Any]) -> None:
         raise MoEBaselineError("train_selection score weights must be finite and non-negative.")
 
 
+def _snapshot_validation(*, output_dir: Path, manifest: dict[str, Any]) -> tuple[list[str], int, int]:
+    """Verify the frozen CSV set and its aggregate hash, not only manifest metadata."""
+    issues: list[str] = []
+    data = manifest.get("data")
+    universe = manifest.get("universe")
+    if not isinstance(data, dict) or not isinstance(universe, dict):
+        return ["source manifest data/universe snapshot metadata is invalid"], 0, 0
+
+    recorded_aggregate = str(data.get("snapshot_sha256") or "").strip()
+    entries = universe.get("files")
+    if not recorded_aggregate:
+        issues.append("source manifest data.snapshot_sha256 is missing")
+    if not isinstance(entries, list) or not entries:
+        issues.append("source manifest universe.files must list the frozen snapshot files")
+        return issues, 0, 0
+
+    snapshot_dir = output_dir / "data_snapshot"
+    if not snapshot_dir.is_dir():
+        return [*issues, "source data_snapshot directory is missing"], 0, 0
+
+    portable_entries: list[dict[str, Any]] = []
+    expected_names: set[str] = set()
+    total_bytes = 0
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            issues.append(f"source snapshot entry {index} is invalid")
+            continue
+        symbol = str(entry.get("symbol") or "").strip()
+        if not symbol:
+            issues.append(f"source snapshot entry {index} has no symbol")
+            continue
+        filename = f"{symbol}_daily.csv"
+        if filename in expected_names:
+            issues.append(f"source snapshot contains duplicate symbol {symbol!r}")
+            continue
+        expected_names.add(filename)
+        snapshot_file = snapshot_dir / filename
+        if not snapshot_file.is_file():
+            issues.append(f"source snapshot file is missing: {filename}")
+            continue
+        actual_digest = _sha256_file(snapshot_file)
+        actual_size = int(snapshot_file.stat().st_size)
+        if actual_digest != str(entry.get("sha256") or ""):
+            issues.append(f"source snapshot hash mismatch: {filename}")
+        if actual_size != int(entry.get("size_bytes", -1)):
+            issues.append(f"source snapshot size mismatch: {filename}")
+        portable_entries.append(
+            {"symbol": symbol, "sha256": actual_digest, "size_bytes": actual_size}
+        )
+        total_bytes += actual_size
+
+    actual_names = {path.name for path in snapshot_dir.glob("*.csv") if path.is_file()}
+    missing_names = sorted(expected_names - actual_names)
+    unexpected_names = sorted(actual_names - expected_names)
+    if missing_names:
+        issues.append("source snapshot is missing listed files: " + ", ".join(missing_names))
+    if unexpected_names:
+        issues.append("source snapshot has unmanifested files: " + ", ".join(unexpected_names))
+    if len(portable_entries) != len(entries):
+        return issues, len(portable_entries), total_bytes
+
+    aggregate = hashlib.sha256(
+        json.dumps(portable_entries, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    if recorded_aggregate and aggregate != recorded_aggregate:
+        issues.append("source snapshot aggregate SHA-256 does not match data.snapshot_sha256")
+    return issues, len(portable_entries), total_bytes
+
+
 def _source_validation(
     *,
     repo_root: Path,
@@ -227,6 +317,8 @@ def _source_validation(
         except MoEBaselineError as exc:
             issues.append(str(exc))
 
+    snapshot_file_count = 0
+    snapshot_total_bytes = 0
     if manifest:
         try:
             if _canonical_market(manifest.get("market")) != market:
@@ -243,6 +335,11 @@ def _source_validation(
                     issues.append(f"source manifest execution.{key} does not match the Phase-A contract")
         except (MoEBaselineError, TypeError, ValueError) as exc:
             issues.append(f"invalid source manifest metadata: {exc}")
+        snapshot_issues, snapshot_file_count, snapshot_total_bytes = _snapshot_validation(
+            output_dir=output_dir,
+            manifest=manifest,
+        )
+        issues.extend(snapshot_issues)
 
     if snapshot:
         try:
@@ -280,6 +377,8 @@ def _source_validation(
         "code_version": manifest.get("code_version"),
         "random_seed": manifest.get("random_seed"),
         "data_snapshot_sha256": (manifest.get("data") or {}).get("snapshot_sha256"),
+        "snapshot_file_count": snapshot_file_count,
+        "snapshot_total_bytes": snapshot_total_bytes,
         "source_manifest_sha256": _sha256_file(output_dir / "data_manifest.json") if manifest else None,
         "source_files": hashed_files,
         "issues": issues,
@@ -341,6 +440,7 @@ def build_phase_a_manifest(
         "train_selection": config["train_selection"],
         "experts": config["experts"],
         "baseline_controls": config["baseline_controls"],
+        "historical_runs": config.get("historical_runs", []),
         "sources": sources,
     }
 

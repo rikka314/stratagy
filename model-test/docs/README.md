@@ -153,11 +153,119 @@ features, and labels the next 20 trading days with the already-net
 rows. Optional news factors are joined only from the prior completed trading
 day; no Phase-B output is imported by Streamlit or the online workflow.
 
+## Dynamic-Ensemble Phase C
+
+Only after the same output directory contains a **ready** Phase-A source lock,
+the ready Phase-B panel, and `baseline_results.csv`, run the market-specific
+LightGBM soft-gating experiment:
+
+```bash
+python model-test/run_dynamic_ensemble.py --config model-test/configs/moe_v1_us.json
+python model-test/run_dynamic_ensemble.py --config model-test/configs/moe_v1_cn_a.json
+```
+
+Phase C verifies both input manifest hashes before fitting. It trains a long
+table `expert_id` categorical regressor separately for every purged
+walk-forward train fold, then compares `moe_no_state` and
+`moe_regime_aware` with the three frozen controls. The output directory holds
+`moe_model.pkl`, `moe_feature_schema.json`, `moe_daily_weights.parquet`,
+`moe_summary.csv`, `moe_report.md`, and a source-lock `moe_manifest.json`.
+
+Every decision retains its prediction, raw/final weight, weight-change and
+fallback reason. Cash is mandatory, each non-cash expert is capped at 40% by
+default, missing experts are re-normalized away, and exponential smoothing is
+applied before the final target position is calculated. This remains a
+research-only workflow; it does not import Streamlit or alter any online
+default.
+
+## Dynamic-Ensemble Phase D
+
+Phase D is a source-locked uncertainty and risk layer on top of ready Phase A,
+B, and C outputs. It is market-specific and must use the corresponding
+Phase-C output directory:
+
+```bash
+python model-test/run_dynamic_ensemble_v2.py --config model-test/configs/moe_v2_us.json
+python model-test/run_dynamic_ensemble_v2.py --config model-test/configs/moe_v2_cn_a.json
+```
+
+For every purged walk-forward fold it fits lower-quantile and median LightGBM
+regressors for both no-state and regime-aware variants. The decision score is
+`median - gamma * abs(median - lower)`; Cash remains a fixed zero-utility safe
+expert. Low confidence, excessive expert-score disagreement, and a numeric
+input outside the fold's train distribution take the config-selected Cash,
+equal-weight, or adaptive-router route and record the trigger/reason.
+
+Normal decisions enforce the configured maximum component weight change,
+equal-symbol aggregate turnover, minimum expert-mix holding time, and
+pre-decision drawdown scaling. A missing expert, safety fallback, or drawdown
+de-risking is permitted to break the movement limit only to lower risk, and is
+explicitly marked in the daily artifact. The output directory contains the
+v2 quantile models, daily decisions, calibration report, risk ablation grid,
+v1/v2 comparison, readable report, and full source-lock manifest. It does not
+add a second execution-cost deduction to the source net return.
+
 The runner also maintains resumable internal checkpoint files in the same
 output directory:
 
 - `_checkpoint_runs.csv`
 - `_checkpoint_meta.json`
+
+## Dynamic-Ensemble Phase E
+
+Phase E replays the frozen, ready same-market Phase-D MoE weights and compares
+full-information Hedge and Exponentiated Gradient expert updates. It verifies
+the Phase-D daily-weight/summary hashes and rechecks the same Phase-A/B source
+lock before running:
+
+```bash
+python model-test/run_dynamic_ensemble_online.py --config model-test/configs/moe_online_us.json
+python model-test/run_dynamic_ensemble_online.py --config model-test/configs/moe_online_cn_a.json
+```
+
+The first decision in each test window is the offline MoE allocation. Later
+decisions use only complete expert feedback observed after the previous
+decision; the Phase-B `strategy_return` is already net and is not charged
+again. The shipped configs compare Hedge/EG, fixed/volatility-adaptive learning
+rates, and two forgetting factors. Cash is required, unavailable experts move
+to Cash, every risk expert is capped at 40%, and ordinary daily component moves
+are capped at 15%. A missing-expert safety exit may only relax the movement
+bound to reduce risk and is recorded explicitly.
+
+The output directory contains `moe_online_weights.parquet`,
+`moe_online_summary.csv`, `moe_online_drift_response.csv`,
+`moe_online_comparison.csv`, `moe_online_report.md`, and the hash-locked
+`moe_online_manifest.json`. The fixed-midpoint drift response is an
+evaluation-only measurement; it cannot influence an online update. This is
+research-only and does not alter a Streamlit default.
+
+## Dynamic-Ensemble Phase F
+
+Phase F is a research-only comparison for deployments that can observe only
+the reward of the allocation actually chosen. It verifies a market-matched,
+ready Phase-E manifest and its artifact hashes, then rechecks the same
+Phase-A/B source lock before replaying each Phase-E decision variant as an
+allocation action:
+
+```bash
+python model-test/run_dynamic_ensemble_bandit.py --config model-test/configs/moe_bandit_us.json
+python model-test/run_dynamic_ensemble_bandit.py --config model-test/configs/moe_bandit_cn_a.json
+```
+
+LinUCB and contextual Thompson Sampling use only configured numeric,
+point-in-time Phase-B context columns. Every action for a date is selected from
+the prior posterior, then only that action's next net return is batch-applied.
+Cash is mandatory. Unselected returns never enter the decision trace or a
+model update; the fixed-midpoint drift/recovery calculation is explicitly
+evaluation-only.
+
+Source `strategy_return` is already net of expert execution cost and is not
+recharged. The optional `incremental_action_switch_cost_bps` is reported
+separately for a measured deployment-level action transition; shipped configs
+set it to zero. Outputs are `moe_bandit_decisions.parquet`, summary,
+convergence, drift, comparison, final posterior state, report and a
+hash-locked manifest. Phase F remains an ablation and never changes a
+Streamlit default.
 
 ## Execution Notes
 
@@ -287,3 +395,50 @@ Adaptive-specific notes:
   the runner logs config scalars, headline metrics, and output artifacts to the
   configured experiment, defaulting to the local file store
   `model-test/mlruns/`.
+
+## Transformer-state W13-W15 research extension
+
+The v2 Transformer-state line is a separate research-only hypothesis after the
+v1 W11 admission rejection. It does not alter Phase A-F outputs, Streamlit, or
+the existing admission decision. Market-specific entrypoints are:
+
+```bash
+python model-test/run_transformer_state.py \
+  --config model-test/configs/transformer_state_us.json --stage panel
+python model-test/run_transformer_state.py \
+  --config model-test/configs/transformer_state_cn_a.json --stage panel
+python model-test/run_transformer_state.py \
+  --config model-test/configs/transformer_state_us.json --stage model
+```
+
+W13 revalidates the frozen Phase-A/B manifests and artifact hashes, the
+authoritative full-run snapshot and rank-1 fallback mapping, Cash, the adaptive
+control, and exact daily fallback positions/turnover. Interval-trade entry/exit
+reconstruction is not exact daily evidence and fails closed. US no-trade rank-1 artifacts may be
+classified as `provable_zero_position` only when the successful source has
+zero turnover, all-zero net returns, and constant equity; all other missing
+position cases fail closed.
+
+W14 writes `state_label_panel.parquet`, `state_sequence_panel.parquet`, a
+four-fold protected split CSV, point-in-time feature schema, quality report and
+hash-locked manifest. The label uses only complete `t+1..t+5` source-net
+`strategy_return`, downside and turnover. The max 20-day sequence remains
+within one symbol and a role membership is emitted only when both the sequence
+start and label end stay inside that role. The union of all legacy W11 test
+dates is globally excluded from every v2 train/validation membership, and each
+train/validation/test boundary retains the configured trading-day protection.
+
+W15 uses a fold-local train scaler plus missingness mask and a small
+encoder-only PyTorch Transformer with classifier and utility-margin heads.
+Only train data fits model/scaler state; validation selects a preregistered
+capacity/sequence candidate and early-stopping checkpoint; the fit API has no
+test input. PyTorch is optional at import time. If it is absent, each fold and
+the overall model manifest are written as `unavailable`, the runner exits `3`,
+and W16 is not allowed to proceed. No large runtime dependency is installed by
+this workflow.
+
+Current evidence (2026-08-18): CN_A W13/W14 is ready with 22,098 complete
+sequences; its four W15 folds are unavailable because PyTorch is not installed.
+US is blocked at W13 because its Phase-B non-Cash artifacts do not contain exact
+daily execution paths. Earlier interval-reconstructed US panel output is not
+valid W14 evidence.

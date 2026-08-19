@@ -72,6 +72,7 @@ class ResearchConfig:
     stage_b_request_overrides: dict[str, Any] = field(default_factory=dict)
     selected_model_ids: tuple[str, ...] = ()
     merge_into_existing_output: bool = False
+    replay_source_subdir: str | None = None
     commission_bps: float | None = None
     slippage_bps: float | None = None
     cross_market_source_subdirs: dict[str, str] = field(default_factory=dict)
@@ -92,6 +93,11 @@ class ResearchConfig:
         object.__setattr__(self, "market", canonical_market)
         if not self.market_proxy_symbol:
             object.__setattr__(self, "market_proxy_symbol", "SPY" if canonical_market == "US" else "000300")
+        if self.replay_source_subdir is not None:
+            replay_path = Path(str(self.replay_source_subdir).strip())
+            if not str(replay_path) or replay_path.is_absolute() or ".." in replay_path.parts:
+                raise ValueError("replay_source_subdir must be a non-empty relative output directory.")
+            object.__setattr__(self, "replay_source_subdir", replay_path.as_posix())
         from core.market_rules import MarketExecutionConfig, default_execution_config
 
         defaults = default_execution_config(canonical_market)

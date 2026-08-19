@@ -131,6 +131,8 @@ future_utility
 
 ### Phase C：LightGBM Soft-Gating MoE v1（4–6 天）
 
+> 实现状态（2026-08-16）：研究线实现已完成：`model-test/model_test/dynamic_ensemble.py` 与 `run_dynamic_ensemble.py` 严格消费 ready Phase-A/B source lock，分别训练无状态与 regime-aware LightGBM 长表门控，输出五类计划 artifact、特征重要性、三项冻结对照、权重变化/降级原因。单一风险专家上限 40%，Cash 强制可用，缺失专家重归一化，指数平滑在权重约束前执行。Phase-B 默认 validation/test 段调整为 40 个交易日，确保每段至少容纳一个完整 20 日标签窗口；purge/embargo 仍为 20 日。US 已完成 Phase 3B 全量实验；CN_A 全量实验未完成。当前实证还被旧 `deans_window3b_us` 缺少 `data.snapshot_sha256`（且无冻结快照）阻塞，严格命令拒绝生成伪造结果；未接入线上 workflow。
+
 **目标：** 建立最小可用、可解释的动态专家组合。
 
 建模步骤：
@@ -177,6 +179,8 @@ future_utility
 
 ### Phase D：风险与不确定性感知 MoE v2（3–5 天）
 
+> 实现状态（2026-08-16）：研究线实现已完成：`model-test/model_test/dynamic_ensemble_v2.py` 与 `run_dynamic_ensemble_v2.py` 只消费 ready 且 hash-verified 的 Phase-A/B/C source lock。每个 purged walk-forward fold 分别训练 lower-quantile / median LightGBM gate，记录保守分数、fold-train OOD z-score、三类降级触发、权重 / 换手 / 持仓 / 回撤风险状态；正常换仓强制执行单专家权重变化和等权标的聚合换手上限，安全降级、缺失专家与 drawdown 去风险仅可为降低风险绕过限制且会记录原因。输出校准、temperature/cap/smoothing 消融、v1/v2 对照和完整 manifest；未接入线上 workflow。真实实证仍等待与 Phase C 相同的重新冻结 source run，严格命令不会生成伪造结果。
+
 **目标：** 避免门控模型对不可靠的高分预测过度下注。
 
 任务：
@@ -212,6 +216,8 @@ future_utility
 
 ### Phase E：在线专家加权（4–6 天）
 
+> 实现状态（2026-08-16）：研究线实现已完成：`model-test/model_test/dynamic_ensemble_online.py` 与 `run_dynamic_ensemble_online.py` 严格消费同市场、hash-verified 的 ready Phase-D source（显式 Phase-C 兼容回退仅限研究），以冻结 soft-MoE 初始权重逐日回放 Hedge / EG 完整反馈更新。固定/波动率自适应学习率、遗忘因子、Cash、40% 风险专家上限、15% 常规单日权重变化上限、缺失专家安全退出和固定中点漂移恢复测量均可追溯。输出在线权重、汇总、漂移、对照、报告和 manifest；未接入 Streamlit。真实 US / CN_A 实证仍受 Phase-A/B source-lock 阻塞，严格命令不会生成伪造结果。
+
 **目标：** 让策略权重能够根据新近表现逐步更新，应对市场漂移。
 
 优先实现：
@@ -239,6 +245,8 @@ future_utility
 完成标准：在线更新必须在多个滚动窗口中提高适应速度，而不是只追随最近的幸运赢家。
 
 ### Phase F：Contextual Bandit 对照实验（可选，5–7 天）
+
+> 实现状态（2026-08-16）：研究线实现已完成：`model-test/model_test/dynamic_ensemble_bandit.py` 与 `run_dynamic_ensemble_bandit.py` 严格消费同市场、hash-verified 的 ready Phase-E source，并重新验证 Phase-A/B panel lock。每个已约束的 Phase-E allocation 是一个 action，Cash 始终可选；LinUCB / contextual Thompson Sampling 只用所选 action 的下一时点净收益更新，未选 action 的收益仅用于明确标记为 evaluation-only 的漂移恢复测量。输出 selected-action decision trace、收敛、汇总、对照、后验状态、报告和 manifest；未接入 Streamlit。真实 US / CN_A 实证仍受上游 Phase-A/B source-lock 阻塞，严格命令不会生成伪造结论。
 
 **启动条件：** Phase E 通过，且确实存在只能观察实际动作奖励的部署场景。
 

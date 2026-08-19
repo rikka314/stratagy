@@ -33,13 +33,15 @@ from model_test.moe_baseline import (
 )
 
 
-PHASE_B_SCHEMA_VERSION = "1.0"
+PHASE_B_SCHEMA_VERSION = "1.1"
 PRIMARY_HORIZON_DAYS = 20
 DEFAULT_N_SPLITS = 3
 DEFAULT_EMBARGO_DAYS = PRIMARY_HORIZON_DAYS
 DEFAULT_LAMBDA_DOWNSIDE = 1.0
 DEFAULT_LAMBDA_TURNOVER = 0.1
 DEFAULT_FEATURE_WINDOWS = (5, 20)
+DEFAULT_EVALUATION_WINDOW_MULTIPLIER = 2
+DERIVED_STATE_LOOKBACK_DAYS = 60
 PANEL_KEY_COLUMNS = ("date", "symbol", "market", "expert_id")
 LABEL_COLUMNS = (
     "future_net_return",
@@ -382,8 +384,13 @@ def build_purged_walk_forward_splits(
                 "reason",
             ]
         )
-    validation = max(1, int(validation_days or horizon))
-    test = max(1, int(test_days or horizon))
+    # A role needs room for both the decision date and its complete future
+    # label.  A 20-day role for a 20-day label horizon would contain no valid
+    # decision/label pairs, so the default uses two horizons.  Explicit caller
+    # values remain supported for short fixture tests and ablations.
+    default_role_days = horizon * DEFAULT_EVALUATION_WINDOW_MULTIPLIER
+    validation = max(1, int(validation_days or default_role_days))
+    test = max(1, int(test_days or default_role_days))
     step = max(1, int(step_days or test))
     embargo = max(horizon, int(embargo_days if embargo_days is not None else horizon))
     minimum_train = max(1, int(min_train_days or max(horizon * 3, validation)))
@@ -776,6 +783,63 @@ def _base_market_context(
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=["date", "symbol"])
 
 
+def _derive_market_state_features(panel: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Add auditable, trailing market-state features for legacy source runs.
+
+    Some frozen full-run artifacts predate the daily adaptive-state export.  In
+    that case Phase C must still compare a no-state gate with a regime-aware
+    gate without inventing a future-derived label.  The three state fields
+    below are computed once per ``date / symbol`` from the already persisted
+    same-date/trailing market context.  The volatility threshold uses only
+    *earlier* observations via ``shift(1)``.  They are then copied to every
+    expert row for that date and symbol.
+    """
+
+    required = {"date", "symbol", "market_trend_20", "market_volatility_20"}
+    if not required.issubset(panel.columns):
+        return panel, []
+
+    state_columns = [
+        "state_market_trend_up_20",
+        "state_market_high_volatility_20",
+        "state_market_regime_id_20",
+    ]
+    context = (
+        panel[["date", "symbol", "market_trend_20", "market_volatility_20"]]
+        .drop_duplicates(["date", "symbol"], keep="last")
+        .sort_values(["symbol", "date"])
+        .copy()
+    )
+    state_parts: list[pd.DataFrame] = []
+    for _, group in context.groupby("symbol", sort=False):
+        state = group.copy()
+        trend = _numeric(state, "market_trend_20")
+        volatility = _numeric(state, "market_volatility_20")
+        volatility_reference = (
+            volatility.rolling(DERIVED_STATE_LOOKBACK_DAYS, min_periods=20).median().shift(1)
+        )
+        trend_up = pd.Series(np.nan, index=state.index, dtype="float64")
+        trend_up.loc[trend.notna()] = trend.loc[trend.notna()].ge(0.0).astype(float)
+        high_volatility = pd.Series(np.nan, index=state.index, dtype="float64")
+        valid_volatility = volatility.notna() & volatility_reference.notna()
+        high_volatility.loc[valid_volatility] = (
+            volatility.loc[valid_volatility].gt(volatility_reference.loc[valid_volatility]).astype(float)
+        )
+        state["state_market_trend_up_20"] = trend_up
+        state["state_market_high_volatility_20"] = high_volatility
+        state["state_market_regime_id_20"] = np.where(
+            trend_up.notna() & high_volatility.notna(),
+            (trend_up * 2.0 + high_volatility).astype(float),
+            np.nan,
+        )
+        state_parts.append(state[["date", "symbol", *state_columns]])
+
+    if not state_parts:
+        return panel, []
+    state_frame = pd.concat(state_parts, ignore_index=True)
+    return panel.merge(state_frame, on=["date", "symbol"], how="left"), state_columns
+
+
 def _peer_correlations(panel: pd.DataFrame, window: int = 20) -> pd.DataFrame:
     rows: list[pd.DataFrame] = []
     for symbol, group in panel.groupby("symbol", sort=False):
@@ -987,6 +1051,13 @@ def build_expert_day_panel(
             suffixes=("", "_external"),
         )
 
+    source_state_columns = [
+        str(column)
+        for column in panel.columns
+        if str(column).startswith(("state_", "regime_", "adaptive_"))
+    ]
+    panel, derived_state_columns = _derive_market_state_features(panel)
+
     correlations = _peer_correlations(panel)
     if not correlations.empty:
         panel = panel.merge(correlations, on=["date", "symbol", "expert_id"], how="left")
@@ -1104,6 +1175,17 @@ def build_expert_day_panel(
         "lambda_downside": float(lambda_downside),
         "lambda_turnover": float(lambda_turnover),
         "cost_treatment": "source_net_no_recharge",
+        "state_feature_policy": {
+            "source_state_columns": source_state_columns,
+            "derived_state_columns": derived_state_columns,
+            "derivation": (
+                "market_trend_20 plus market_volatility_20 relative to the prior "
+                f"{DERIVED_STATE_LOOKBACK_DAYS}-trading-day trailing median"
+            )
+            if derived_state_columns
+            else None,
+            "volatility_reference_uses_prior_dates_only": bool(derived_state_columns),
+        },
         "quality": quality,
     }
     return panel, splits, metadata, quality
@@ -1142,6 +1224,39 @@ def _pending_panel(
     return panel, splits, metadata, quality
 
 
+def resolve_phase_b_split_policy(
+    config: dict[str, Any],
+    *,
+    n_splits: int | None = None,
+) -> dict[str, Any]:
+    """Resolve the frozen Phase-B split count without silently changing it from CLI."""
+
+    phase_b = config.get("phase_b", {})
+    if phase_b is None:
+        phase_b = {}
+    if not isinstance(phase_b, dict):
+        raise ExpertPanelError("phase_b must be an object when provided.")
+
+    configured_value = phase_b.get("n_splits")
+    if configured_value is None:
+        resolved = DEFAULT_N_SPLITS if n_splits is None else n_splits
+        source = "default" if n_splits is None else "cli"
+    else:
+        resolved = configured_value
+        source = "config.phase_b.n_splits"
+        if n_splits is not None and int(n_splits) != int(configured_value):
+            raise ExpertPanelError(
+                "Phase-B n_splits is frozen by config.phase_b.n_splits; CLI cannot override it."
+            )
+    try:
+        count = int(resolved)
+    except (TypeError, ValueError) as exc:
+        raise ExpertPanelError("Phase-B n_splits must be a positive integer.") from exc
+    if count <= 0:
+        raise ExpertPanelError("Phase-B n_splits must be a positive integer.")
+    return {"n_splits": count, "source": source}
+
+
 def materialize_expert_panel(
     config_path: str | Path,
     *,
@@ -1153,7 +1268,7 @@ def materialize_expert_panel(
     primary_horizon_days: int = PRIMARY_HORIZON_DAYS,
     lambda_downside: float = DEFAULT_LAMBDA_DOWNSIDE,
     lambda_turnover: float = DEFAULT_LAMBDA_TURNOVER,
-    n_splits: int = DEFAULT_N_SPLITS,
+    n_splits: int | None = None,
     min_train_days: int | None = None,
     validation_days: int | None = None,
     test_days: int | None = None,
@@ -1166,6 +1281,7 @@ def materialize_expert_panel(
     config_file = Path(config_path).resolve()
     config = load_moe_baseline_config(config_file)
     frozen_primary_horizon = int(config.get("horizons", {}).get("primary_days", PRIMARY_HORIZON_DAYS))
+    split_policy = resolve_phase_b_split_policy(config, n_splits=n_splits)
     if int(primary_horizon_days) != frozen_primary_horizon:
         raise ExpertPanelError(
             f"Phase-B primary horizon is frozen at {frozen_primary_horizon} trading days; "
@@ -1207,7 +1323,7 @@ def materialize_expert_panel(
                 primary_horizon_days=primary_horizon_days,
                 lambda_downside=lambda_downside,
                 lambda_turnover=lambda_turnover,
-                n_splits=n_splits,
+                n_splits=int(split_policy["n_splits"]),
                 min_train_days=min_train_days,
                 validation_days=validation_days,
                 test_days=test_days,
@@ -1243,6 +1359,18 @@ def materialize_expert_panel(
         "## Expert coverage",
         "",
     ]
+    state_policy = metadata.get("state_feature_policy", {})
+    derived_states = state_policy.get("derived_state_columns", []) if isinstance(state_policy, dict) else []
+    if derived_states:
+        lines.extend(
+            [
+                "",
+                "## State feature policy",
+                "",
+                f"- Derived trailing state columns: `{', '.join(map(str, derived_states))}`",
+                f"- Rule: {state_policy.get('derivation')}",
+            ]
+        )
     for row in quality.get("expert_coverage", []):
         lines.append(
             f"- `{row.get('expert_id')}`: {row.get('available_rows', 0)}/{row.get('row_count', 0)} available "
@@ -1289,16 +1417,18 @@ def materialize_expert_panel(
                 int(primary_horizon_days),
                 int(embargo_days if embargo_days is not None else primary_horizon_days),
             ),
-            "n_splits_requested": int(n_splits),
+            "n_splits_requested": int(split_policy["n_splits"]),
             "n_splits_emitted": int(len(splits)),
             "min_train_days": min_train_days,
-            "validation_days": validation_days or primary_horizon_days,
-            "test_days": test_days or primary_horizon_days,
-            "step_days": step_days or test_days or primary_horizon_days,
+            "validation_days": validation_days or primary_horizon_days * DEFAULT_EVALUATION_WINDOW_MULTIPLIER,
+            "test_days": test_days or primary_horizon_days * DEFAULT_EVALUATION_WINDOW_MULTIPLIER,
+            "step_days": step_days or test_days or primary_horizon_days * DEFAULT_EVALUATION_WINDOW_MULTIPLIER,
+            "split_count_source": split_policy["source"],
         },
         "feature_columns": metadata.get("feature_columns", []),
         "label_columns": metadata.get("label_columns", list(LABEL_COLUMNS)),
         "lineage_columns": metadata.get("lineage_columns", list(LINEAGE_COLUMNS)),
+        "state_feature_policy": metadata.get("state_feature_policy", {}),
         "expert_pool": config.get("experts", []),
         "quality": quality,
         "artifacts": {
@@ -1343,6 +1473,7 @@ __all__ = [
     "compute_future_utility",
     "materialize_expert_panel",
     "prepare_expert_panel",
+    "resolve_phase_b_split_policy",
     "validate_panel_no_leakage",
     "validate_purged_walk_forward_splits",
 ]

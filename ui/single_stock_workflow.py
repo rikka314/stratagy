@@ -884,6 +884,7 @@ def _build_legacy_regime_stage_result(
         split_idx=split_idx,
         adjust=adjust,
         regime_kind=request.regime_kind or "dual_state_router",
+        market=market,
     )
     sim_kwargs = _sim_kwargs_from_snapshot(stage_params_snapshot)
     effective_snapshot = {
@@ -1115,10 +1116,11 @@ def run_regime_stage(
             )
 
         try:
-            adaptive_artifacts = load_adaptive_regime_artifacts()
+            adaptive_artifacts = load_adaptive_regime_artifacts(expected_market=market)
             feature_df, feature_metadata = build_adaptive_feature_frame(
                 df_raw,
                 adjust=adjust,
+                market=market,
             )
             predicted_state_ids = predict_adaptive_states(
                 feature_df,
@@ -1656,6 +1658,8 @@ def run_strategy_pipeline(
     df_raw: pd.DataFrame,
     split_idx: int,
     symbol: str | None = None,
+    market: str = "US",
+    adjust: str = "qfq",
 ) -> PipelineRunResult:
     try:
         _validate_request(request)
@@ -1688,6 +1692,8 @@ def run_strategy_pipeline(
                 params_snapshot=request_params_snapshot,
                 df_raw=df_raw,
                 split_idx=split_idx,
+                market=market,
+                adjust=adjust,
             )
             lineage.append(regime_stage)
             if regime_cached:

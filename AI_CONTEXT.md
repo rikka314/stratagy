@@ -1,6 +1,6 @@
 # AI 快速上下文（薄路由版）
 
-> 最近更新：2026-08-13
+> 最近更新：2026-08-18
 > 用途：项目级路由文档。先读本文件，再按任务跳到对应 skill 和接口文档。
 > 约定：详细接口统一维护在 `document/interfaces/`，本文件只保存 durable project facts。
 
@@ -19,7 +19,7 @@
 - 常用增量部署：`deploy/sync.bat`
 - 常用全量上传：`deploy/upload_and_deploy.bat`
 - 两个部署脚本都会在本地存在时同步 `model-test/outputs/`
-- Nginx 子路径模板：`deploy/nginx_strategy.conf`
+- Nginx 子路径模板：`deploy/nginx_strategy.conf`；`/strategy` 到 `/strategy/` 的重定向保留查询参数，确保首页语言与临时工作区链接不丢失
 
 ## 仓库地图
 
@@ -99,9 +99,15 @@
 - **Dean's Award Window 4（2026-08-09）**：`core/news_factor.py` 已冻结 US/CN_A 新闻 schema 校验、按股票交易日历滞后对齐、无新闻/零权重上游仓位回退和独立 `run_news_ablation()` API；输出遵循 `news_ablation_summary.csv` contract，零覆盖或缺失文件使用明确 `skipped` 原因。接口说明见 `document/news_sentiment_schema.md`，验收记录见 `document/acceptance/window_4_news_factor_20260809.md`。
 - **Dean's Award full-run 准备（2026-08-09）**：市场推荐与 shared benchmark 已拆分，US/CN_A 分别从本市场已验证候选中选策略，共同候选只用于横向比较。标准 full tier 为每市场 60 只（1,260 日主窗口、4 个 756 日 rolling、统一 240 次搜索预算），120 只为参数冻结后的确认层；正式 config 要求 clean worktree、行情至少覆盖到 `minimum_data_end_date=2026-07-31`（旧 sample/cache 自动重拉），并把入选行情冻结到 run 的 `data_snapshot/`、在 manifest 记录 SHA-256。`model-test/preflight_research.py` 统一检查目录、依赖、预算、数据新鲜度门槛、磁盘、Git 与 LightGBM device。GPU 仅可选加速 LightGBM 路径；当前本机 LightGBM 4.7.0 wheel 为 CPU-only，`gpu/cuda` probe 会明确失败，不能静默降级。
 - **Window 3B 本地 campaign（2026-08-09）**：`model-test/manage_campaign.py` 独立于 Streamlit 顺序调度 `full_us_deans_60 -> full_cn_a_deans_60 -> full_cross_market_deans_60`，状态与日志位于 `model-test/outputs/_campaigns/<campaign_id>/`。runner 支持可选 control directory、有限在途批次和退出码 `75` 的任务边界安全暂停；恢复要求相同 clean Git commit 与 config SHA-256，并复用现有 checkpoint。`/strategy/experiment-monitor` 每 2 秒展示阶段、进度、日志和 Stage A / Stage B / rolling / final 分榜。
-- **美股研究基线（2026-08-11）**：`full_us_deans_60` 已完成（60 只、1,260 日主窗口、4 个 756 日 rolling、统一 240 次搜索预算），输出冻结在 `model-test/outputs/full_us_deans_60/`。策略与后续产品边界见 `document/strategy_research_baseline_us_20260811.md`：`SM+Bayesian` 是当前离线综合第一候选，但主窗口中位超额收益为负，必须持续与 `Naive` 并列展示；ML 为条件化候选，adaptive router 仅作为状态感知路由。`/strategy/model-evaluation` 会在明细证据前展示这份冻结结论；本地监控页将旧 manager failure 映射为“美股已完成 / 研究范围已冻结”。A 股与跨市场研究当前暂停，不从本结论外推。
+- **市场专属 full-run 基线（2026-08-17）**：`full_us_deans_60` 与 `full_cn_a_deans_60` 均已完成 60 标的、1,260 日主窗口、4 个 rolling、统一 240 搜索预算的冻结研究。CN_A snapshot 为 60 个 CSV、23,520,695 bytes，aggregate SHA-256 `961c865b76b7338a8d4c30b1c786e52abb12c86cf4001b10b236e718eab92058`；source manifest 为 `f46e4d677bbd051e91b27fd07625fa87f3b98ea9af45b28d67d4ef066e1d1aa`。两市场的证据仍必须独立解读，下一步才是 W11 admission comparison；不得从任一市场外推跨市场结论。
 - **Post-Gate-2 动态专家组合 Phase A（2026-08-12）**：`document/interfaces/dynamic-ensemble-research.md` 冻结 US / CN_A 分市场训练、20 日主预测周期、5/60 日消融、已扣费 `strategy_return` 不重复扣成本、6–8 个代表专家与 `best_single_expert / equal_weight_experts / adaptive_router_v1` 三项对照。`model-test/configs/moe_baseline_{us,cn_a}.json` 为唯一配置入口，`model-test/prepare_moe_baseline.py` 校验 Window 3B / full-run 的 config、code version、seed、数据 SHA-256 和逐日 artifact 后生成 Phase-A manifest 与结果；缺失源输出保持 `pending`。CN_A adaptive router 在市场原生 artifact 出现前固定为显式 unavailable。
 - **Post-Gate-2 动态专家组合 Phase B（2026-08-12）**：`model-test/model_test/expert_panel.py` 与 `prepare_expert_panel.py` 在 Phase-A source lock 下生成 `expert_day_panel.parquet`、purged walk-forward + 至少一个 20 日 horizon embargo 的 splits、quality report 和 lineage manifest；future label 只使用后续完整 20 日的已扣费 `strategy_return`，不重复扣成本。失败 / 缺失专家和 CN_A adaptive router 保留 `expert_status=unavailable`，可选新闻因子严格按前一完成交易日对齐；source runner 额外导出 `daily.csv` 供 target position / turnover 审计。Phase B 仍只存在于 `model-test`，未接入线上 workflow。
+- **Post-Gate-2 动态专家组合 Phase C（2026-08-17）**：`model-test/model_test/dynamic_ensemble.py` 与 `run_dynamic_ensemble.py` 只消费 ready Phase-A/B source lock，以 LightGBM 长表（`expert_id` 分类特征）分别进行 no-state / regime-aware purged walk-forward soft-gating，并与 `best_single_expert / equal_weight_experts / adaptive_router_v1` 对照。CN_A W10 Phase C 已完成，manifest `06f7c3a7b9ebbdc8f3abcf0c9add8dfc70f6503e3884151578a20b6587203067`，所有 5 个 artifact 哈希匹配；Cash 必须可用，非 Cash 专家上限 40%，缺失专家重归一化、指数平滑和 fallback 原因均可追溯。Phase-B 默认验证/测试段为 40 个交易日，以容纳完整 20 日标签，purge/embargo 保持 20 日。US/CN_A 均保持 research-only，未接入线上 workflow。
+- **Post-Gate-2 动态专家组合 Phase D（2026-08-17）**：`model-test/model_test/dynamic_ensemble_v2.py` 与 `run_dynamic_ensemble_v2.py` 在相同市场的 ready Phase-A/B panel 和 hash-verified Phase-C output 上，针对 no-state / regime-aware 两种 v2 gate 训练 lower-quantile / median LightGBM，并以 `median - gamma * abs(median - lower)` 形成保守分数。CN_A W10 Phase D 已完成，manifest `c85d67e86323b4b5850e1527c3f50144d14cc2e5207ae05d76ae893282025d42`，8 个 artifact 哈希匹配；逐日 artifact 可回溯不确定性、fold-train numeric OOD、Cash / equal-weight / adaptive-router 降级、最大权重变化、等权标的聚合换手、最小 expert-mix 持续期和 pre-decision drawdown 风险缩放。Phase D 仍只在 `model-test`，不接入 Streamlit；CN_A adaptive router 保持显式 unavailable。
+- **Post-Gate-2 动态专家组合 Phase E（2026-08-17）**：`model-test/model_test/dynamic_ensemble_online.py` 与 `run_dynamic_ensemble_online.py` 以市场匹配、hash-verified 的 ready Phase-D 权重初始化，使用 Phase-B 已扣费 `strategy_return` 的下一时点完整专家反馈，回放 Soft-MoE、Hedge 与 EG。CN_A W10 Phase E 已完成，manifest `63b8061b0ad8c69ec730f5807ff35dfb412bbfc2086cf5f8dbbd12f626b311e3`，5 个 artifact 哈希匹配；固定/波动率自适应学习率和遗忘因子均以测试窗口首日的冻结权重开始，Cash 必须存在，缺失专家转入 Cash，普通更新受 40% 单风险专家上限和 15% 单日权重变化上限约束。固定中点漂移响应仅作评估、绝不回灌更新；仍只在 `model-test`，未接入 Streamlit。
+- **Post-Gate-2 动态专家组合 Phase F（2026-08-17）**：`model-test/model_test/dynamic_ensemble_bandit.py` 与 `run_dynamic_ensemble_bandit.py` 只消费同市场、hash-verified 的 ready Phase-E allocations，并重验相同 Phase-A/B panel lock。CN_A W10 Phase F 已完成，manifest `ecc72154f79414bf4469612843006829ee1e65345218fcfff835f4e0c9d8174c`，7 个 artifact 哈希匹配。每个已受 Phase-E simplex / 风险专家上限约束的 allocation 是一个 action，Cash 永远可选；LinUCB 与 contextual Thompson Sampling 从配置的 Phase-B 时点特征选择 action，且只在当天全部决策写出后批量消费所选 action 的下一时点净收益，避免跨标的同日泄漏。未选 action 收益不会出现在 decision trace 或学习状态，只能用于 `evaluation_only` 漂移恢复测量；`strategy_return` 不重复扣费，action-switch cost 默认 0。结果仍为 research-only ablation，未接入 Streamlit。
+- **Post-Gate-2 v1 W11/W12（2026-08-18）**：`plan/post_gate2_model_upgrade_v1_execution.md` 是后续研究与产品 shadow mode 的唯一跨窗口执行手册。新的 admission-only output chain 未覆盖 W10：US/CN_A 的 Phase A–F 均为 ready、hash-verified，Phase-B 有 4 个 test split（purge/embargo 均为 20）。CN_A admission replay 复用权威 `full_cn_a_deans_60` 的 60 个冻结 CSV（snapshot `961c865b76b7338a8d4c30b1c786e52abb12c86cf4001b10b236e718eab92058`），并生成 market-native `rsm_adaptive_v1`（main 60/60 success）；未使用 US/SPY artifact。W11 以 Phase-D `moe_v2_regime_aware` 和同口径 target-position turnover 完成严格比较：US 仅 1/4、CN_A 仅 2/4 总收益不劣于各自 adaptive control，虽然两市场的最大回撤和 `<=1.25x` 换手均通过，仍未达到冻结的 3/4 门槛。W12 因没有市场通过而 `blocked`，没有 shadow mode、Streamlit 接入或默认策略改动；验收记录为 `document/acceptance/post_gate2_model_upgrade_w11_w12_20260817.md`。
+- **Post-Gate-2 Transformer 状态匹配 v2 W13-W15（2026-08-18）**：`model-test/configs/transformer_state_{us,cn_a}.json`、`model_test/transformer_state_panel.py`、`transformer_state_model.py` 与 `run_transformer_state.py` 已实现 market-specific source/config/code lock、完整 `t+1..t+5` source-net utility、28 个 point-in-time 状态特征、最大 20 日同标的序列、W11-test 全局隔离的四折保护区和 fold-local encoder contract。CN_A W13/W14 ready（22,098 个完整序列）；US W13-W15 blocked，因为 Phase-B 58 个非 Cash 专家只有 interval-trade reconstruction，无法证明精确逐日 `target_position`/turnover，旧 US W14 panel 已失效。未匹配 fallback 仍冻结为 US `sm_bayesian -> best_search`、CN_A `sm -> sm`。W15 工程与 fail-closed evidence 已完成，但当前 `.venv` 缺少 PyTorch，CN_A 四折均为 `unavailable: pytorch_not_installed`，未生成 checkpoint；W16 不得启动，且未经单独确认不自动新增大型依赖。该 research extension 不改变 v1 W11/W12 的 not-admitted/blocked 状态，也不接入 Streamlit。
 
 ## 默认阅读路线
 
@@ -124,7 +130,7 @@
 - `document/interfaces/strategy-pipeline.md`
   角色：`data -> indicators -> signals -> backtest` 主链，以及 legacy / adaptive regime、FA / ML / baseline / evaluation / optimizer 的接口边界。
 - `document/interfaces/dynamic-ensemble-research.md`
-  角色：Post-Gate-2 动态专家组合的市场隔离、收益成本、专家池、三项基线、source-lock manifest 与后续阶段边界。
+  角色：Post-Gate-2 动态专家组合的市场隔离、收益成本、专家池、三项基线、source-lock manifest、Phase-B 面板、Phase-C gating 与 Phase-D 不确定性 / 风险边界。
 - `document/interfaces/single-stock-workflow.md`
   角色：`StrategyRequest / StageResult / StrategyArtifact / strategy_workspace / stage cache`，以及 adaptive regime 在单股 workflow 的接入方式。
 - `document/interfaces/multi-stock-portfolio.md`

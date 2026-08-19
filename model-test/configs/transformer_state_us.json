@@ -1,0 +1,118 @@
+{
+  "schema_version": "1.0",
+  "name": "transformer_state_us",
+  "phase": "transformer_state_v2",
+  "market": "US",
+  "output_subdir": "transformer_state_us",
+  "random_seed": 42,
+  "training_scope": "market_specific",
+  "cross_market_policy": "forbidden",
+  "sources": {
+    "phase_a_config_path": "model-test/configs/moe_admission_us.json",
+    "phase_a_output_dir": "model-test/outputs/moe_admission_us",
+    "phase_a_manifest_sha256": "abdeb2a1d30b37a336bbdfc88ff9dac534b13100d67452090497029d261506af",
+    "phase_b_output_dir": "model-test/outputs/moe_admission_us",
+    "phase_b_manifest_sha256": "654e570252a0316cd83101256ddb3c492463810061c8cc28c5b603b5717e4b44",
+    "phase_b_panel_sha256": "5fa209af945f095d85be8e482c37f5ac75767565d63490068cbd2d4f246d42c8",
+    "phase_b_splits_sha256": "64b54fcc193ff5cfb61d995fac890b98e278cc308cae48a5d762e6fe776661df",
+    "full_run_config_path": "model-test/configs/full_us_deans_60.json",
+    "full_run_config_sha256": "dfcc710736137e7373f2ea58fc06cbdef87c01f1754d420833daec1fee3aa577",
+    "full_run_output_dir": "model-test/outputs/full_us_deans_60",
+    "full_run_config_snapshot_sha256": "432e1dd8b2f927ec094d7cf54c032b7d1976e26bf3bc16d78bc230eb06d52676",
+    "full_run_source_manifest_sha256": "31aadc6d97479bf22c048a8b36e6e830382a1c938d32fedea72f50efeef088d9",
+    "full_run_model_summary_sha256": "0a1a24f03ddb1eef784948ca72c2001fe681976de8ce24b4cc74b451bdea0b56",
+    "data_snapshot_sha256": "adb08e44cad749c275bdcad972bcb2898ad6014a587a5dbb1318ccb856bedc16"
+  },
+  "returns": {
+    "net_return_field": "strategy_return",
+    "cost_treatment": "source_net_no_recharge"
+  },
+  "source_execution": {
+    "commission_bps": 1,
+    "slippage_bps": 2
+  },
+  "experts": [
+    "naive",
+    "drift",
+    "sm",
+    "fsm",
+    "best_search",
+    "ml_filter",
+    "adaptive_router",
+    "cash"
+  ],
+  "full_run_best_guard": {
+    "authoritative_run": "full_us_deans_60",
+    "selection_rule": "unique rank == 1 from frozen model_summary.csv",
+    "source_model_id": "sm_bayesian",
+    "expert_id": "best_search",
+    "rank": 1,
+    "total_score": 72.66666666666667,
+    "valid_count": 60,
+    "target_position_required": true,
+    "allowed_position_sources": [
+      "source_target_position",
+      "source_position",
+      "provable_zero_position"
+    ]
+  },
+  "benchmark": {
+    "method": "frozen_universe_equal_weight_close_return",
+    "source": "full_run_data_snapshot",
+    "minimum_constituents": 20
+  },
+  "panel": {
+    "label_horizon_days": 5,
+    "lambda_downside": 1.0,
+    "lambda_turnover": 0.1,
+    "label_margin": 0.0005,
+    "sequence_length_candidates": [10, 20],
+    "primary_sequence_length": 20,
+    "n_splits": 4,
+    "validation_days": 40,
+    "test_days": 40,
+    "step_days": 40,
+    "protection_days": 20,
+    "minimum_role_samples": 100
+  },
+  "transformer": {
+    "runtime": "pytorch",
+    "device": "cpu",
+    "embedding_dimension": 16,
+    "model_size_upper_bound": 100000,
+    "num_layers_candidates": [1, 2],
+    "attention_heads": 2,
+    "feedforward_dimension": 32,
+    "dropout": 0.1,
+    "epoch_upper_bound": 20,
+    "early_stopping_patience": 3,
+    "batch_size": 256,
+    "learning_rate": 0.001,
+    "margin_loss_weight": 0.2,
+    "minimum_train_rows": 1000,
+    "minimum_embedding_similarity_std": 0.0001
+  },
+  "retrieval": {
+    "similarity": "cosine",
+    "top_k": 15,
+    "minimum_support": 5,
+    "threshold_quantiles": {
+      "state_match_loose": 0.5,
+      "state_match_balanced": 0.75,
+      "state_match_strict": 0.9
+    },
+    "primary_variant": "state_match_balanced",
+    "minimum_matched_decision_coverage": 0.3,
+    "tie_break": "expert_id_ascending"
+  },
+  "execution": {
+    "holding_days": 5,
+    "matching_frequency_days": 5,
+    "jump_guard_selection": "validation_only",
+    "jump_guard_candidates": {
+      "single_day_jump_down_atr_multiple": [1.5, 2.0],
+      "entry_drawdown_atr_multiple": [2.0, 3.0],
+      "market_crash_return": [-0.03, -0.04]
+    }
+  }
+}

@@ -8,15 +8,20 @@
   "training_scope": "market_specific",
   "cross_market_policy": "ablation_only",
   "source_runs": {
-    "window3b": {
-      "output_dir": "model-test/outputs/deans_window3b_cn_a",
-      "config_path": "model-test/configs/deans_window3b_cn_a.json"
-    },
     "full_run": {
       "output_dir": "model-test/outputs/full_cn_a_deans_60",
       "config_path": "model-test/configs/full_cn_a_deans_60.json"
     }
   },
+  "historical_runs": [
+    {
+      "run_id": "deans_window3b_cn_a",
+      "output_dir": "model-test/outputs/deans_window3b_cn_a",
+      "config_path": "model-test/configs/deans_window3b_cn_a.json",
+      "classification": "non_authoritative_smoke",
+      "reason": "This diagnostic Window 3B run is not a full-scale CN_A source lock and must not supply Phase-A evidence."
+    }
+  ],
   "horizons": {
     "primary_days": 20,
     "ablation_days": [5, 60]

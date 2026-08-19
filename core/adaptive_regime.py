@@ -31,6 +31,8 @@ from core.regime_model import (
     _REALIZED_VOL_WINDOW,
     _build_feature_frame,
     build_market_proxy_frame,
+    normalize_regime_market,
+    resolve_market_proxy_symbol,
 )
 
 
@@ -212,9 +214,12 @@ def build_adaptive_feature_frame(
     df: pd.DataFrame,
     *,
     adjust: str = "qfq",
-    market_proxy_symbol: str = DEFAULT_MARKET_PROXY_SYMBOL,
+    market: str = "US",
+    market_proxy_symbol: str | None = None,
     fetcher: Callable[[str, str, str], pd.DataFrame | None] | None = None,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
+    canonical_market = normalize_regime_market(market)
+    proxy_symbol = resolve_market_proxy_symbol(canonical_market, market_proxy_symbol)
     feature_df = _build_feature_frame(df)
     close = pd.to_numeric(feature_df["close"], errors="coerce")
     daily_return = close.pct_change()
@@ -226,7 +231,8 @@ def build_adaptive_feature_frame(
     feature_df["corr_60"] = 0.0
 
     metadata: dict[str, Any] = {
-        "market_proxy_symbol": market_proxy_symbol,
+        "market": canonical_market,
+        "market_proxy_symbol": proxy_symbol,
         "market_proxy_mode": "enabled",
         "market_proxy_unavailable": False,
         "market_proxy_warning": None,
@@ -236,7 +242,8 @@ def build_adaptive_feature_frame(
     market_proxy_df, proxy_metadata = build_market_proxy_frame(
         feature_df,
         adjust=adjust,
-        market_proxy_symbol=market_proxy_symbol,
+        market=canonical_market,
+        market_proxy_symbol=proxy_symbol,
         fetcher=fetcher,
     )
     metadata.update(proxy_metadata)
@@ -667,7 +674,11 @@ def save_adaptive_regime_artifacts(
     }
 
 
-def load_adaptive_regime_artifacts(preferred_dir: str | Path | None = None) -> dict[str, Any]:
+def load_adaptive_regime_artifacts(
+    preferred_dir: str | Path | None = None,
+    *,
+    expected_market: str | None = None,
+) -> dict[str, Any]:
     artifact_dir = resolve_adaptive_artifact_dir(preferred_dir)
     if artifact_dir is None:
         raise FileNotFoundError("Adaptive regime artifacts were not found.")
@@ -679,8 +690,17 @@ def load_adaptive_regime_artifacts(preferred_dir: str | Path | None = None) -> d
         )
 
     cache_key = _artifact_signature(artifact_dir)
+    expected = normalize_regime_market(expected_market) if expected_market is not None else None
     cached = _ADAPTIVE_ARTIFACT_CACHE.get(cache_key)
     if cached is not None:
+        cached_schema = cached["state_feature_schema"]
+        artifact_market = cached_schema.get("market") or (
+            "US" if cached_schema.get("market_proxy_symbol") == DEFAULT_MARKET_PROXY_SYMBOL else None
+        )
+        if expected is not None and artifact_market != expected:
+            raise ValueError(
+                f"Adaptive regime artifact market is {artifact_market!r}, expected {expected!r}."
+            )
         return {
             "artifact_dir": cached["artifact_dir"],
             "state_feature_schema": dict(cached["state_feature_schema"]),
@@ -692,6 +712,11 @@ def load_adaptive_regime_artifacts(preferred_dir: str | Path | None = None) -> d
         }
 
     schema = json.loads((artifact_dir / "state_feature_schema.json").read_text(encoding="utf-8"))
+    artifact_market = schema.get("market") or (
+        "US" if schema.get("market_proxy_symbol") == DEFAULT_MARKET_PROXY_SYMBOL else None
+    )
+    if expected is not None and artifact_market != expected:
+        raise ValueError(f"Adaptive regime artifact market is {artifact_market!r}, expected {expected!r}.")
     summary = json.loads((artifact_dir / "routing_policy_summary.json").read_text(encoding="utf-8"))
     with (artifact_dir / "state_classifier.pkl").open("rb") as fh:
         classifier_bundle = pickle.load(fh)

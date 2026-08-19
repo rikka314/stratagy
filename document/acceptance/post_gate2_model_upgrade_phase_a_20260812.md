@@ -20,7 +20,7 @@ The checkout does not contain `model-test/outputs/` because research outputs are
 - strict mode fails until the referenced Window 3B and full-run output directories are restored;
 - `--allow-pending` may create coordination artifacts, but these have `status=pending` and are not passing research evidence;
 - the existing frozen US conclusion remains documented in `document/strategy_research_baseline_us_20260811.md`;
-- CN_A full-run evidence remains pending, consistent with the current project decision to pause CN_A and cross-market research.
+- The US Phase 3B full-scale experiment is complete; the CN_A full-scale experiment is incomplete, consistent with the current decision to pause CN_A and cross-market research.
 
 ## Automated verification
 

@@ -97,6 +97,8 @@ def _collect_stock_payload(
     feature_df, feature_metadata = build_adaptive_feature_frame(
         df_window,
         adjust=config.adjust,
+        market=config.market,
+        market_proxy_symbol=config.market_proxy_symbol,
     )
 
     candidate_results: dict[str, Any] = {}
@@ -109,6 +111,8 @@ def _collect_stock_payload(
             request_params_snapshot=params_snapshot,
             df_raw=df_window,
             split_idx=split_idx,
+            market=config.market,
+            adjust=config.adjust,
         )
         if not _is_candidate_result_usable(model_id, result):
             warnings.append(f"{profile.symbol}:{model_id}:{result.status}")
@@ -333,14 +337,17 @@ def train_adaptive_router_artifacts(
 
     state_feature_schema = {
         "generated_from": config.name,
+        "market": config.market,
         "feature_columns": list(ADAPTIVE_STATE_FEATURE_COLUMNS),
         "state_count": int(classifier_bundle["state_count"]),
         "classifier_type": str(classifier_bundle["classifier_type"]),
-        "market_proxy_symbol": "SPY",
+        "market_proxy_symbol": config.market_proxy_symbol,
         "min_state_days": int(ADAPTIVE_MIN_STATE_DAYS),
     }
     routing_policy_summary = {
         "generated_from": config.name,
+        "market": config.market,
+        "market_proxy_symbol": config.market_proxy_symbol,
         "feature_columns": list(ADAPTIVE_STATE_FEATURE_COLUMNS),
         "classifier_type": str(classifier_bundle["classifier_type"]),
         "state_count": int(classifier_bundle["state_count"]),

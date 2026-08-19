@@ -1,9 +1,8 @@
 """
 Regime Switching Model (RSM)
 ============================
-US-only dual-state router that combines stock states, optional SPY market
-proxy states, and Mean/Drift anchor policies into a fixed, interpretable
-execution regime.
+Dual-state router that combines stock states, a market-native proxy, and
+Mean/Drift anchor policies into a fixed, interpretable execution regime.
 """
 
 from __future__ import annotations
@@ -19,6 +18,10 @@ from core.indicators import add_indicators, rolling_percentile, rolling_rank
 RegimeKind = Literal["dual_state_router", "no_market", "no_router"]
 
 DEFAULT_MARKET_PROXY_SYMBOL = "SPY"
+MARKET_PROXY_SYMBOLS = {
+    "US": DEFAULT_MARKET_PROXY_SYMBOL,
+    "CN_A": "000300",
+}
 _REGIME_LOOKBACK = 60
 _REALIZED_VOL_WINDOW = 20
 _RELATIVE_RET_WINDOW = 20
@@ -47,6 +50,20 @@ def _normalize_date_frame(df: pd.DataFrame) -> pd.DataFrame:
     out["date"] = pd.to_datetime(out["date"], errors="coerce")
     out = out.dropna(subset=["date"]).drop_duplicates(subset=["date"], keep="last").sort_values("date")
     return out.reset_index(drop=True)
+
+
+def normalize_regime_market(market: str | None) -> str:
+    normalized = str(market or "US").strip().upper()
+    aliases = {"US": "US", "CN_A": "CN_A", "CN": "CN_A", "A": "CN_A"}
+    if normalized not in aliases:
+        raise ValueError(f"Unsupported regime market: {market!r}. Expected US or CN_A.")
+    return aliases[normalized]
+
+
+def resolve_market_proxy_symbol(market: str | None, market_proxy_symbol: str | None = None) -> str:
+    if market_proxy_symbol is not None and str(market_proxy_symbol).strip():
+        return str(market_proxy_symbol).strip()
+    return MARKET_PROXY_SYMBOLS[normalize_regime_market(market)]
 
 
 def _ensure_indicator_frame(df: pd.DataFrame) -> pd.DataFrame:
@@ -159,11 +176,15 @@ def build_market_proxy_frame(
     stock_df: pd.DataFrame,
     *,
     adjust: str = "qfq",
-    market_proxy_symbol: str = DEFAULT_MARKET_PROXY_SYMBOL,
+    market: str = "US",
+    market_proxy_symbol: str | None = None,
     fetcher: Callable[[str, str, str], pd.DataFrame | None] | None = None,
 ) -> tuple[pd.DataFrame | None, dict[str, Any]]:
+    canonical_market = normalize_regime_market(market)
+    proxy_symbol = resolve_market_proxy_symbol(canonical_market, market_proxy_symbol)
     metadata: dict[str, Any] = {
-        "market_proxy_symbol": market_proxy_symbol,
+        "market": canonical_market,
+        "market_proxy_symbol": proxy_symbol,
         "market_proxy_mode": "enabled",
         "market_proxy_unavailable": False,
         "market_proxy_warning": None,
@@ -174,7 +195,7 @@ def build_market_proxy_frame(
         fetcher = load_or_fetch_stock
 
     try:
-        proxy_df = fetcher(market_proxy_symbol, adjust, "US")
+        proxy_df = fetcher(proxy_symbol, adjust, canonical_market)
     except Exception as exc:  # pragma: no cover - defensive fallback
         metadata["market_proxy_unavailable"] = True
         metadata["market_proxy_mode"] = "fallback_stock_only"
@@ -184,14 +205,14 @@ def build_market_proxy_frame(
     if proxy_df is None or proxy_df.empty:
         metadata["market_proxy_unavailable"] = True
         metadata["market_proxy_mode"] = "fallback_stock_only"
-        metadata["market_proxy_warning"] = "market_proxy_unavailable: SPY data missing"
+        metadata["market_proxy_warning"] = f"market_proxy_unavailable: {proxy_symbol} data missing"
         return None, metadata
 
     proxy_frame = _normalize_date_frame(proxy_df)
     if proxy_frame.empty:
         metadata["market_proxy_unavailable"] = True
         metadata["market_proxy_mode"] = "fallback_stock_only"
-        metadata["market_proxy_warning"] = "market_proxy_unavailable: SPY data empty after date normalization"
+        metadata["market_proxy_warning"] = f"market_proxy_unavailable: {proxy_symbol} data empty after date normalization"
         return None, metadata
 
     return proxy_frame, metadata
@@ -203,14 +224,18 @@ def compute_regime_features(
     split_idx: int,
     adjust: str = "qfq",
     regime_kind: RegimeKind = "dual_state_router",
-    market_proxy_symbol: str = DEFAULT_MARKET_PROXY_SYMBOL,
+    market: str = "US",
+    market_proxy_symbol: str | None = None,
     fetcher: Callable[[str, str, str], pd.DataFrame | None] | None = None,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
+    canonical_market = normalize_regime_market(market)
+    proxy_symbol = resolve_market_proxy_symbol(canonical_market, market_proxy_symbol)
     stock_frame = _build_feature_frame(df)
     metadata: dict[str, Any] = {
         "family": "regime",
         "regime_kind": regime_kind,
-        "market_proxy_symbol": market_proxy_symbol,
+        "market": canonical_market,
+        "market_proxy_symbol": proxy_symbol,
         "market_proxy_mode": "enabled",
         "market_proxy_unavailable": False,
         "market_proxy_warning": None,
@@ -224,7 +249,8 @@ def compute_regime_features(
         market_proxy_df, proxy_metadata = build_market_proxy_frame(
             stock_frame,
             adjust=adjust,
-            market_proxy_symbol=market_proxy_symbol,
+            market=canonical_market,
+            market_proxy_symbol=proxy_symbol,
             fetcher=fetcher,
         )
         metadata.update(proxy_metadata)
@@ -369,7 +395,8 @@ def compute_regime_signals(
     split_idx: int,
     adjust: str = "qfq",
     regime_kind: RegimeKind = "dual_state_router",
-    market_proxy_symbol: str = DEFAULT_MARKET_PROXY_SYMBOL,
+    market: str = "US",
+    market_proxy_symbol: str | None = None,
     fetcher: Callable[[str, str, str], pd.DataFrame | None] | None = None,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     feature_df, metadata = compute_regime_features(
@@ -377,6 +404,7 @@ def compute_regime_signals(
         split_idx=split_idx,
         adjust=adjust,
         regime_kind=regime_kind,
+        market=market,
         market_proxy_symbol=market_proxy_symbol,
         fetcher=fetcher,
     )
@@ -488,9 +516,12 @@ def summarize_regime_diagnostics(
 
 __all__ = [
     "DEFAULT_MARKET_PROXY_SYMBOL",
+    "MARKET_PROXY_SYMBOLS",
     "RegimeKind",
     "build_market_proxy_frame",
     "compute_regime_features",
     "compute_regime_signals",
+    "normalize_regime_market",
+    "resolve_market_proxy_symbol",
     "summarize_regime_diagnostics",
 ]
