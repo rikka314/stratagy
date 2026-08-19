@@ -387,7 +387,7 @@ def _render_multi_stock_header(
                 with st.container(key="multi-stock-hero-toggle"):
                     if st.button(
                         details_label,
-                        key="multi_stock_header_details_toggle",
+                        key="action_multi_stock_header_details_toggle",
                         icon=details_icon,
                     ):
                         st.session_state[MULTI_HEADER_DETAILS_KEY] = not details_expanded
@@ -772,7 +772,7 @@ def _render_multi_stock_remove_popover(comparison_stats: list[dict[str, Any]]) -
             )
             if action_col.button(
                 tr("common.remove"),
-                key=f"multi_stock_remove_{source_key}_{symbol}",
+                key=f"action_multi_stock_remove_{source_key}_{symbol}",
                 use_container_width=True,
                 disabled=total_count <= 2,
             ):
@@ -813,7 +813,7 @@ def _render_multi_stock_add_popover(*, market: str) -> None:
             render_status_note(tr("stockPool.duplicateWarning"), tone="warning")
         else:
             render_status_note(tr("index.mismatch.addDirectly"), tone="warning")
-            if st.button(tr("action.add_with_current_input"), key="multi_stock_add_direct", use_container_width=True):
+            if st.button(tr("action.add_with_current_input"), key="action_multi_stock_add_direct", use_container_width=True):
                 _add_multi_route_symbol(fallback_symbol, market=market)
         return
 
@@ -827,7 +827,7 @@ def _render_multi_stock_add_popover(*, market: str) -> None:
             )
             if action_col.button(
                 tr("action.add"),
-                key=f"multi_stock_add_{symbol}",
+                key=f"action_multi_stock_add_{symbol}",
                 use_container_width=True,
                 disabled=symbol in existing_symbols,
             ):
@@ -1032,7 +1032,7 @@ def _render_multi_stock_strategy_section(
                     tr("strategy.generatePortfolio"),
                     type="primary",
                     use_container_width=True,
-                    key="multi_stock_generate_strategy",
+                    key="action_multi_stock_generate_strategy",
                 ):
                     if sum(portfolio_weights.values()) <= 0:
                         st.error(tr("validation.portfolio_weight_sum"))

@@ -204,6 +204,12 @@ def test_workspace_snapshot_does_not_restore_button_widget_state(monkeypatch) ->
             "single_stock_analysis_section": "basics",
             "multi_stock_remove_market_MSFT": True,
             "btn_optimize_portfolio": True,
+            "single_stock_header_details_expanded": True,
+            "multi_stock_header_details_expanded": True,
+            "multi_stock_header_details_toggle": True,
+            "multi_stock_add_MSFT": True,
+            "multi_stock_remove_download_AAPL": True,
+            "multi_stock_generate_strategy": True,
         }
     )
     monkeypatch.setattr(workspace, "st", fake_st)
@@ -218,6 +224,8 @@ def test_workspace_snapshot_does_not_restore_button_widget_state(monkeypatch) ->
     assert "multi_stock_remove_market_MSFT" not in payload["widget_state"]
     assert "btn_optimize_portfolio" not in payload["widget_state"]
     assert payload["widget_state"]["single_stock_analysis_section"] == "basics"
+    assert payload["widget_state"]["single_stock_header_details_expanded"] is True
+    assert payload["widget_state"]["multi_stock_header_details_expanded"] is True
 
     fake_st.session_state.clear()
     workspace._apply_snapshot(
@@ -226,12 +234,20 @@ def test_workspace_snapshot_does_not_restore_button_widget_state(monkeypatch) ->
                 "single_stock_header_details_toggle": True,
                 "single_stock_switch_query": "Microsoft",
                 "single_stock_analysis_section": "strategy",
+                "single_stock_header_details_expanded": True,
+                "multi_stock_header_details_expanded": True,
+                "multi_stock_header_details_toggle": True,
+                "multi_stock_generate_strategy": True,
             }
         }
     )
     assert "single_stock_header_details_toggle" not in fake_st.session_state
     assert fake_st.session_state["single_stock_switch_query"] == "Microsoft"
     assert fake_st.session_state["single_stock_analysis_section"] == "strategy"
+    assert fake_st.session_state["single_stock_header_details_expanded"] is True
+    assert fake_st.session_state["multi_stock_header_details_expanded"] is True
+    assert "multi_stock_header_details_toggle" not in fake_st.session_state
+    assert "multi_stock_generate_strategy" not in fake_st.session_state
 
 
 def test_market_cache_separates_keys_and_keeps_stale_data_on_refresh_failure(tmp_path) -> None:

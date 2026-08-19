@@ -264,17 +264,22 @@ def _snapshot_payload() -> dict[str, Any]:
 def _collect_widget_state() -> dict[str, Any]:
     values: dict[str, Any] = {}
     for key, value in st.session_state.items():
-        if not isinstance(key, str) or key in _EXCLUDED_KEYS:
+        if not _is_persistable_widget_key(key):
             continue
-        if _is_non_persisted_widget_key(key):
+        try:
+            pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+        except (pickle.PickleError, TypeError, ValueError):
             continue
-        if key in _DIRECT_KEYS or key.startswith(_PERSISTED_PREFIXES):
-            try:
-                pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
-            except (pickle.PickleError, TypeError, ValueError):
-                continue
-            values[key] = copy.deepcopy(value)
+        values[key] = copy.deepcopy(value)
     return values
+
+
+def _is_persistable_widget_key(key: object) -> bool:
+    if not isinstance(key, str) or key in _EXCLUDED_KEYS:
+        return False
+    if _is_non_persisted_widget_key(key):
+        return False
+    return key in _DIRECT_KEYS or key.startswith(_PERSISTED_PREFIXES)
 
 
 def _portable_portfolio_result(value: object) -> object:
@@ -290,7 +295,7 @@ def _apply_snapshot(payload: dict[str, Any]) -> None:
     widget_state = payload.get("widget_state", {})
     if isinstance(widget_state, dict):
         for key, value in widget_state.items():
-            if isinstance(key, str) and not _is_non_persisted_widget_key(key):
+            if _is_persistable_widget_key(key):
                 st.session_state[key] = value
 
     routes = payload.get("routes", {})

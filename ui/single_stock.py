@@ -514,7 +514,7 @@ def _render_single_stock_header(
                 with st.container(key="single-stock-hero-toggle"):
                     if st.button(
                         details_label,
-                        key="single_stock_header_details_toggle",
+                        key="action_single_stock_header_details_toggle",
                         icon=details_icon,
                     ):
                         st.session_state[HEADER_DETAILS_KEY] = not details_expanded
@@ -582,7 +582,7 @@ def _render_switch_stock_popover(*, symbol: str, market: str) -> None:
     if matched.empty:
         fallback_symbol = query.zfill(6)[-6:] if market_key == "A" and query.isdigit() else query.upper()
         render_status_note(tr("navigation.no_index_match"), tone="warning")
-        if st.button(tr("action.switch_by_input"), key="single_stock_switch_direct", use_container_width=True):
+        if st.button(tr("action.switch_by_input"), key="action_single_stock_switch_direct", use_container_width=True):
             _switch_single_stock_symbol(fallback_symbol, market_key)
         return
 
@@ -592,7 +592,7 @@ def _render_switch_stock_popover(*, symbol: str, market: str) -> None:
             f"<div class='recommend-row'><div class='recommend-row-title'>{html.escape(str(row.symbol))}</div><div class='recommend-row-meta'>{html.escape(str(row.label))}</div></div>",
             unsafe_allow_html=True,
         )
-        if action_col.button(tr("action.switch"), key=f"single_stock_switch_{row.symbol}"):
+        if action_col.button(tr("action.switch"), key=f"action_single_stock_switch_{row.symbol}"):
             _switch_single_stock_symbol(str(row.symbol), market_key)
 
 
@@ -896,7 +896,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                     if st.button(
                         _strategy_copy("如何使用策略模块", "How to use the strategy module"),
                         type="tertiary",
-                        key="single_stock_strategy_help",
+                        key="action_single_stock_strategy_help",
                     ):
                         _render_strategy_module_help_dialog()
 
@@ -940,7 +940,7 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                     elif page_state == "REQUEST_DRAFT" and current_artifact is not None:
                         render_status_note(tr("status.draftPending"), tone="warning")
 
-                    if st.button(tr("strategy.generate"), type="primary", disabled=generate_disabled, key="single_stock_generate_strategy"):
+                    if st.button(tr("strategy.generate"), type="primary", disabled=generate_disabled, key="action_single_stock_generate_strategy"):
                         effective_snapshot = (
                             _apply_search_adj_overrides(params_snapshot)
                             if request.family == "search"
@@ -1232,7 +1232,7 @@ def _render_strategy_library(
     st.markdown(tr("strategy_library.title"))
     action_col, info_col = st.columns([1.0, 2.0])
     with action_col:
-        if st.button(tr("strategy.saveCurrent"), key="single_stock_save_current_artifact", width="stretch"):
+        if st.button(tr("strategy.saveCurrent"), key="action_single_stock_save_current_artifact", width="stretch"):
             save_status, saved_artifact = save_current_artifact()
             if save_status == "saved" and saved_artifact is not None:
                 st.success(f"已保存：{saved_artifact.display_label}")
