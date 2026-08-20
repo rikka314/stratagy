@@ -467,7 +467,7 @@ Phase F is not a product admission path by itself. If it cannot stably improve
 net results over Hedge / EG after exploration costs, or it worsens turnover or
 drawdown, retain it as an ablation and do not connect it to Streamlit.
 
-## 14. Transformer-state v2 W13-W15 source and model boundary
+## 14. Transformer-state v2 W13-W18 source, retrieval, and execution boundary
 
 Transformer-state v2 is independent of the Phase A-F promotion path and keeps
 the v1 W11 result unchanged. The US and CN_A configs separately freeze Phase-
@@ -489,11 +489,13 @@ or test role.
 
 Exact daily `target_position` and turnover are a W13 precondition. Entry/exit
 intervals from `trades.csv` do not prove within-trade position sizing and cannot
-be used to generate formal five-day utility labels. The union of every legacy
-W11 test date is also forbidden from all W15 train/validation memberships;
-train-validation and validation-test boundaries retain the configured
-protection interval. As of 2026-08-18 CN_A satisfies these W13/W14 conditions,
-while US is blocked on the exact-daily-execution precondition.
+be used to generate formal five-day utility labels. For the 2026-08-20 US run,
+the original admission and full-run outputs remained unchanged while additive,
+hash-locked daily evidence was reconstructed and verified for all 60 symbols
+and seven frozen experts (`420` artifacts), plus 60 adaptive artifacts. The
+union of every legacy W11 test date remains forbidden from all W15
+train/validation memberships; train-validation and validation-test boundaries
+retain the configured protection interval.
 
 `run_transformer_state.py --stage model` verifies all W13/W14 hashes before
 calling the W15 encoder. Each fold owns its train scaler, train encoder and
@@ -505,7 +507,21 @@ linear projection, sinusoidal position encoding, mean-pooled embedding,
 or a classifier not above the majority/Cash baseline marks the fold
 unavailable.
 
-PyTorch remains an optional research runtime and is not added automatically.
-When absent, fold-local normalization/schema and explicit unavailable
-manifests are still emitted, no `transformer_encoder.pt` is fabricated, the
-runner exits with code `3`, and W16 retrieval is blocked.
+PyTorch remains an optional research runtime and is isolated in
+`requirements-research.txt`; the completed US evidence used
+`torch==2.13.0+cpu`. W16 builds a split-train-only normalized memory bank,
+derives q50/q75/q90 thresholds only from strictly-prior training similarities,
+and records every neighbor, availability decision, and full-run-best-to-Cash
+fallback. W17 freezes the decision-time target for `t+1` execution, holds each
+eligible window for exactly five trading days, applies close-observed guards on
+the next executable day, and persists exact position/turnover/return
+attribution. W18 independently verifies the W13-W17 lineage, all fold and
+source artifacts, the complete decision/execution matrices, and exact summary
+reconstruction before writing `ready` evidence.
+
+The completed US run contains 11,520 decision windows and 57,600 daily rows,
+but the preregistered primary `state_match_balanced` has 0% matched coverage in
+all four folds. This is an engineering-complete negative research result:
+W16-W18 are accepted, while the frozen 30% coverage gate blocks W20 admission
+and any claim that Transformer matching is effective. No production or
+Streamlit route consumes these artifacts.

@@ -197,15 +197,12 @@ def _read_expert_artifact(record: pd.Series, source_dir: Path) -> tuple[pd.DataF
         # expert available while explicitly marking target position missing.
         returns["target_position"] = np.nan
         position_source = None
-    elif "target_position" not in returns.columns:
+    elif "position" in returns.columns and _numeric(returns, "position").notna().any():
         returns["target_position"] = _numeric(returns, "position")
         position_source = "source_position"
     else:
         returns["target_position"] = _numeric(returns, "target_position")
         position_source = "source_target_position"
-        if returns["target_position"].isna().all() and "position" in returns.columns:
-            returns["target_position"] = _numeric(returns, "position")
-            position_source = "source_position" if returns["target_position"].notna().any() else None
     if not returns["target_position"].notna().any():
         position_source = None
     if position_source is None:

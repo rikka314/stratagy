@@ -17,7 +17,7 @@ import subprocess
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -129,7 +129,7 @@ def _git_code_version(repo_root: Path) -> str:
 
 
 def transformer_code_lock(repo_root: str | Path) -> dict[str, Any]:
-    """Hash the exact W13-W15 implementation even in a dirty worktree."""
+    """Hash the exact W13-W18 implementation even in a dirty worktree."""
 
     root = Path(repo_root).resolve()
     relative_paths = (
@@ -137,6 +137,9 @@ def transformer_code_lock(repo_root: str | Path) -> dict[str, Any]:
         Path("model-test/model_test/moe_baseline.py"),
         Path("model-test/model_test/transformer_state_panel.py"),
         Path("model-test/model_test/transformer_state_model.py"),
+        Path("model-test/model_test/transformer_state_retrieval.py"),
+        Path("model-test/model_test/transformer_state_execution.py"),
+        Path("model-test/model_test/transformer_state_pipeline.py"),
         Path("model-test/run_transformer_state.py"),
     )
     artifacts: list[dict[str, Any]] = []
@@ -168,6 +171,29 @@ def _relative_path(value: Any, *, field_name: str) -> Path:
     if not str(value or "").strip() or path.is_absolute() or ".." in path.parts:
         raise TransformerStatePanelError(f"{field_name} must be a repository-relative path")
     return path
+
+
+def resolve_transformer_output_dir(
+    repo_root: str | Path,
+    config: Mapping[str, Any],
+    output_dir: str | Path | None = None,
+) -> Path:
+    """Resolve a derived output and reject overlap with any frozen source tree."""
+
+    root = Path(repo_root).resolve()
+    target = (
+        Path(output_dir).resolve()
+        if output_dir is not None
+        else (root / "model-test" / "outputs" / str(config["output_subdir"])).resolve()
+    )
+    sources = config.get("sources") or {}
+    for key in ("phase_a_output_dir", "phase_b_output_dir", "full_run_output_dir"):
+        source = (root / str(sources[key])).resolve()
+        if target == source or target.is_relative_to(source) or source.is_relative_to(target):
+            raise TransformerStatePanelError(
+                f"Transformer output directory collides with frozen source directory: {source}"
+            )
+    return target
 
 
 def _finite(value: Any) -> float | None:
@@ -423,7 +449,7 @@ def _position_proof(artifact_dir: Path) -> dict[str, Any]:
     if daily_path.is_file():
         daily = pd.read_csv(daily_path)
         position_column = next(
-            (column for column in ("target_position", "position") if column in daily.columns),
+            (column for column in ("position", "target_position") if column in daily.columns),
             None,
         )
         if position_column is None:
@@ -437,7 +463,7 @@ def _position_proof(artifact_dir: Path) -> dict[str, Any]:
             or daily_dates.isna().any()
             or daily_dates.duplicated().any()
             or not np.array_equal(daily_dates.to_numpy(), returns["date"].to_numpy())
-            or positions.isna().any()
+            or not np.isfinite(positions.to_numpy(dtype=float)).all()
         ):
             raise TransformerStatePanelError(f"daily target position is incomplete: {daily_path}")
         return {
@@ -630,11 +656,7 @@ def build_transformer_source_manifest(
     config = load_transformer_state_config(config_file)
     market = _canonical_market(config["market"])
     sources = config["sources"]
-    target = (
-        Path(output_dir).resolve()
-        if output_dir is not None
-        else (root / "model-test" / "outputs" / str(config["output_subdir"])).resolve()
-    )
+    target = resolve_transformer_output_dir(root, config, output_dir)
     target.mkdir(parents=True, exist_ok=True)
 
     phase_a_config = _resolve_repo_path(root, sources["phase_a_config_path"], field_name="phase_a_config_path")
@@ -666,8 +688,8 @@ def build_transformer_source_manifest(
     exact_position_sources = {"source_target_position", "source_position"}
     observed_position_sources = set(str(value) for value in risk_rows["position_source"].dropna().unique())
     if (
-        risk_rows["target_position"].isna().any()
-        or risk_rows["turnover"].isna().any()
+        not np.isfinite(pd.to_numeric(risk_rows["target_position"], errors="coerce")).all()
+        or not np.isfinite(pd.to_numeric(risk_rows["turnover"], errors="coerce")).all()
         or not observed_position_sources
         or not observed_position_sources.issubset(exact_position_sources)
     ):
@@ -694,6 +716,32 @@ def build_transformer_source_manifest(
     guard_evidence = _verify_rank_one_guard(config, full_dir=full_dir, summary_path=summary_path)
     snapshot = _snapshot_inventory(config, full_dir=full_dir, full_manifest=full_manifest)
     runtime_available = importlib.util.find_spec("torch") is not None
+    exact_daily_lineage: dict[str, Any] | None = None
+    if market == "US":
+        backfill_path = full_dir / "exact_daily_backfill_manifest.json"
+        adaptive_path = full_dir / "adaptive_exact_daily_replay_manifest.json"
+        backfill = _json_object(backfill_path)
+        adaptive_replay = _json_object(adaptive_path)
+        if backfill.get("status") != "ready" or int(backfill.get("artifact_count", 0)) != 420:
+            raise TransformerStatePanelError("US exact daily backfill is not complete for 60x7 artifacts")
+        if adaptive_replay.get("status") != "ready" or int(
+            adaptive_replay.get("adaptive_artifact_count", 0)
+        ) != 60:
+            raise TransformerStatePanelError("US adaptive source-commit replay is not complete")
+        runtime_patch = adaptive_replay.get("source_runtime_patch") or {}
+        if not runtime_patch.get("allowed_patch_sha256") or not runtime_patch.get(
+            "patched_file_sha256"
+        ):
+            raise TransformerStatePanelError("US adaptive replay lacks explicit runtime patch lineage")
+        if backfill.get("source_data_manifest_sha256") != _sha256_file(full_manifest_path):
+            raise TransformerStatePanelError("US exact daily backfill source manifest drifted")
+        exact_daily_lineage = {
+            "backfill_manifest_sha256": _sha256_file(backfill_path),
+            "adaptive_replay_manifest_sha256": _sha256_file(adaptive_path),
+            "artifact_count": 420,
+            "adaptive_artifact_count": 60,
+            "source_runtime_patch": runtime_patch,
+        }
 
     manifest = {
         "schema_version": TRANSFORMER_STATE_SCHEMA_VERSION,
@@ -731,6 +779,7 @@ def build_transformer_source_manifest(
         "adaptive_control_available": True,
         "full_run_best_guard": guard_evidence,
         "market_snapshot": snapshot,
+        "exact_daily_lineage": exact_daily_lineage,
         "runtime": {
             "requested": config["transformer"]["runtime"],
             "device": config["transformer"]["device"],
@@ -761,11 +810,7 @@ def write_blocked_transformer_manifests(
     root = Path(repo_root).resolve()
     config_file = Path(config_path).resolve()
     config = load_transformer_state_config(config_file)
-    target = (
-        Path(output_dir).resolve()
-        if output_dir is not None
-        else (root / "model-test" / "outputs" / str(config["output_subdir"])).resolve()
-    )
+    target = resolve_transformer_output_dir(root, config, output_dir)
     target.mkdir(parents=True, exist_ok=True)
     runtime_available = importlib.util.find_spec("torch") is not None
     common = {
@@ -1372,6 +1417,9 @@ def _build_sequences(
             start = index - max_length + 1
             sequence_values = values[start : index + 1]
             row = group.iloc[index]
+            expert_utilities = row.get("expert_utilities_json")
+            if not isinstance(expert_utilities, str) or not expert_utilities.strip():
+                continue
             rows.append(
                 {
                     "date": pd.Timestamp(row["date"]),
@@ -1388,7 +1436,7 @@ def _build_sequences(
                     "second_expert_5d": row.get("second_expert_5d"),
                     "label_margin": _finite(row.get("label_margin")),
                     "utility_margin": _finite(row.get("utility_margin")),
-                    "expert_utilities_json": str(row.get("expert_utilities_json") or "{}"),
+                    "expert_utilities_json": expert_utilities,
                     "label_status": str(row.get("label_status") or "unavailable"),
                     "label_end_date": row.get("label_end_date"),
                 }
@@ -1407,11 +1455,7 @@ def materialize_transformer_state_panel(
     root = Path(repo_root).resolve()
     config_file = Path(config_path).resolve()
     config = load_transformer_state_config(config_file)
-    target = (
-        Path(output_dir).resolve()
-        if output_dir is not None
-        else (root / "model-test" / "outputs" / str(config["output_subdir"])).resolve()
-    )
+    target = resolve_transformer_output_dir(root, config, output_dir)
     target.mkdir(parents=True, exist_ok=True)
     source_manifest, source_manifest_path = build_transformer_source_manifest(
         config_file, repo_root=root, output_dir=target

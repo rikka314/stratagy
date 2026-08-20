@@ -9,11 +9,11 @@
   "cross_market_policy": "forbidden",
   "sources": {
     "phase_a_config_path": "model-test/configs/moe_admission_us.json",
-    "phase_a_output_dir": "model-test/outputs/moe_admission_us",
-    "phase_a_manifest_sha256": "abdeb2a1d30b37a336bbdfc88ff9dac534b13100d67452090497029d261506af",
-    "phase_b_output_dir": "model-test/outputs/moe_admission_us",
-    "phase_b_manifest_sha256": "654e570252a0316cd83101256ddb3c492463810061c8cc28c5b603b5717e4b44",
-    "phase_b_panel_sha256": "5fa209af945f095d85be8e482c37f5ac75767565d63490068cbd2d4f246d42c8",
+    "phase_a_output_dir": "model-test/outputs/transformer_state_source_us",
+    "phase_a_manifest_sha256": "81acdbb2906f32bed36fe903a55043ea584f2315065cbc14ec2a97d68bde0b87",
+    "phase_b_output_dir": "model-test/outputs/transformer_state_source_us",
+    "phase_b_manifest_sha256": "9643d21584e5767ccb2564db33e5932ebb2a1b3169ea793c2758c8c93a4a4297",
+    "phase_b_panel_sha256": "1ca4e10212690622883b24022e5b641bea4f7972d02a3dac79b0991f6ab78815",
     "phase_b_splits_sha256": "64b54fcc193ff5cfb61d995fac890b98e278cc308cae48a5d762e6fe776661df",
     "full_run_config_path": "model-test/configs/full_us_deans_60.json",
     "full_run_config_sha256": "dfcc710736137e7373f2ea58fc06cbdef87c01f1754d420833daec1fee3aa577",
@@ -114,5 +114,16 @@
       "entry_drawdown_atr_multiple": [2.0, 3.0],
       "market_crash_return": [-0.03, -0.04]
     }
+  },
+  "selected_jump_guard": {
+    "single_day_jump_down_atr_multiple": 1.5,
+    "entry_drawdown_atr_multiple": 2.0,
+    "market_crash_return": -0.03,
+    "selection_source": "pre_registered_validation_candidate_0"
+  },
+  "fallback_expert_ids": {
+    "full_run_best_guard": "best_search",
+    "adaptive_guard": "adaptive_router",
+    "cash_on_unmatched": "cash"
   }
 }

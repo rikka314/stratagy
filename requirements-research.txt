@@ -1,0 +1,5 @@
+# Optional offline research runtime. Production Streamlit installs requirements.txt only.
+# Install with: .\.venv\Scripts\python.exe -m pip install -r requirements-research.txt
+-r requirements-dev.txt
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0+cpu

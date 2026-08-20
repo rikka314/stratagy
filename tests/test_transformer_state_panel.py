@@ -199,6 +199,9 @@ def test_transformer_code_lock_covers_executed_panel_dependencies(tmp_path: Path
         "model-test/model_test/moe_baseline.py",
         "model-test/model_test/transformer_state_panel.py",
         "model-test/model_test/transformer_state_model.py",
+        "model-test/model_test/transformer_state_retrieval.py",
+        "model-test/model_test/transformer_state_execution.py",
+        "model-test/model_test/transformer_state_pipeline.py",
         "model-test/run_transformer_state.py",
     ]
     for relative in relative_paths:

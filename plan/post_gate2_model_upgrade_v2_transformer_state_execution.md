@@ -1,6 +1,6 @@
 # Post-Gate-2 Transformer 状态—策略匹配 v2：跨窗口执行手册
 
-> 状态：**W13/W14 implementation complete；CN_A ready / US source-data blocked；W15 implementation complete / runtime-upstream blocked**（2026-08-18）。CN_A W13 source lock 与 W14 五日标签、最大 20 日序列、四折隔离 panel 已 ready；US Phase-B 的 58 个非 Cash 专家只有 interval-trade reconstruction，不能证明精确逐日 `target_position`/turnover，故 W13-W15 fail closed。W15 encoder、fold-local scaler、train/validation-only fit 与 artifact runner 已实现，但当前 `.venv` 未安装 PyTorch，CN_A 四折 manifest 标记 `unavailable`，未生成 checkpoint。W16 不得启动。本手册不覆盖、不重解释、也不修改 v1 的 US `1/4`、CN_A `2/4` admission 结果。
+> 状态：**W13–W18 US 工程链与正式证据已完成；W19 pending；W20 not admitted**（2026-08-20）。在不覆盖 admission/full-run source 的前提下，US 已补齐并逐项哈希验证 `60×7=420` 份冻结专家 exact-daily 与 60 份 adaptive exact-daily，随后以 PyTorch `2.13.0+cpu` 完成四折 W15、W16 三阈值检索、W17 五日执行和 W18 封存。W18 evidence 为 `ready`，11,520 个决策窗口均有严格 5 日执行证据；但 primary `state_match_balanced` 四折 matched coverage 均为 `0%`，低于冻结的 `30%`，因此不能宣称 Transformer 状态匹配有效，也不得进入 W20 admission。本手册不覆盖、不重解释、也不修改 v1 的 US `1/4`、CN_A `2/4` admission 结果。
 >
 > 当前起点：US/CN_A admission-specific Phase A–F 均已完成且 hash-verified，但 `moe_v2_regime_aware` 未达到“至少 3/4 split 不劣于 adaptive router”的冻结门槛。v2 的目标是学习一段时间内的点时可得市场/标的状态序列，并在严格 walk-forward 中将相似状态映射到其后 5 日最合适的专家策略；未识别到可靠状态时，默认使用同市场上一轮权威 full-run 总榜第 1 名模型。它**不是**用 Transformer 直接预测价格，也不接入 Streamlit。
 
@@ -36,7 +36,7 @@ v2 研究下列不同假设：
 
 ### 1.2 当前的下一步决策
 
-本计划的下一步不是改线上策略，而是先完成 `W13` 的 contract/source-lock 盘点和 `W14` 的可重放 5 日标签/状态序列。只有在 sequence、label、split、memory bank 的无泄漏测试全部通过后，才允许训练任何 Transformer。
+当前用户范围 W16–W18 已完成。下一研究窗口是独立执行 `W19` 的 CN_A source-locked full run；但 US primary 已因 `0% < 30%` matched coverage 触发冻结停止条件，不能通过事后放宽阈值、改窗口或借 CN_A 结果重解释 US。线上策略、Streamlit 和既有 admission 状态保持不变。
 
 ### 1.3 Requirements summary
 
@@ -219,12 +219,12 @@ market-native ready Phase-A/B source + daily OHLCV / benchmark context
 
 | 窗口 | 目标 | 市场 | 前置 | 状态 |
 |---|---|---|---|---|
-| W13 | v2 contract、source lock、config 和测试边界 | US/CN_A | v1 W11 | implementation complete；CN_A ready / US blocked：缺精确逐日执行源 |
-| W14 | 5 日 utility、sequence panel、purged four-fold split | US/CN_A | W13 | implementation complete；CN_A ready / US upstream blocked |
-| W15 | Transformer state encoder + fold-local fit | US/CN_A | W14 | implementation complete；CN_A blocked：PyTorch missing；US upstream blocked |
-| W16 | memory bank、三阈值检索、策略选择与 fallback | US/CN_A | W15 | blocked |
-| W17 | 五日执行、跳水退出、归因和风控审计 | US/CN_A | W16 | pending |
-| W18 | US source-locked full run 与 reports | US | W13–W17 | pending |
+| W13 | v2 contract、source lock、config 和测试边界 | US/CN_A | v1 W11 | US ready；exact-daily source lineage 已封存 |
+| W14 | 5 日 utility、sequence panel、purged four-fold split | US/CN_A | W13 | US ready |
+| W15 | Transformer state encoder + fold-local fit | US/CN_A | W14 | US 四折 ready；PyTorch 2.13.0+cpu |
+| W16 | memory bank、三阈值检索、策略选择与 fallback | US/CN_A | W15 | US complete；11,520 decisions，primary coverage 0% |
+| W17 | 五日执行、跳水退出、归因和风控审计 | US/CN_A | W16 | US complete；11,520 个严格五日窗口 |
+| W18 | US source-locked full run 与 reports | US | W13–W17 | complete；evidence ready，W20 coverage gate failed |
 | W19 | CN_A source-locked full run 与 reports | CN_A | W13–W17 | pending |
 | W20 | 四折 admission comparison | US/CN_A | W18/W19 | pending |
 | W21 | 非默认 shadow mode 设计/回滚验证 | 通过 W20 的市场 | W20 | blocked until admitted |
@@ -342,6 +342,8 @@ source_manifest_sha256, encoder_sha256, feature_schema_sha256
 
 **输出：** `state_memory_bank.parquet`、`state_similarity_distribution.csv`、`state_thresholds.json`、`state_match_decisions.parquet`、`state_retrieval_report.md`、manifest。
 
+**2026-08-20 完成记录：** US memory bank 为 `6,989 × 15`，三阈值四折共 `11,520 × 44` decisions。memory 仅含 split-train 且标签完整的历史行；邻居全部满足 `neighbor_date < query_date`；query-local 专家可用性、full-run-best 再到 Cash 的降级路径、fallback 六字段和 encoder/source/schema hashes 均可审计。primary `state_match_balanced` 四折均无 matched decision，冻结 coverage gate 已触发。
+
 ## 11. W17｜五日执行、跳水退出与归因
 
 **目标：** 将“匹配的策略未来执行五日”变成可回放、可审计而不是仅看标签的模拟。
@@ -370,6 +372,8 @@ idle
 
 **验收：** 可从 decisions 逐日重建每个 split 的仓位、匹配/未匹配、fallback、风险退出和收益；重建结果与 summary 完全一致。
 
+**2026-08-20 完成记录：** US 生成 `57,600 × 51` daily audit、`5,760 × 29` summary 与 `34,560 × 7` skipped decisions；对应 11,520 个互不重叠的严格五日窗口。决策日仓位在 `t+1` 生效，close-observed jump guard 只影响下一可执行日；source-net return 不重复扣费，execution turnover、几何归因和 summary 均可由 daily audit 复算。
+
 ## 12. W18｜US source-locked full evidence chain
 
 **目标：** 按 W13–W17 固定配置，使用 US market-native source 完成四折研究。
@@ -380,6 +384,8 @@ idle
 - 任何 GPU 不可用时优先 CPU 小模型，禁止无记录地换模型容量或跳过 fold。
 
 **验收：** 四折均 ready；hash/lineage、embedding distribution、coverage、决策重建、每项三阈值输出完整。
+
+**2026-08-20 完成记录：** `transformer_state_evidence_manifest.json` 为 `ready`，W13–W17 manifest、四折 encoder/metrics、snapshot、Phase-A/B、420 份冻结专家 exact-daily 与 60 份 adaptive exact-daily 的 hashes 全部通过。正式 code lock 为 `b07e97aa8bd6433a3fea8fe43cb424751e76b99dbffb9a5d92e211dc45753f23`；验收详情见 `document/acceptance/post_gate2_transformer_state_w16_w18_20260820.md`。
 
 ## 13. W19｜CN_A source-locked full evidence chain
 
@@ -492,7 +498,8 @@ document/acceptance/
   tests\test_transformer_state_model.py `
   tests\test_transformer_state_retrieval.py `
   tests\test_transformer_state_execution.py `
-  tests\test_transformer_state_admission.py -q
+  tests\test_transformer_state_pipeline.py `
+  tests\test_exact_daily_replay.py -q
 
 # 保留既有动态专家组合 contract
 .\.venv\Scripts\python.exe -m pytest `
@@ -511,7 +518,7 @@ document/acceptance/
 
 ## 18. 当前最先执行什么
 
-W13 先把 v2 source contract、5 日标签口径、三阈值计算规则、US/CN_A full-run-best fallback 映射、jump guard 的 validation-only 选择协议和测试清单写成 config/schema；随后 W14 建可重放 panel。**在 W14 的无泄漏测试和 W13 source lock 完成前，不启动 Transformer 训练或任何 full-run。**
+W16–W18 的 US 范围已经完成并以 W18 `ready` evidence 收口。下一可执行研究工作是 W19 的 CN_A 独立全链；W20 仍需 W18/W19 后按冻结规则比较，但 US `state_match_balanced` coverage 已为 `0% < 30%`，因此当前不得 admission、不得调低阈值重跑，也不得接入产品。
 
 v1 的拒绝结论保持有效：本计划是新的、独立的研究假设，不能作为改变 W11/W12 状态或提前接入产品的理由。
 

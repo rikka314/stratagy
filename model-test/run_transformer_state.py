@@ -38,9 +38,21 @@ from model_test.transformer_state_panel import (
     build_transformer_source_manifest,
     load_transformer_state_config,
     materialize_transformer_state_panel,
+    resolve_transformer_output_dir,
     transformer_code_lock,
     write_blocked_transformer_manifests,
 )
+from model_test.transformer_state_pipeline import (
+    TransformerStatePipelineError,
+    _resolve_w15_fold_output_dir,
+    invalidate_downstream_manifests,
+    materialize_full_evidence_manifest,
+    materialize_state_execution,
+    materialize_state_retrieval,
+    write_blocked_late_stage_manifest,
+)
+from model_test.transformer_state_retrieval import StateRetrievalError
+from model_test.transformer_state_execution import TransformerStateExecutionError
 
 
 MODEL_MANIFEST_NAME = "transformer_state_model_manifest.json"
@@ -54,7 +66,9 @@ def _verify_manifest_artifact(output_dir: Path, manifest: dict[str, Any], key: s
     descriptor = (manifest.get("artifacts") or {}).get(key)
     if not isinstance(descriptor, dict) or not descriptor.get("path"):
         raise TransformerStatePanelError(f"W14 manifest lacks artifact metadata for {key}")
-    path = output_dir / str(descriptor["path"])
+    path = (output_dir / str(descriptor["path"])).resolve()
+    if not path.is_relative_to(output_dir.resolve()):
+        raise TransformerStatePanelError(f"W14 artifact path escapes output directory: {path}")
     if not path.is_file() or _sha256_file(path) != str(descriptor.get("sha256") or ""):
         raise TransformerStatePanelError(f"W14 artifact is missing or hash-drifted: {path}")
     return path
@@ -91,11 +105,7 @@ def train_transformer_state_folds(
     root = Path(repo_root).resolve()
     config_file = Path(config_path).resolve()
     config = load_transformer_state_config(config_file)
-    target = (
-        Path(output_dir).resolve()
-        if output_dir is not None
-        else (root / "model-test" / "outputs" / str(config["output_subdir"])).resolve()
-    )
+    target = resolve_transformer_output_dir(root, config, output_dir)
     source_manifest_path = target / SOURCE_MANIFEST_NAME
     panel_manifest_path = target / PANEL_MANIFEST_NAME
     if not source_manifest_path.is_file() or not panel_manifest_path.is_file():
@@ -157,6 +167,15 @@ def train_transformer_state_folds(
     runtime = state_model.torch_dependency_preflight()
     fold_entries: list[dict[str, Any]] = []
     overall_status = "ready"
+    split_ids = splits["split_id"].astype(str).tolist()
+    if len(split_ids) != len(set(split_ids)):
+        raise TransformerStatePanelError("W15 split ids must be unique")
+    try:
+        fold_dirs = {
+            split_id: _resolve_w15_fold_output_dir(target, split_id) for split_id in split_ids
+        }
+    except TransformerStatePipelineError as exc:
+        raise TransformerStatePanelError(str(exc)) from exc
 
     for split in splits.to_dict("records"):
         split_id = str(split["split_id"])
@@ -183,7 +202,7 @@ def train_transformer_state_folds(
             train_supervision_mask=eligible[train_indexes],
             validation_supervision_mask=eligible[validation_indexes],
         )
-        fold_dir = target / "folds" / split_id
+        fold_dir = fold_dirs[split_id]
         fold_dir.mkdir(parents=True, exist_ok=True)
         selected_sequence_length = (
             result.selected_candidate.sequence_length
@@ -337,49 +356,177 @@ def train_transformer_state_folds(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run the source-locked W13/W14/W15 Transformer-state research stages."
+        description="Run the source-locked W13-W18 Transformer-state research stages."
     )
     parser.add_argument("--config", required=True, help="Path to transformer_state_{market}.json")
     parser.add_argument(
         "--stage",
-        choices=("source", "panel", "model", "all"),
+        choices=("source", "panel", "model", "retrieval", "execution", "evidence", "all"),
         default="all",
         help="Stop after the requested research stage (default: all)",
     )
     parser.add_argument("--output-dir", help="Optional output directory override")
     args = parser.parse_args(argv)
+    active_stage = args.stage
     try:
         if args.stage == "source":
+            active_stage = "source"
             manifest, path = build_transformer_source_manifest(
                 args.config, repo_root=REPO_ROOT, output_dir=args.output_dir
             )
             print(f"source_manifest: {path}")
             print(f"status: {manifest['status']}")
+            invalidate_downstream_manifests(
+                args.config,
+                repo_root=REPO_ROOT,
+                after_phase="W13",
+                output_dir=args.output_dir,
+            )
             return 0
         if args.stage in {"panel", "all"}:
+            active_stage = "panel"
             outputs = materialize_transformer_state_panel(
                 args.config, repo_root=REPO_ROOT, output_dir=args.output_dir
             )
             for name, path in outputs.items():
                 print(f"{name}: {path}")
+            invalidate_downstream_manifests(
+                args.config,
+                repo_root=REPO_ROOT,
+                after_phase="W14",
+                output_dir=args.output_dir,
+            )
             if args.stage == "panel":
                 return 0
+        if args.stage == "retrieval":
+            active_stage = "retrieval"
+            retrieval, retrieval_path = materialize_state_retrieval(
+                args.config, repo_root=REPO_ROOT, output_dir=args.output_dir
+            )
+            print(f"retrieval_manifest: {retrieval_path}")
+            print(f"status: {retrieval['status']}")
+            invalidate_downstream_manifests(
+                args.config,
+                repo_root=REPO_ROOT,
+                after_phase="W16",
+                output_dir=args.output_dir,
+            )
+            return 0
+        if args.stage == "execution":
+            active_stage = "execution"
+            execution, execution_path = materialize_state_execution(
+                args.config, repo_root=REPO_ROOT, output_dir=args.output_dir
+            )
+            print(f"execution_manifest: {execution_path}")
+            print(f"status: {execution['status']}")
+            invalidate_downstream_manifests(
+                args.config,
+                repo_root=REPO_ROOT,
+                after_phase="W17",
+                output_dir=args.output_dir,
+            )
+            return 0
+        if args.stage == "evidence":
+            active_stage = "evidence"
+            evidence, evidence_path = materialize_full_evidence_manifest(
+                args.config, repo_root=REPO_ROOT, output_dir=args.output_dir
+            )
+            print(f"evidence_manifest: {evidence_path}")
+            print(f"status: {evidence['status']}")
+            return 0
+        active_stage = "model"
         overall, manifest_path = train_transformer_state_folds(
             args.config, repo_root=REPO_ROOT, output_dir=args.output_dir
         )
         print(f"model_manifest: {manifest_path}")
         print(f"status: {overall['status']}")
-        return 0 if overall["status"] == "ready" else 3
-    except (TransformerStatePanelError, TransformerStateError) as exc:
+        invalidate_downstream_manifests(
+            args.config,
+            repo_root=REPO_ROOT,
+            after_phase="W15",
+            output_dir=args.output_dir,
+        )
+        if overall["status"] != "ready":
+            return 3
+        if args.stage == "model":
+            return 0
+        active_stage = "retrieval"
+        retrieval, retrieval_path = materialize_state_retrieval(
+            args.config, repo_root=REPO_ROOT, output_dir=args.output_dir
+        )
+        print(f"retrieval_manifest: {retrieval_path}")
+        print(f"status: {retrieval['status']}")
+        invalidate_downstream_manifests(
+            args.config,
+            repo_root=REPO_ROOT,
+            after_phase="W16",
+            output_dir=args.output_dir,
+        )
+        active_stage = "execution"
+        execution, execution_path = materialize_state_execution(
+            args.config, repo_root=REPO_ROOT, output_dir=args.output_dir
+        )
+        print(f"execution_manifest: {execution_path}")
+        print(f"status: {execution['status']}")
+        invalidate_downstream_manifests(
+            args.config,
+            repo_root=REPO_ROOT,
+            after_phase="W17",
+            output_dir=args.output_dir,
+        )
+        active_stage = "evidence"
+        evidence, evidence_path = materialize_full_evidence_manifest(
+            args.config, repo_root=REPO_ROOT, output_dir=args.output_dir
+        )
+        print(f"evidence_manifest: {evidence_path}")
+        print(f"status: {evidence['status']}")
+        return 0
+    except (
+        TransformerStatePanelError,
+        TransformerStateError,
+        TransformerStatePipelineError,
+        StateRetrievalError,
+        TransformerStateExecutionError,
+    ) as exc:
         try:
-            blocked = write_blocked_transformer_manifests(
-                args.config,
-                repo_root=REPO_ROOT,
-                reason=str(exc),
-                output_dir=args.output_dir,
-            )
-            for name, path in blocked.items():
-                print(f"blocked_{name}: {path}", file=sys.stderr)
+            if active_stage in {"source", "panel", "model"}:
+                blocked = write_blocked_transformer_manifests(
+                    args.config,
+                    repo_root=REPO_ROOT,
+                    reason=str(exc),
+                    output_dir=args.output_dir,
+                )
+                for name, path in blocked.items():
+                    print(f"blocked_{name}: {path}", file=sys.stderr)
+                invalidate_downstream_manifests(
+                    args.config,
+                    repo_root=REPO_ROOT,
+                    after_phase="W15",
+                    output_dir=args.output_dir,
+                )
+            elif active_stage in {"retrieval", "execution", "evidence"}:
+                path = write_blocked_late_stage_manifest(
+                    args.config,
+                    repo_root=REPO_ROOT,
+                    stage=active_stage,
+                    reason=str(exc),
+                    output_dir=args.output_dir,
+                )
+                print(f"blocked_{active_stage}: {path}", file=sys.stderr)
+                if active_stage == "retrieval":
+                    invalidate_downstream_manifests(
+                        args.config,
+                        repo_root=REPO_ROOT,
+                        after_phase="W16",
+                        output_dir=args.output_dir,
+                    )
+                elif active_stage == "execution":
+                    invalidate_downstream_manifests(
+                        args.config,
+                        repo_root=REPO_ROOT,
+                        after_phase="W17",
+                        output_dir=args.output_dir,
+                    )
         except (TransformerStatePanelError, OSError, ValueError):
             pass
         print(f"Transformer-state run failed: {exc}", file=sys.stderr)

@@ -114,5 +114,16 @@
       "entry_drawdown_atr_multiple": [2.5, 3.5],
       "market_crash_return": [-0.04, -0.05]
     }
+  },
+  "selected_jump_guard": {
+    "single_day_jump_down_atr_multiple": 2.0,
+    "entry_drawdown_atr_multiple": 2.5,
+    "market_crash_return": -0.04,
+    "selection_source": "pre_registered_validation_candidate_0"
+  },
+  "fallback_expert_ids": {
+    "full_run_best_guard": "sm",
+    "adaptive_guard": "adaptive_router",
+    "cash_on_unmatched": "cash"
   }
 }

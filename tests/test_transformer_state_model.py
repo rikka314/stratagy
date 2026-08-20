@@ -16,6 +16,7 @@ from model_test.transformer_state_model import (
     build_model_payload,
     evaluate_embedding_availability,
     fit_transformer_fold,
+    restore_transformer_checkpoint,
     torch_dependency_preflight,
     validate_model_feature_schema,
 )
@@ -287,3 +288,52 @@ def test_tiny_fit_uses_validation_checkpoint_when_torch_is_available() -> None:
     assert result.training_log
     assert {entry["selection_role"] for entry in result.training_log} == {"validation"}
     json.dumps(result.payload(TransformerStateConfig(epochs=1, patience=1)))
+
+
+@pytest.mark.skipif(transformer_model.torch is None, reason="optional PyTorch runtime is not installed")
+def test_restore_checkpoint_preserves_embeddings(tmp_path) -> None:
+    candidate = TransformerCandidate(
+        embedding_dim=8,
+        num_heads=2,
+        feedforward_dim=16,
+        dropout=0.0,
+        sequence_length=3,
+    )
+    scaler = FoldLocalSequenceScaler().fit(np.arange(24, dtype=float).reshape(4, 3, 2))
+    model = transformer_model.TransformerStateEncoder(4, 2, candidate, 3)
+    schema = build_embedding_schema(
+        feature_columns=["asset_return_1", "market_volatility_20"],
+        sequence_length=3,
+        embedding_dim=8,
+        scaler=scaler,
+        label_vocabulary=["cash", "sm"],
+        feature_schema_sha256="a" * 64,
+    )
+    checkpoint = tmp_path / "encoder.pt"
+    transformer_model.torch.save(
+        {
+            "state_dict": model.state_dict(),
+            "model_payload": {
+                "selected_candidate": {
+                    "embedding_dim": 8,
+                    "num_layers": 1,
+                    "num_heads": 2,
+                    "feedforward_dim": 16,
+                    "dropout": 0.0,
+                    "sequence_length": 3,
+                },
+                "label_vocabulary": ["cash", "sm"],
+            },
+            "embedding_schema": schema,
+        },
+        checkpoint,
+    )
+
+    restored, restored_scaler, restored_schema = restore_transformer_checkpoint(checkpoint)
+    sequences = np.arange(12, dtype=float).reshape(2, 3, 2)
+
+    assert np.allclose(
+        transformer_model.encode_sequences(model, scaler, sequences),
+        transformer_model.encode_sequences(restored, restored_scaler, sequences),
+    )
+    assert restored_schema == schema

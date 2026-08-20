@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass, field
 import hashlib
 import io
 import math
+from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
@@ -656,7 +657,11 @@ def fit_transformer_fold(
             f"minimum_train_rows={resolved.minimum_train_rows}"
         )
     preflight = torch_dependency_preflight()
-    vocabulary = sorted(set(train_label_values.tolist()))
+    vocabulary_values = set(train_label_values.tolist())
+    if train_expert_utilities is not None and len(train_expert_utilities) == len(train_raw):
+        for index in np.flatnonzero(train_mask):
+            vocabulary_values.update(str(key) for key in train_expert_utilities[index])
+    vocabulary = sorted(vocabulary_values)
     if preflight["status"] != "ready":
         return FoldTrainingResult(
             status="unavailable",
@@ -674,7 +679,9 @@ def fit_transformer_fold(
         raise TransformerStateError("train fold requires at least two available expert labels")
     unknown = sorted(set(validation_label_values.tolist()) - set(vocabulary))
     if unknown:
-        raise TransformerStateError(f"validation contains labels absent from train fold: {unknown}")
+        raise TransformerStateError(
+            f"validation contains labels absent from the train-fold expert schema: {unknown}"
+        )
     train_y = np.asarray([vocabulary.index(str(label)) for label in train_label_values], dtype=np.int64)
     validation_y = np.asarray([vocabulary.index(str(label)) for label in validation_label_values], dtype=np.int64)
     if train_expert_utilities is None or validation_expert_utilities is None:
@@ -906,6 +913,76 @@ def encode_sequences(model: Any, scaler: FoldLocalSequenceScaler, sequences: np.
     return embeddings
 
 
+def restore_transformer_checkpoint(
+    checkpoint_path: str | Path,
+) -> tuple[Any, FoldLocalSequenceScaler, dict[str, Any]]:
+    """Restore a W15 encoder and its fold-local scaler for read-only W16 encoding."""
+
+    if torch is None:
+        raise TransformerStateError("PyTorch is unavailable; cannot restore Transformer checkpoint")
+    path = Path(checkpoint_path)
+    try:
+        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise TransformerStateError(f"could not load Transformer checkpoint: {path}") from exc
+    if not isinstance(checkpoint, Mapping):
+        raise TransformerStateError("Transformer checkpoint payload must be a mapping")
+    payload = checkpoint.get("model_payload")
+    schema = checkpoint.get("embedding_schema")
+    state_dict = checkpoint.get("state_dict")
+    if not isinstance(payload, Mapping) or not isinstance(schema, Mapping) or not isinstance(
+        state_dict, Mapping
+    ):
+        raise TransformerStateError("Transformer checkpoint is missing model/schema/state payloads")
+    selected = payload.get("selected_candidate")
+    vocabulary = payload.get("label_vocabulary")
+    normalization = schema.get("normalization")
+    if not isinstance(selected, Mapping) or not isinstance(normalization, Mapping):
+        raise TransformerStateError("Transformer checkpoint has no selected candidate or scaler")
+    if not isinstance(vocabulary, Sequence) or isinstance(vocabulary, (str, bytes)) or not vocabulary:
+        raise TransformerStateError("Transformer checkpoint has no label vocabulary")
+    try:
+        candidate = TransformerCandidate(**dict(selected))
+        candidate.validate()
+        mean = np.asarray(normalization["mean"], dtype=np.float64)
+        scale = np.asarray(normalization["scale"], dtype=np.float64)
+        missing_rate = np.asarray(normalization["missing_rate"], dtype=np.float64)
+        sequence_shape = [int(value) for value in schema["sequence_shape"]]
+        model_input_shape = [int(value) for value in schema["model_input_shape"]]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TransformerStateError("Transformer checkpoint schema is malformed") from exc
+    if (
+        mean.ndim != 1
+        or scale.shape != mean.shape
+        or missing_rate.shape != mean.shape
+        or len(sequence_shape) != 2
+        or len(model_input_shape) != 2
+        or sequence_shape[1] != len(mean)
+        or model_input_shape != [sequence_shape[0], len(mean) * 2]
+        or np.any(~np.isfinite(mean))
+        or np.any(~np.isfinite(scale))
+        or np.any(scale <= 0)
+    ):
+        raise TransformerStateError("Transformer checkpoint scaler/schema dimensions are inconsistent")
+    scaler = FoldLocalSequenceScaler()
+    scaler.mean_ = mean
+    scaler.scale_ = scale
+    scaler.missing_rate_ = missing_rate
+    scaler.fit_sample_count_ = int(normalization.get("fit_sample_count", 0))
+    model = TransformerStateEncoder(
+        model_input_shape[1],
+        len(vocabulary),
+        candidate,
+        sequence_shape[0],
+    )
+    try:
+        model.load_state_dict(state_dict)
+    except (RuntimeError, TypeError, ValueError) as exc:
+        raise TransformerStateError("Transformer checkpoint state_dict does not match its schema") from exc
+    model.eval()
+    return model, scaler, dict(schema)
+
+
 __all__ = [
     "FoldLocalSequenceScaler",
     "FoldTrainingResult",
@@ -918,6 +995,7 @@ __all__ = [
     "encode_sequences",
     "evaluate_embedding_availability",
     "fit_transformer_fold",
+    "restore_transformer_checkpoint",
     "torch_dependency_preflight",
     "validate_model_feature_schema",
 ]
