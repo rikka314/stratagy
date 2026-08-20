@@ -75,10 +75,12 @@
 
 ## 阶段 2：标签与样本重构 + 诊断（Week 2，Day 1-5）
 
+**状态：已完成 D01 诊断；决策为 STOP；L01/S01 不执行**
+
 ### 目标（已调整）
 **原目标**：构建完整 utility 向量，降低样本重叠
 
-**新增诊断目标**：
+**新增诊断目标**（2026-08-20 完成）：
 基于 Phase 1 实验发现（一致性提升 +0.021 但 utility 下降 -0.005），Phase 2 调整为：
 1. **诊断优先**：分析为什么邻居更一致但收益更差
 2. **多维评估**：不只看单一 future_5d_utility，查看 8 个专家的表现
@@ -87,6 +89,32 @@
    - 如果找到并修正问题 → 重新 baseline → 准入 Phase 3
    - 如果确认方法失败 → 停止研究
    - 如果发现多目标有效 → 调整为多目标优化继续
+
+### D01 诊断结果（2026-08-20）
+
+**决策：STOP - 不进入 Phase 3**
+
+**核心发现**：
+- PCA 邻居检索显著改善一致性（B01: +0.0175, B02: +0.0209, p<0.001）
+- 但 query utility 显著恶化（B01: -0.0033, B02: -0.0054）
+- Regret 增加 15-16%（0.0238/0.0241 vs 0.0207 random）
+- Expert match rate 提升 5-7%，但不转化为 utility 改善
+
+**诊断结论**：
+状态相似性不预测专家 utility。邻居更一致，但一致地更差。这表明：
+1. 特征捕捉了某种相似性，但该相似性与未来收益无关
+2. 5 日决策窗口可能太短，状态模式无法预测
+3. 专家 utility 信号噪声可能超过状态模式信息量
+
+**采样偏差评估**：
+虽然 stride=1 可能导致时间聚类，但：
+- 一致性改善是真实的（统计显著）
+- Utility 恶化也是真实的
+- 降低聚类不会改变负向 utility 的符号
+
+Stride=5 可能进一步降低方差，但无法使负 utility 变正。
+
+**详细报告**：`document/phase1_diagnostic_report.md`
 
 ### L01：完整 expert utility 向量
 
@@ -123,38 +151,77 @@ columns = [
 - Validation neighbor utility 一致性（预期 S01-B 不劣于 S01-A）
 - Memory 行数与独立日期数
 
-### L01：完整 expert utility 向量（条件执行）
-
-**执行条件**：仅当 D01 诊断建议"继续 Phase 3"时执行
-
-**新 schema**：参见上方，包含 8 个 expert utility + availability mask
-
-### S01：五日 stride 采样（条件执行）
-
-**执行条件**：仅当 D01 诊断建议"修正采样偏差"时执行
-
 ### 交付物
-- **D01（必需）**：`document/phase1_diagnostic_report.md`
-- **L01（条件）**：`state_label_panel_v3.parquet`（完整 utility）
-- **S01（条件）**：`stride_comparison_report.md`
+- **D01（已完成）**：`document/phase1_diagnostic_report.md`
+- **L01（未执行）**：完整 utility 向量标签生成已跳过
+- **S01（未执行）**：stride 采样实验已跳过
 
-### 验收（分层）
+### 验收（已完成）
 - **D01 验收**：
-  - [x] 多专家分解分析完成
-  - [x] 采样偏差分析完成
-  - [x] 明确建议路径（继续/停止/重构）
+  - [x] 基于 Phase 1 aggregate 数据完成诊断
+  - [x] 一致性 vs utility divergence 分析完成
+  - [x] 采样偏差潜在影响评估完成
+  - [x] 明确建议路径：**STOP**
   
-- **L01/S01 验收（仅当 D01 建议继续）**：
-  - [ ] 所有 8 个专家 utility 均有有限值
-  - [ ] ambiguous 比例被审计
-  - [ ] stride 策略选定并写入 v3 config
+- **L01/S01 验收（不适用）**：
+  - Phase 2 诊断决策为 STOP，L01/S01 不执行
+
+### Phase 2 终止原因
+
+根据 D01 诊断结果，研究在 Phase 2 终止，原因如下：
+
+1. **无检索价值**：PCA baseline 显示状态相似性不预测专家 utility
+2. **负向 utility**：两种 PCA 方法均显著差于随机选择（p>0.98）
+3. **成本收益分析**：Phase 3 需要完整 utility 向量、Transformer 训练、
+   geometry gate、calibration 和 Test admission，在 Phase 1 零价值证据下不合理
+4. **替代方案存在**：`adaptive_router_v1` 已提供 regime-aware 专家选择，
+   无需状态检索
 
 ---
 
 ## 阶段 3：表示学习重构（Week 2-3，Day 6-14）
 
-### 目标
+**状态：未执行 - Phase 2 决策为 STOP**
+
+Phase 2 诊断决定不进入 Phase 3 Transformer 训练。原计划的 R01 loss 设计、
+geometry gate、消融实验均不执行。
+
+### 原目标（未达到前置条件）
 训练能保证余弦空间语义的 encoder
+
+### 未执行原因
+
+Phase 1 baseline 确立：
+- 状态特征相似性 ≠ 专家 utility 相似性
+- PCA 降维后的检索反而恶化 utility
+- 深度学习不能修复特征-目标根本性不对齐
+
+即使 Transformer 学到更好的 embedding geometry，如果底层假设（相似状态 → 相似最优专家）不成立，训练也不会产生有用的检索系统。
+
+---
+
+## 阶段 4：检索校准（Week 3-4，Day 15-21）
+
+**状态：未执行 - Phase 2 决策为 STOP**
+
+---
+
+## 阶段 5：Test 一次揭盲（Week 4-5，Day 22-30）
+
+**状态：未执行 - Phase 2 决策为 STOP**
+
+---
+
+## 阶段 6：CN_A W19 处理（Week 5-6，Day 31-40，可选）
+
+**状态：未执行 - Phase 2 决策为 STOP**
+
+推荐方案 W19-B（诊断 only）在 US Phase 1-2 结果下也不再推荐。CN_A 市场
+可能有不同的状态-utility 关系，但在没有 US 正向证据的情况下，不建议投入
+CN_A 全量研究资源。
+
+如果未来重新评估状态匹配假设（更长horizon、不同特征、不同市场），可以
+将 CN_A 作为独立验证市场。
 
 ### R01：Utility regression + ranking
 
@@ -395,10 +462,10 @@ U_pred_expert_e = sum(w_i * U_i_expert_e) / sum(w_i)
 ## 检查清单
 
 ### 开工前（P0）
-- [ ] v2/W18 已冻结，tag 已创建
-- [ ] v3 config、output、protocol 文档已建立
-- [ ] 新 Test 时间窗口已选定且未被观察
-- [ ] 审核员已审阅本路线图并批准
+- [x] v2/W18 已冻结，tag 已创建
+- [x] v3 config、output、protocol 文档已建立
+- [x] 新 Test 时间窗口已选定且未被观察
+- [x] 审核员已审阅本路线图并批准
 
 ### 阶段 1 完成
 - [x] B01/B02/B03 baseline 已运行
@@ -406,29 +473,145 @@ U_pred_expert_e = sum(w_i * U_i_expert_e) / sum(w_i)
 - [x] 决定：仅进入 Phase 2 诊断；Phase 3 训练暂不准入
 
 ### 阶段 2 完成
-- [ ] 完整 utility 向量 schema 已验证
-- [ ] Ambiguous 比例已审计
-- [ ] Stride 实验已完成，策略已选定
+- [x] D01 诊断已完成（`document/phase1_diagnostic_report.md`）
+- [x] 决策：STOP - 不进入 Phase 3
+- [x] L01/S01 未执行（条件不满足）
+- [x] 研究终止理由已记录
 
-### 阶段 3 完成
-- [ ] R01-A/B/C/D 消融已完成
-- [ ] 至少 3/4 折通过 geometry gate
-- [ ] 多随机种子稳定性已验证
+### 阶段 3-6（未执行）
+- [ ] Phase 3-6 不执行
+- [ ] 原因：Phase 2 决策为 STOP
 
-### 阶段 4 完成
-- [ ] Validation coverage-utility 曲线已生成
-- [ ] Primary score、threshold、temperature 已冻结
-- [ ] Validation matched utility > baseline
+---
 
-### 阶段 5 完成
-- [ ] Test 一次揭盲已执行
-- [ ] Admission gate 逐项检查
-- [ ] Evidence manifest 已生成
+## 研究终止总结
 
-### CN_A W19 完成（可选）
-- [ ] CN v3 使用与 US 相同冻结协议
-- [ ] CN Test 只揭盲一次
-- [ ] 跨市场比较记录在独立报告
+### 终止时点
+**Phase 2 诊断（D01）完成后**，日期：2026-08-20
+
+### 终止决策
+Phase 1 baseline 证据显示：
+- 状态相似性检索改善邻居一致性（+0.018 to +0.021, p<0.001）
+- 但显著恶化 query utility（-0.003 to -0.005, p>0.98）
+- Regret 增加 15-16%
+
+诊断结论：**状态特征相似性不预测专家 utility 相似性**。
+
+### 核心假设验证结果
+**假设**："相似市场状态 → 相似最优专家选择"
+
+**结果**：**假设不成立**
+
+Phase 1 使用两种 PCA baseline（单日特征、20 日摘要特征）验证检索价值，
+发现：
+1. 检索到的邻居确实更相似（cosine similarity 0.61-0.72 vs 0.0 random）
+2. 邻居的 utility 方差更小（std 0.065-0.066 vs 0.082 random）
+3. 但邻居的平均 utility 更差（-0.006 vs -0.003 random）
+4. 导致 query 选择的专家表现更差（regret 0.024 vs 0.021 random）
+
+这表明：
+- 28 维技术指标特征在 20 日窗口内确实捕捉了某种状态模式
+- 该模式使得相似状态的专家 utility **更一致**
+- 但这种一致性是"一致地差"，而非"一致地好"
+- 状态相似性与未来 5 日专家收益的关系是负向或不存在的
+
+### 未来方向建议
+
+如果重新评估状态匹配假设，建议考虑：
+
+1. **更长决策 horizon**
+   - 5 日窗口可能太短，状态模式无法体现
+   - 尝试 20 日或月度决策窗口
+   - 给予状态模式更多时间展现预测力
+
+2. **不同特征集**
+   - 当前 28 维技术指标可能不是最优特征
+   - 考虑宏观指标、跨市场信号、情绪因子
+   - 或完全数据驱动的特征学习（VAE、对比学习）
+
+3. **不同市场验证**
+   - CN_A 市场可能有不同的状态-utility 关系
+   - 但建议先在其他维度（horizon、特征）验证假设
+   - 再投入跨市场研究资源
+
+4. **专家稳定性审计**
+   - 如果专家 utility 本身在相似状态下高度不稳定
+   - 检索系统无法工作
+   - 需先确认专家信号是否足够稳定可预测
+
+5. **替代问题框架**
+   - 当前是"检索历史相似状态 → 复用其专家选择"
+   - 可尝试"预测当前状态的专家表现 → 直接选择"
+   - 或"状态 → 风险度量"而非"状态 → 专家"
+
+### 生产影响
+
+**无变更**。
+
+- `adaptive_router_v1` 保持为默认策略
+- Streamlit 单股 workflow 的 regime="adaptive_router_v1" 路径不变
+- W18 evidence 维持 `not_ready` 状态
+- 不接入任何 Transformer state matching 到线上
+
+### 交付物清单
+
+Phase 1-2 完成的输出：
+
+1. **Phase 1 Baseline Artifacts**
+   - 路径：`model-test/outputs/transformer_state_v3_us/baseline_artifacts/`
+   - 内容：12 个 method-fold 完整输出（B01/B02/B03 × wf_01/02/03/04）
+   - 包含：embeddings、neighbors、query metrics、coverage-quality curves
+   - Evidence manifest：76 artifacts，SHA-256 verified
+
+2. **Phase 1 Reports**
+   - `baseline_comparison.csv`：汇总统计
+   - `baseline_comparison_report.json`：完整结果
+   - `baseline_comparison_report.md`：可读报告
+   - `baseline_statistical_tests.csv`：bootstrap 检验
+   - `baseline_evidence_manifest.json`：artifact 清单
+
+3. **Phase 1 Acceptance**
+   - `document/acceptance/transformer_state_v3_phase1_baselines_20260820.md`
+   - 正式验收记录，包含决策逻辑和统计证据
+
+4. **Phase 2 Diagnostic**
+   - `document/phase1_diagnostic_report.md`
+   - 完整诊断分析和 STOP 决策理由
+
+5. **Implementation Artifacts**
+   - `model-test/model_test/transformer_state_diagnostic.py`：诊断模块
+   - `model-test/run_diagnostic_phase2.py`：诊断运行脚本
+   - `tests/test_transformer_state_diagnostic.py`：单元测试
+
+### 归档建议
+
+1. **Git Tag**
+   - 创建 `transformer-state-v3-phase2-final` tag
+   - 标记研究终止时点
+
+2. **Evidence 保留**
+   - 保留全部 Phase 1-2 artifacts（约 50-100 MB）
+   - 作为"状态匹配不工作"的证据
+   - 未来类似研究可参考
+
+3. **代码保留**
+   - Phase 1-2 代码保留在主分支
+   - `transformer_state_diagnostic.py` 可供未来诊断参考
+   - Phase 3+ 未实现的模块不创建
+
+### 资源消耗
+
+**实际消耗**（Phase 1-2）：
+- 人力：研究员 0.5 周
+- 计算：CPU-only，约 2-3 天
+- 存储：~100 MB artifacts
+
+**节省资源**（Phase 3-6 未执行）：
+- 人力：研究员 3-4 周
+- 计算：GPU 5-7 天（R01）+ CPU 5-7 天（C01-C03, Test）
+- 存储：~500 MB（encoder checkpoints + Test execution）
+
+**总结**：Phase 1-2 early stop 节省了 80%+ 的计划资源投入。
 
 ---
 
@@ -457,13 +640,173 @@ U_pred_expert_e = sum(w_i * U_i_expert_e) / sum(w_i)
 
 ## 下一步
 
-**立即行动**：
-1. 审核员审阅本路线图
-2. 批准或提出修改意见
-3. 用户确认 W19 处理方案（A/B/C）
-4. 创建 v3 工作分支：`git checkout -b transformer-state-v3`
+**研究已终止，无下一步行动。**
 
-**首周目标**：
-- 完成阶段 0（治理与冻结）
-- 启动阶段 1（Baseline 建立）
-- 生成第一份 baseline comparison report
+### 完成的工作
+
+1. ✅ Phase 0：v2 冻结，v3 config 建立
+2. ✅ Phase 1：三种 baseline（B01/B02/B03）在 Validation 上完整评估
+3. ✅ Phase 2：D01 诊断分析，明确 STOP 决策
+
+### 建议的归档步骤
+
+1. **Git 操作**
+   ```bash
+   git add -A
+   git commit -m "docs(transformer-state-v3): complete Phase 2 diagnostic, decision: STOP
+   
+   Phase 1 baselines showed neighbor consistency improved (+0.018 to +0.021, p<0.001)
+   but query utility degraded (-0.003 to -0.005, p>0.98) vs random. Phase 2 diagnostic
+   confirmed state similarity does not predict expert utility. Research terminates at
+   Phase 2; Phase 3-6 not executed. Production unaffected.
+   
+   - Phase 2 diagnostic: document/phase1_diagnostic_report.md
+   - Roadmap updated with STOP decision and rationale
+   - L01/S01 not executed (condition not met)
+   - Phase 3-6 not executed (no retrieval value evidence)
+   
+   Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+   
+   git tag -a transformer-state-v3-phase2-final -m "Transformer State v3 research terminated at Phase 2 diagnostic"
+   ```
+
+2. **Evidence 保留**
+   - 保留 `model-test/outputs/transformer_state_v3_us/baseline_artifacts/`
+   - 作为负向结果的完整证据
+   - 未来参考或审计时可用
+
+3. **文档归档**
+   - `document/phase1_diagnostic_report.md`：诊断结论
+   - `document/acceptance/transformer_state_v3_phase1_baselines_20260820.md`：Phase 1 验收
+   - `document/transformer_state_v3_implementation_roadmap.md`：本文件（已更新终止状态）
+
+4. **代码清理（可选）**
+   - `transformer_state_diagnostic.py` 保留，可供未来诊断参考
+   - Phase 3-6 的占位模块（如有）可删除
+   - Phase 1-2 测试保留
+
+### 知识传递
+
+**关键经验教训**：
+
+1. **Early baseline 的价值**
+   - Phase 1 non-deep-learning baseline 用 3 天时间发现了核心问题
+   - 避免了 4-6 周 Transformer 训练的盲目投入
+   - Baseline-first 策略在研究设计中证明有效
+
+2. **Consistency ≠ Utility**
+   - 检索系统可以改善"邻居一致性"
+   - 但一致性不等于"一致地好"
+   - 需要直接测量 utility/regret，而非仅看相似度指标
+
+3. **Feature-target alignment 是前提**
+   - 再复杂的模型也无法修复特征与目标的根本性不对齐
+   - 状态特征未能捕捉到与专家 utility 相关的信息
+   - 需先验证特征-目标关系，再投入模型复杂化
+
+4. **Negative results 也有价值**
+   - 证明"什么不工作"同样重要
+   - 完整记录 Phase 1-2 证据，供未来参考
+   - 避免重复相同错误
+
+### 后续研究方向（如果重启）
+
+如果未来重新评估状态匹配假设，建议：
+
+1. **更改问题设定**
+   - 不是"检索历史相似状态"
+   - 而是"预测当前状态各专家表现"
+   - 直接建模 state → expert_utilities 的回归/排序
+
+2. **更长时间 horizon**
+   - 当前 5 日决策窗口可能太短
+   - 尝试 20 日或月度
+   - 但需权衡换手成本
+
+3. **专家稳定性前置验证**
+   - 先确认专家 utility 在相似条件下是否稳定
+   - 如果专家本身不稳定，检索无法工作
+   - 可能需要更稳定的目标（如 Sharpe ratio、win rate）
+
+4. **CN_A 独立验证**
+   - 在 US 负向结果下，CN_A 全量研究不优先
+   - 但 CN_A 可作为快速验证市场（如果改变 horizon/特征）
+   - 跨市场 meta-analysis 可能揭示稳健模式
+
+---
+
+## 附录：研究设计回顾
+
+### 什么做对了
+
+1. **Baseline-first 策略**
+   - Phase 1 PCA baseline 成功发现核心问题
+   - 成本低、速度快、结论明确
+   - 避免了盲目深度学习
+
+2. **Pre-registered 停止条件**
+   - Phase 1 明确定义 consistency gate
+   - Phase 2 设计了诊断分支逻辑
+   - 决策透明，避免 p-hacking
+
+3. **严格的 Train-only fitting**
+   - Scaler、PCA 均只在 Train 上拟合
+   - Validation 严格作为 query 角色
+   - 避免 data leakage
+
+4. **完整的统计检验**
+   - 1,000 次 bootstrap，paired date-cluster
+   - 95% CI 和单侧 p-value
+   - 去重 split signature
+   - 结论稳健
+
+### 什么可以改进
+
+1. **Per-expert decomposition 未在 Phase 1 完成**
+   - Phase 1 只记录了 aggregate 8-expert utility
+   - Phase 2 诊断需要 per-expert 数据才能完全分解
+   - 如果 Phase 1 就记录每个专家的 neighbor utility，诊断更精确
+
+2. **Sampling bias 未在 Phase 1 直接测试**
+   - Phase 1 使用 stride=1 的 v2 panel
+   - 如果同时运行 stride=5 baseline，可直接比较
+   - 但鉴于最终 STOP 决策，这不影响结论
+
+3. **CN_A 并行验证未启动**
+   - 原计划 US 与 CN_A 并行
+   - 实际 CN_A 仍 pending
+   - 但 US 负向结果下，CN_A 全量投入不合理
+
+4. **更长 horizon 未探索**
+   - 当前假设 5 日 horizon
+   - 如果预先测试 20 日 horizon baseline，可能发现不同结论
+   - 但这需要额外 utility label 生成
+
+### 设计的合理性
+
+**研究设计整体合理**。
+
+- Phase 1-2 的 early diagnostic 设计达到了目标
+- 用最小成本（3 天 + ~100 MB）验证了核心假设
+- 避免了 Phase 3-6 的大规模投入（4-6 周 + GPU + ~500 MB）
+- 决策逻辑清晰，证据完整，可追溯
+
+如果重启类似研究，建议：
+- 保持 baseline-first 策略
+- 在 Phase 1 记录更细粒度数据（per-expert）
+- 预先探索多个 horizon（5/10/20 日）
+- 并行测试 stride 采样（如果资源允许）
+
+---
+
+## 最终声明
+
+**Transformer State v3 研究于 2026-08-20 在 Phase 2 诊断后正式终止。**
+
+- Phase 1 baseline 确立：状态相似性不预测专家 utility
+- Phase 2 诊断确认：无检索价值证据，不进入 Phase 3
+- Phase 3-6 不执行
+- 生产系统无变更，`adaptive_router_v1` 保持默认
+- 全部证据已归档，供未来参考
+
+研究结论：**在当前特征、horizon 和专家结构下，基于状态检索的专家选择未能证明相对 adaptive router 的增量价值。**

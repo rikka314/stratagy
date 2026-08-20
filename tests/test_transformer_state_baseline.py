@@ -1,5 +1,7 @@
 """Tests for transformer_state_baseline module."""
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -7,6 +9,7 @@ import pytest
 from model_test.transformer_state_baseline import (
     BaselineConfig,
     BaselineError,
+    DEFAULT_EXPERT_IDS,
     _compute_summary_features,
     _cosine_similarity_topk,
     _extract_single_day_features,
@@ -17,6 +20,7 @@ from model_test.transformer_state_baseline import (
     run_pca_baseline,
     run_random_baseline,
 )
+from run_baseline_phase1 import REPO_ROOT, _sha256_file, load_baseline_inputs
 
 
 @pytest.fixture
@@ -84,6 +88,21 @@ def test_compute_summary_features(sample_panel):
         panel, feature_columns, summary_ops=("mean", "std")
     )
     assert features_custom.shape == (len(panel), len(feature_columns) * 2)
+
+
+def test_summary_trend_and_half_difference_match_protocol():
+    """Trend is a slope; diff_half is second-half mean minus first-half mean."""
+
+    sequence = np.repeat(np.arange(20, dtype=float)[:, None], 28, axis=1)
+    panel = pd.DataFrame({"sequence": [sequence]})
+    summaries = _compute_summary_features(
+        panel,
+        list(range(28)),
+        summary_ops=("trend", "diff_half"),
+    )
+
+    assert np.allclose(summaries[0, :28], 1.0)
+    assert np.allclose(summaries[0, 28:], 10.0)
 
 
 def test_fit_pca_baseline():
@@ -290,3 +309,98 @@ def test_baseline_result_to_dict(sample_panel):
     # Large arrays should not be in the dict
     assert "embeddings_train" not in result_dict
     assert "embeddings_query" not in result_dict
+
+
+def test_real_panel_contract_uses_sequence_values_and_full_utility_vector():
+    """The baseline must consume the frozen v2 panel schema, not only fixtures."""
+
+    rng = np.random.default_rng(7)
+    rows = []
+    for index in range(40):
+        sequence = rng.normal(size=(20, 28))
+        signal = float(sequence[-1, 0])
+        utilities = {expert: -0.01 for expert in DEFAULT_EXPERT_IDS}
+        utilities["naive"] = signal * 0.01
+        utilities["cash"] = 0.0
+        rows.append(
+            {
+                "sequence_values": np.asarray(
+                    [np.asarray(day, dtype=float) for day in sequence], dtype=object
+                ),
+                "expert_utilities_json": json.dumps(utilities, sort_keys=True),
+                "sequence_end_date": pd.Timestamp("2025-01-01")
+                + pd.Timedelta(days=index),
+                "symbol": f"S{index % 5}",
+            }
+        )
+    panel = pd.DataFrame(rows)
+    result = run_pca_baseline(
+        config=BaselineConfig(method="pca_single_day", top_k=5),
+        panel_train=panel.iloc[:30].reset_index(drop=True),
+        panel_query=panel.iloc[30:].reset_index(drop=True),
+        feature_columns=list(range(28)),
+        fold_id="wf_01",
+    )
+
+    assert len(result.query_metrics) == 10
+    assert {
+        "utility_consistency",
+        "query_selected_utility",
+        "query_oracle_utility",
+        "regret",
+    }.issubset(result.query_metrics.columns)
+    assert np.isfinite(result.query_metrics["regret"]).all()
+
+
+def test_load_baseline_inputs_verifies_frozen_panel_manifest(tmp_path):
+    """CLI integration loads the real artifact names and rejects hash drift."""
+
+    source_dir = tmp_path / "frozen_panel"
+    source_dir.mkdir()
+    utilities = json.dumps({expert: 0.0 for expert in DEFAULT_EXPERT_IDS})
+    panel = pd.DataFrame(
+        {
+            "sequence_end_date": [pd.Timestamp("2025-01-01")],
+            "sequence_values": [np.zeros((20, 28)).tolist()],
+            "expert_utilities_json": [utilities],
+            "split_memberships_json": ['[{"split_id":"wf_01","role":"train"}]'],
+            "symbol": ["AAPL"],
+            "market": ["US"],
+        }
+    )
+    sequence_path = source_dir / "state_sequence_panel.parquet"
+    schema_path = source_dir / "state_feature_schema.json"
+    splits_path = source_dir / "transformer_state_walk_forward_splits.csv"
+    panel.to_parquet(sequence_path, index=False)
+    schema_path.write_text(
+        json.dumps({"feature_columns": [f"f{i}" for i in range(28)]}),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [{"split_id": "wf_01", "train_start": "2020-01-01", "train_end": "2024-01-01", "validation_start": "2025-01-01", "validation_end": "2025-02-01"}]
+    ).to_csv(splits_path, index=False)
+    manifest = {
+        "status": "ready",
+        "market": "US",
+        "artifacts": {
+            "state_sequence_panel": {"path": sequence_path.name, "sha256": _sha256_file(sequence_path)},
+            "feature_schema": {"path": schema_path.name, "sha256": _sha256_file(schema_path)},
+            "walk_forward_splits": {"path": splits_path.name, "sha256": _sha256_file(splits_path)},
+        },
+    }
+    manifest_path = source_dir / "state_panel_manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    config = {
+        "market": "US",
+        "baseline": {
+            "source_panel_output_dir": str(source_dir.relative_to(REPO_ROOT)),
+            "source_panel_manifest_sha256": _sha256_file(manifest_path),
+        },
+    }
+
+    loaded_panel, schema, splits, _, loaded_manifest_path = load_baseline_inputs(config)
+
+    assert len(loaded_panel) == 1
+    assert len(schema["feature_columns"]) == 28
+    assert splits.iloc[0]["split_id"] == "wf_01"
+    assert loaded_manifest_path == manifest_path

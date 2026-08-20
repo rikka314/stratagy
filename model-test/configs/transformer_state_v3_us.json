@@ -93,6 +93,8 @@
   },
   "baseline": {
     "required": true,
+    "source_panel_output_dir": "model-test/outputs/transformer_state_us",
+    "source_panel_manifest_sha256": "bc791ff9a0fec54d049d6514ad6e890ac9f1bd72d146c05830af3e72632802b0",
     "methods": ["pca_single_day", "pca_summary_20d", "random_neighbor"],
     "pca_variance_threshold": 0.95,
     "summary_features": ["last", "mean", "std", "min", "max", "trend", "diff_half"]

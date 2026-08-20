@@ -1,6 +1,6 @@
 # Strategy Pipeline Interfaces
 
-> 最近更新：2026-08-18
+> 最近更新：2026-08-20
 > 适用范围：`core/data.py` 到 `core/backtest.py` 的主链，以及 `core/regime_model.py`、`core/adaptive_regime.py`、FA / ML / baseline / evaluation / optimizer。
 
 ## 共享前提
@@ -282,5 +282,6 @@ Dean's Award 正式研究配置采用市场内独立推荐：US 与 CN_A 分别�
 - 多股组合通过 `run_portfolio_simulation()` 在多股页内部消费核心链，不复用单股 artifact。
 - 动态专家组合 Phase A–F 仅存在于 `model-test`。`prepare_moe_baseline.py` 消费已冻结的 Window 3B / full-run 产物，使用已扣费的 `strategy_return` 且不重复扣成本；`prepare_expert_panel.py` 在同一 source lock 下生成带 purged walk-forward / embargo 的逐日专家面板，缺失专家显式标记 unavailable；`run_dynamic_ensemble.py` 仅消费 ready Phase-A/B source lock，训练 LightGBM soft-gating、输出受约束权重和三项冻结对照；`run_dynamic_ensemble_v2.py` 额外验证 ready Phase-C source lock，以 lower/median quantile LightGBM 计算保守分数、可追溯降级和风险约束 / 消融；`run_dynamic_ensemble_online.py` 则以 hash-verified Phase-D 权重为初始状态，在完整反馈下回放 Hedge / EG；`run_dynamic_ensemble_bandit.py` 只消费 ready Phase-E allocations，把每个已约束 allocation 作为 action，使用所选动作的反馈回放 LinUCB / contextual Thompson Sampling。Phase F 不使用未选动作回报更新，Cash 始终可选，且所有路径均不接入 UI；adaptive control 只有在 artifact 的 market 与研究 config 匹配时才可用。2026-08-18 W11 admission 已完成四折比较：US 1/4、CN_A 2/4，不满足 3/4，W12 保持 blocked。详细 contract 见 `document/interfaces/dynamic-ensemble-research.md`。
 - Transformer-state v2 W13-W18 只存在于 `model-test`。`run_transformer_state.py` 逐层验证 market-specific Phase-A/B、full-run、snapshot、config/code、fold encoder 和 exact-daily hashes；`trades.csv` 区间始终不能替代精确逐日 `target_position`/turnover。US 已用附加且 hash-locked 的 `60×7=420` 份冻结专家 exact-daily 与 60 份 adaptive exact-daily完成四折链：W15 仅 train-fold fit/validation checkpoint，W16 memory 仅含 strictly-prior train rows，W17 以决策日仓位在 `t+1` 生效并执行严格五日 hold/next-day jump guard，W18 验证 daily/summary/turnover 可重建后封存 `ready` evidence。当前 primary balanced coverage 四折均为 0%，触发 `<30%` 停止条件；W20 不准入，不改默认策略或 UI。PyTorch `2.13.0+cpu` 仅列于 `requirements-research.txt`，生产依赖不受影响。
+- Transformer-state v3 Phase 1 同样仅存在于 `model-test`。`run_baseline_phase1.py` 从 config 明确指定并 hash-verify 冻结 v2 `state_panel_manifest.json`，按 `split_memberships_json` 读取 strictly-prior Train / Validation rows，消费真实 `sequence_values` 与完整 `expert_utilities_json`；B01/B02 的 scaler、缺失值均值和 PCA 只在 Train 拟合，B03 使用固定随机种子。每折输出 embeddings、Top-15 neighbors、query-level utility/regret、coverage-quality 与 metadata，汇总输出 paired date-cluster bootstrap 和 evidence manifest。2026-08-20 US run 的一致性 gate 通过，但 query-selected utility 未优于随机，因此只准入 Phase 2 诊断，不准入 Phase 3 训练或任何线上接入。
 
 如果任务只是在 UI 层消费这些输出，优先读 `document/interfaces/frontend-contracts.md` 或 `document/interfaces/single-stock-workflow.md`，不要直接深挖全部核心模块。
