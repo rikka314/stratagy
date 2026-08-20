@@ -2,7 +2,7 @@
 
 > 日期：2026-08-20
 > 基于：transformer_state_similarity_diagnosis_and_v3_solution_review_20260820.md
-> 状态：待审批
+> 状态：Phase 1 实验完成；仅准入 Phase 2 诊断，尚未准入 Phase 3 训练
 > 预计周期：4-6 周
 
 ---
@@ -59,12 +59,34 @@
 ### 停止条件
 如果 B01/B02 在 Validation 上无法证明邻居 utility 一致性优于 B03，**暂停 Transformer 开发**，重新评估产品假设。
 
+### 实验结果（2026-08-20）
+
+- B01 utility consistency 相对 B03 改善 `+0.017500`，95% CI
+  `[0.015764, 0.019229]`，单侧 `p=0.000999`。
+- B02 utility consistency 相对 B03 改善 `+0.020940`，95% CI
+  `[0.016201, 0.024814]`，单侧 `p=0.000999`。
+- 正式一致性停止条件未触发，但实际 Validation query-selected utility
+  未改善：B01 相对 B03 为 `-0.003283`，B02 为 `-0.005354`。
+- 因此只准入 Phase 2 的 label / stride 重构诊断；Phase 3 训练前必须新增并通过
+  预声明的 query utility / regret gate。正式记录见
+  `document/acceptance/transformer_state_v3_phase1_baselines_20260820.md`。
+
 ---
 
-## 阶段 2：标签与样本重构（Week 2，Day 1-5）
+## 阶段 2：标签与样本重构 + 诊断（Week 2，Day 1-5）
 
-### 目标
-构建完整 utility 向量，降低样本重叠
+### 目标（已调整）
+**原目标**：构建完整 utility 向量，降低样本重叠
+
+**新增诊断目标**：
+基于 Phase 1 实验发现（一致性提升 +0.021 但 utility 下降 -0.005），Phase 2 调整为：
+1. **诊断优先**：分析为什么邻居更一致但收益更差
+2. **多维评估**：不只看单一 future_5d_utility，查看 8 个专家的表现
+3. **采样修正**：实验 stride 策略，识别采样偏差
+4. **决策分支**：
+   - 如果找到并修正问题 → 重新 baseline → 准入 Phase 3
+   - 如果确认方法失败 → 停止研究
+   - 如果发现多目标有效 → 调整为多目标优化继续
 
 ### L01：完整 expert utility 向量
 
@@ -101,15 +123,31 @@ columns = [
 - Validation neighbor utility 一致性（预期 S01-B 不劣于 S01-A）
 - Memory 行数与独立日期数
 
-### 交付物
-- `state_label_panel_v3.parquet`（完整 utility）
-- `stride_comparison_report.md`
-- 选定的 stride 策略写入 v3 config
+### L01：完整 expert utility 向量（条件执行）
 
-### 验收
-- 所有 8 个专家 utility 均有有限值
-- ambiguous 比例被审计并记录原因分布
-- S01-B 的 Train Top-1 q75 显著低于 v2（目标：< 0.995）
+**执行条件**：仅当 D01 诊断建议"继续 Phase 3"时执行
+
+**新 schema**：参见上方，包含 8 个 expert utility + availability mask
+
+### S01：五日 stride 采样（条件执行）
+
+**执行条件**：仅当 D01 诊断建议"修正采样偏差"时执行
+
+### 交付物
+- **D01（必需）**：`document/phase1_diagnostic_report.md`
+- **L01（条件）**：`state_label_panel_v3.parquet`（完整 utility）
+- **S01（条件）**：`stride_comparison_report.md`
+
+### 验收（分层）
+- **D01 验收**：
+  - [x] 多专家分解分析完成
+  - [x] 采样偏差分析完成
+  - [x] 明确建议路径（继续/停止/重构）
+  
+- **L01/S01 验收（仅当 D01 建议继续）**：
+  - [ ] 所有 8 个专家 utility 均有有限值
+  - [ ] ambiguous 比例被审计
+  - [ ] stride 策略选定并写入 v3 config
 
 ---
 
@@ -363,9 +401,9 @@ U_pred_expert_e = sum(w_i * U_i_expert_e) / sum(w_i)
 - [ ] 审核员已审阅本路线图并批准
 
 ### 阶段 1 完成
-- [ ] B01/B02/B03 baseline 已运行
-- [ ] Baseline comparison report 已生成
-- [ ] 决定：继续 Transformer 或降级到 baseline
+- [x] B01/B02/B03 baseline 已运行
+- [x] Baseline comparison report 已生成
+- [x] 决定：仅进入 Phase 2 诊断；Phase 3 训练暂不准入
 
 ### 阶段 2 完成
 - [ ] 完整 utility 向量 schema 已验证
