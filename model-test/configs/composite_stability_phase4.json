@@ -1,0 +1,88 @@
+{
+  "phase": "phase4_cross_fold_admission",
+  "description": "Cross-fold admission testing for composite strategies",
+  "phase3_output_dir": "outputs/phase3_20260822_223619",
+  "phase2_output_dir": "outputs/composite_stability_phase2",
+  "data_path": "../data/demo_factors_output.parquet",
+  "output_dir": "outputs",
+  "market": "US",
+  "base_commission": 0.001,
+  "base_slippage": 0.0005,
+  "folds": [
+    {
+      "fold_id": "fold_01",
+      "train_start": "2020-01-01",
+      "train_end": "2020-06-30",
+      "test_start": "2020-07-01",
+      "test_end": "2020-09-30",
+      "purge_days": 5,
+      "embargo_days": 5
+    },
+    {
+      "fold_id": "fold_02",
+      "train_start": "2020-01-01",
+      "train_end": "2020-07-31",
+      "test_start": "2020-08-01",
+      "test_end": "2020-10-31",
+      "purge_days": 5,
+      "embargo_days": 5
+    },
+    {
+      "fold_id": "fold_03",
+      "train_start": "2020-01-01",
+      "train_end": "2020-08-31",
+      "test_start": "2020-09-01",
+      "test_end": "2020-11-30",
+      "purge_days": 5,
+      "embargo_days": 5
+    },
+    {
+      "fold_id": "fold_04",
+      "train_start": "2020-01-01",
+      "train_end": "2020-09-30",
+      "test_start": "2020-10-01",
+      "test_end": "2020-12-31",
+      "purge_days": 5,
+      "embargo_days": 5
+    }
+  ],
+  "strategy_candidates": [
+    {
+      "variant": "cash",
+      "description": "Cash baseline (zero position)"
+    },
+    {
+      "variant": "composite_only",
+      "description": "Composite with Phase 3 best map and execution"
+    },
+    {
+      "variant": "composite_equal_weight",
+      "description": "Equal-weight composite (no optimization)"
+    },
+    {
+      "variant": "composite_no_interaction",
+      "description": "Composite without interaction terms"
+    }
+  ],
+  "admission_gate": {
+    "min_fold_pass_rate": 0.75,
+    "min_sharpe_ratio": 0.3,
+    "min_sortino_ratio": 0.4,
+    "max_drawdown_threshold": 0.30,
+    "max_volatility": 0.40,
+    "max_cost_to_gross_ratio": 0.50,
+    "max_turnover_multiple": 50.0,
+    "max_near_max_rate": 0.90,
+    "min_mean_exposure": 0.05,
+    "allow_data_quality_issues": false,
+    "allow_pit_violations": false,
+    "allow_audit_failures": false
+  },
+  "notes": [
+    "Phase 4 tests composite strategies across purged folds",
+    "Each fold uses Phase 3 best position map fitted on fold train data",
+    "Admission requires >= 3/4 folds passing all thresholds",
+    "Worst fold must have no data quality/PIT/audit failures",
+    "Advisory strategies will be added after composite_only passes"
+  ]
+}

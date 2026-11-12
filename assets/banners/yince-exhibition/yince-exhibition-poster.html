@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YINCE 展览海报｜黄宇嘉</title>
+  <style>
+    :root {
+      --ivory: #f5ecdd;
+      --paper: #fffaf0;
+      --ink: #1d1a16;
+      --text: #3e3830;
+      --muted: #766b5d;
+      --line: rgba(29, 26, 22, 0.18);
+      --soft-line: rgba(29, 26, 22, 0.09);
+      --terra: #b76543;
+      --terra-ink: #954a31;
+      --terra-soft: #ead0c1;
+      --green: #347a59;
+      --green-soft: #cfe1d5;
+      --ochre: #b88235;
+      --scale: 3;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: calc(1400px * var(--scale));
+      min-width: calc(1400px * var(--scale));
+      height: calc(1900px * var(--scale));
+      min-height: calc(1900px * var(--scale));
+      overflow: hidden;
+      background: var(--ivory);
+    }
+
+    body {
+      color: var(--ink);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
+    .poster {
+      position: relative;
+      width: 1400px;
+      height: 1900px;
+      transform: scale(var(--scale));
+      transform-origin: top left;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 9% 12%, rgba(183, 101, 67, 0.08), transparent 23%),
+        linear-gradient(180deg, #f8f0e4 0%, var(--ivory) 48%, #f1e6d5 100%);
+    }
+
+    .poster::before {
+      content: "";
+      position: absolute;
+      inset: 22px;
+      border: 1px solid rgba(29, 26, 22, 0.22);
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .poster::after {
+      content: "RESEARCH / PRODUCT / EVIDENCE";
+      position: absolute;
+      left: 4px;
+      top: 52%;
+      transform: rotate(-90deg) translateX(-50%);
+      transform-origin: left top;
+      color: rgba(29, 26, 22, 0.34);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.32em;
+      z-index: 21;
+    }
+
+    .background-art {
+      position: absolute;
+      top: 64px;
+      right: -58px;
+      width: 820px;
+      height: 1160px;
+      object-fit: cover;
+      opacity: 0.48;
+      mix-blend-mode: multiply;
+      -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 94%);
+      mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 94%);
+      z-index: 0;
+    }
+
+    .grain {
+      position: absolute;
+      inset: 0;
+      opacity: 0.12;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.15'/%3E%3C/svg%3E");
+      z-index: 19;
+    }
+
+    .shell {
+      position: relative;
+      z-index: 3;
+      width: 100%;
+      height: 100%;
+      padding: 58px 78px 54px;
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+    }
+
+    .topbar {
+      height: 84px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 14px;
+    }
+
+    .brand-crop {
+      position: relative;
+      width: 318px;
+      height: 68px;
+      overflow: hidden;
+      flex: none;
+    }
+
+    .brand-crop img {
+      width: 318px;
+      height: 318px;
+      display: block;
+      transform: translateY(-74px);
+    }
+
+    .identity {
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 5px 18px;
+      align-items: baseline;
+      margin-top: 2px;
+      text-align: right;
+    }
+
+    .identity strong {
+      font-family: "Iowan Old Style", Baskerville, "Songti SC", "STSong", serif;
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .identity span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .identity .wide { grid-column: 1 / -1; }
+
+    .hero {
+      min-height: 240px;
+      display: grid;
+      grid-template-columns: 0.61fr 0.39fr;
+      align-items: end;
+      padding-top: 8px;
+    }
+
+    .hero-copy { align-self: stretch; display: flex; flex-direction: column; justify-content: flex-end; }
+
+    .eyebrow,
+    .section-label,
+    .micro-label {
+      color: var(--terra-ink);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      max-width: 790px;
+      margin-top: 15px;
+      font-family: "Iowan Old Style", Baskerville, "Songti SC", "STSong", serif;
+      font-size: 80px;
+      line-height: 0.98;
+      font-weight: 600;
+      letter-spacing: -0.055em;
+    }
+
+    h1 .quiet { color: rgba(29, 26, 22, 0.58); }
+    h1 .solid { display: block; color: var(--ink); }
+
+    .hero-subtitle {
+      margin-top: 18px;
+      font-size: 20px;
+      font-weight: 650;
+      letter-spacing: 0.03em;
+    }
+
+    .hero-note {
+      align-self: end;
+      justify-self: end;
+      width: 304px;
+      padding: 18px 0 18px 22px;
+      border-left: 2px solid var(--terra);
+      background: linear-gradient(90deg, rgba(245,236,221,.78), rgba(245,236,221,.08));
+    }
+
+    .hero-note p {
+      font-family: "Iowan Old Style", Baskerville, "Songti SC", "STSong", serif;
+      font-size: 20px;
+      line-height: 1.55;
+      font-weight: 600;
+    }
+
+    .hero-note span {
+      display: block;
+      margin-top: 11px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .thesis-grid {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 34px;
+      align-items: stretch;
+    }
+
+    .thesis {
+      padding: 20px 30px 18px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .thesis h2,
+    .section-head h2 {
+      margin-top: 9px;
+      font-family: "Iowan Old Style", Baskerville, "Songti SC", "STSong", serif;
+      font-size: 32px;
+      line-height: 1.15;
+      font-weight: 600;
+    }
+
+    .thesis > p {
+      margin-top: 14px;
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.72;
+    }
+
+    .principles {
+      margin-top: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .principles span {
+      padding: 7px 10px;
+      border: 1px solid rgba(29, 26, 22, 0.25);
+      background: rgba(255,250,240,.44);
+      font-size: 10px;
+      font-weight: 750;
+      letter-spacing: 0.05em;
+    }
+
+    .website {
+      position: relative;
+      min-height: 226px;
+      overflow: hidden;
+      border: 1px solid rgba(29, 26, 22, 0.2);
+      background: var(--paper);
+      box-shadow: 0 20px 42px rgba(65, 47, 30, 0.12);
+    }
+
+    .website img {
+      width: 100%;
+      height: 100%;
+      min-height: 226px;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+    }
+
+    .website::after {
+      content: "LIVE PRODUCT · gfm156.com/strategy";
+      position: absolute;
+      left: 18px;
+      bottom: 14px;
+      padding: 7px 10px;
+      color: var(--paper);
+      background: rgba(29, 26, 22, 0.86);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+    }
+
+    .usage-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .usage-item {
+      min-height: 100px;
+      padding: 15px 19px 14px;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.28);
+    }
+
+    .usage-item:last-child { border-right: 0; }
+    .usage-item b { display: block; font-size: 17px; }
+    .usage-item p { margin-top: 7px; color: var(--muted); font-size: 15px; line-height: 1.4; }
+    .usage-index { color: var(--green); font-size: 10px; font-weight: 850; letter-spacing: .16em; }
+
+    .process-wrap { padding-top: 4px; }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .section-head p {
+      max-width: 510px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.45;
+      text-align: right;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      position: relative;
+    }
+
+    .pipeline::before {
+      content: "";
+      position: absolute;
+      left: 7%;
+      right: 7%;
+      top: 20px;
+      height: 2px;
+      background: var(--ink);
+      opacity: 0.75;
+    }
+
+    .pipe-step {
+      position: relative;
+      padding: 44px 19px 12px 0;
+    }
+
+    .pipe-step::before {
+      content: "";
+      position: absolute;
+      top: 11px;
+      left: 0;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--ivory);
+      border: 4px solid var(--ink);
+      z-index: 2;
+    }
+
+    .pipe-step:nth-child(2)::before,
+    .pipe-step:nth-child(5)::before { border-color: var(--terra); }
+    .pipe-step:nth-child(3)::before,
+    .pipe-step:nth-child(4)::before { border-color: var(--green); }
+
+    .pipe-step h3 { font-size: 16px; }
+    .pipe-step p { margin-top: 7px; color: var(--muted); font-size: 15px; line-height: 1.36; }
+
+    .journey {
+      position: relative;
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 44px;
+      padding: 14px 0 12px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .journey-title h2 {
+      margin-top: 8px;
+      font-family: "Iowan Old Style", Baskerville, "Songti SC", "STSong", serif;
+      font-size: 38px;
+      line-height: 1.18;
+      font-weight: 600;
+    }
+
+    .journey-title p {
+      margin-top: 15px;
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .journey-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+
+    .journey-step {
+      position: relative;
+      min-height: 82px;
+      padding: 11px 0 11px 43px;
+      border-top: 1px solid var(--soft-line);
+    }
+
+    .journey-step:nth-child(1), .journey-step:nth-child(2) { border-top: 0; }
+    .journey-step:last-child { grid-column: 1 / -1; }
+
+    .journey-step .num {
+      position: absolute;
+      left: 0;
+      top: 11px;
+      color: var(--terra-ink);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+    }
+
+    .journey-step h3 { font-size: 15px; line-height: 1.32; }
+    .journey-step p { margin-top: 6px; color: var(--muted); font-size: 15px; line-height: 1.36; }
+    .journey-step.stop h3 { color: var(--terra); }
+    .journey-step.current h3 { color: var(--green); }
+
+    .metrics {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding-top: 18px;
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .metrics-title {
+      position: absolute;
+      top: 7px;
+      left: 22px;
+      color: var(--terra-soft);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    .metric {
+      min-height: 116px;
+      padding: 23px 22px 18px;
+      border-right: 1px solid rgba(255,250,240,.22);
+    }
+
+    .metric:last-child { border-right: 0; }
+    .metric strong { display: block; font-family: "Iowan Old Style", Baskerville, serif; font-size: 40px; font-weight: 600; line-height: 1; }
+    .metric span { display: block; margin-top: 9px; color: rgba(255,250,240,.72); font-size: 15px; line-height: 1.36; letter-spacing: .015em; }
+
+    .footer {
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 2px solid var(--ink);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 112px;
+      gap: 28px;
+      align-items: end;
+    }
+
+    .final-quote {
+      max-width: 1160px;
+      font-family: "Iowan Old Style", Baskerville, "Songti SC", "STSong", serif;
+      font-size: 33px;
+      line-height: 1.38;
+      font-weight: 600;
+    }
+
+    .final-quote em { color: var(--green); font-style: normal; }
+
+    .boundary {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.45;
+      max-width: 1120px;
+    }
+
+    .visit {
+      margin: 0;
+      text-align: center;
+    }
+
+    .visit img {
+      display: block;
+      width: 96px;
+      height: 96px;
+      margin: 0 auto 8px;
+      border: 6px solid var(--paper);
+      background: var(--paper);
+    }
+
+    .visit strong,
+    .visit span {
+      display: block;
+    }
+
+    .visit strong {
+      font-size: 11px;
+      letter-spacing: .12em;
+    }
+
+    .visit span {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 9px;
+      letter-spacing: .04em;
+    }
+
+    @page { size: 42.6cm 57.6cm; margin: 0; }
+
+    @media print {
+      :root { --scale: 1; }
+
+      html,
+      body {
+        width: 42.6cm;
+        min-width: 42.6cm;
+        height: 57.6cm;
+        min-height: 57.6cm;
+        background:
+          radial-gradient(circle at 9% 12%, rgba(183, 101, 67, 0.08), transparent 23%),
+          linear-gradient(180deg, #f8f0e4 0%, var(--ivory) 48%, #f1e6d5 100%);
+      }
+
+      .poster {
+        transform: scale(1.1338582677);
+        transform-origin: top left;
+        margin: 0.3cm;
+        overflow: visible;
+        background: transparent;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="poster" aria-label="YINCE 智能量化策略分析平台作品展海报">
+    <img class="background-art" src="research-path-background.png" alt="">
+    <div class="grain" aria-hidden="true"></div>
+
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand-crop" role="img" aria-label="YINCE">
+          <img src="yince-brand-board.png" alt="">
+        </div>
+        <div class="identity" aria-label="作者信息">
+          <span>Author</span><strong>黄宇嘉 · Steve Huang</strong>
+          <span>School</span><strong>香港中文大学（深圳）· 人工智能学院</strong>
+          <span class="wide">AIE1902 · AI探索活动 · 学生创新作品展示 · 2026</span>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">YINCE · AI Quant Research System</p>
+          <h1><span class="quiet">模型越做越复杂</span><span class="solid">问题终于变得清楚</span></h1>
+          <p class="hero-subtitle">智能量化策略分析平台</p>
+        </div>
+        <aside class="hero-note">
+          <p>我把能想到的方法，<br>几乎都试了一遍。</p>
+          <span>因子、随机搜索、FA、ML、Transformer……每一次失败，都把问题问得更准。</span>
+        </aside>
+      </section>
+
+      <section class="thesis-grid">
+        <article class="thesis">
+          <p class="section-label">Core idea · 核心创意</p>
+          <h2>给每条研究线，<br>一条可以核对的证据路径。</h2>
+          <p>每条研究线记录数据来源、冻结配置、gate 决策与证据状态；可用产物能回到原始证据，缺口则明确标记 pending / unavailable。</p>
+          <div class="principles" aria-label="研究原则">
+            <span>LOCAL DATA FIRST</span><span>WALK-FORWARD</span><span>MARKET ISOLATION</span><span>GATE BEFORE PRODUCT</span>
+          </div>
+        </article>
+        <figure class="website">
+          <img src="yince-live-home.png" alt="YINCE 股票策略分析平台线上首页">
+        </figure>
+      </section>
+
+      <section class="usage-row" aria-label="网站使用方式">
+        <article class="usage-item"><span class="usage-index">01 / HOME</span><b>先看市场，再定问题</b><p>新闻、强势股票与市场镜头建立研究语境。</p></article>
+        <article class="usage-item"><span class="usage-index">02 / SINGLE</span><b>把一只股票拆开看</b><p>搜索或上传，查看净值、回撤与绩效。</p></article>
+        <article class="usage-item"><span class="usage-index">03 / MULTI</span><b>让假设跑过一组股票</b><p>比较相关性、权重、贡献与周期表现。</p></article>
+        <article class="usage-item"><span class="usage-index">04 / EVIDENCE</span><b>从结论走回原始证据</b><p>按实验、gate、manifest 回溯冻结产物。</p></article>
+      </section>
+
+      <section class="process-wrap">
+        <header class="section-head">
+          <div><p class="section-label">Implementation · 实现过程</p><h2>从数据到证据</h2></div>
+          <p>同一核心链贯通网页与离线研究；research-only 不越过产品边界。</p>
+        </header>
+        <div class="pipeline" role="img" aria-label="数据、因子、信号、回测、证据五步流程">
+          <article class="pipe-step"><h3>数据 · DATA</h3><p>双市场行情 · 冻结快照 · 市场上下文</p></article>
+          <article class="pipe-step"><h3>因子 · FACTORS</h3><p>评分分层 · 筛选 · Composite 候选</p></article>
+          <article class="pipe-step"><h3>信号 · SIGNALS</h3><p>SM / FSM / ML / MOE / Composite / Advisor</p></article>
+          <article class="pipe-step"><h3>回测 · BACKTEST</h3><p>成本 · walk-forward · purge / embargo · fold</p></article>
+          <article class="pipe-step"><h3>证据 · EVIDENCE</h3><p>gate · manifest · 哈希 · 报告 · catalog</p></article>
+        </div>
+      </section>
+
+      <section class="journey">
+        <div class="journey-title">
+          <p class="section-label">Research journey · 研究历程</p>
+          <h2>模型越来越多，<br>证据开始说话。</h2>
+          <p>每次叠加都留下证据：过 gate 的继续，缺少增量的停下。</p>
+        </div>
+        <div class="journey-list">
+          <article class="journey-step"><span class="num">01</span><h3>十因子“巨无霸” + SM</h3><p>统一评分 + 随机搜索；简单模型成为强基线。</p></article>
+          <article class="journey-step"><span class="num">02</span><h3>Bayesian / GA / FA-FSM / ML</h3><p>复杂度上升，稳定优势没有同步出现。</p></article>
+          <article class="journey-step stop"><span class="num">03</span><h3>MOE · NOT ADMITTED / Transformer · STOP</h3><p>MOE 未过产品 gate；Transformer 因 query utility 下降而 STOP。</p></article>
+          <article class="journey-step current"><span class="num">04</span><h3>Composite · 收敛与复核</h3><p>CN_A 以 10 技术因子 + Ridge 的 pooled 比较领先。</p></article>
+          <article class="journey-step"><span class="num">05</span><h3>Advisor · 找到方向，继续验证</h3><p>四类 advisory × 七种 policy 完成框架；真实 gate 待验证。</p></article>
+        </div>
+      </section>
+
+      <section class="metrics" aria-label="主要成果指标">
+        <h2 class="metrics-title">Main outcomes · 主要成果</h2>
+        <article class="metric"><strong>60 × 1,260</strong><span>双市场各 60 股 · 主窗口 1,260 交易日</span></article>
+        <article class="metric"><strong>10</strong><span>冻结研究线 · 统一 catalog 与 provenance</span></article>
+        <article class="metric"><strong>0.5972</strong><span>CN_A Composite pooled Sharpe · research gate</span></article>
+        <article class="metric"><strong>76.7%</strong><span>Sharpe ≥ 0.3 一致性 · 46 / 60</span></article>
+      </section>
+
+      <footer class="footer">
+        <div>
+          <p class="final-quote">我曾经追着更强的模型跑。<br>现在，我先问：<em>凭什么相信它？</em></p>
+          <p class="boundary">研究只在冻结协议、市场与样本内成立，不构成投资建议；CN_A 比较为 pooled 且覆盖不完全配对；Advisor 仍待真实数据 gate。</p>
+        </div>
+        <figure class="visit" aria-label="扫码访问 YINCE 网站">
+          <img src="strategy-site-qr.png" alt="访问 https://www.gfm156.com/strategy/ 的二维码">
+          <strong>扫码体验</strong>
+          <span>gfm156.com/strategy</span>
+        </figure>
+      </footer>
+    </div>
+  </main>
+</body>
+</html>

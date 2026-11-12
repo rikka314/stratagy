@@ -1,0 +1,52 @@
+{
+  "artifacts": {
+    "spy_daily": {
+      "date_end": "2026-08-19",
+      "date_start": "2015-01-02",
+      "path": "spy_daily.parquet",
+      "rows": 2923,
+      "sha256": "f665a3e1a5acb2db5391ec6e0f020c6ffb3f9d5f07a34af5101091c65d01c369",
+      "size_bytes": 131320
+    },
+    "us_sector_map": {
+      "path": "us_sector_map.csv",
+      "rows": 60,
+      "sha256": "2b64d035e9ce4096c4773ff287e394f0fa6c487f3855f2ab7c35048ccb05b9ce",
+      "size_bytes": 4178
+    },
+    "vix_daily": {
+      "date_end": "2026-08-19",
+      "date_start": "2015-01-02",
+      "path": "vix_daily.parquet",
+      "rows": 2956,
+      "sha256": "033d89a7a244248f9dfdd09399ac90e589426087f9dbcee0614b8304030a46fb",
+      "size_bytes": 72682
+    }
+  },
+  "configured_date_end": "2026-08-20",
+  "configured_date_start": "2015-01-01",
+  "data_kind": "observed",
+  "generated_at": "2026-08-20T16:39:46.623115+00:00",
+  "schema_version": "1.0",
+  "sector_coverage": {
+    "known_sector_symbols": 60,
+    "required_symbols": 60,
+    "unknown_sector_symbols": 0
+  },
+  "sources": {
+    "sector_map": {
+      "provider": "Nasdaq",
+      "url": "https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=25&offset=0&download=true"
+    },
+    "spy": {
+      "adjust": "qfq",
+      "function": "stock_us_daily",
+      "provider": "AkShare"
+    },
+    "vix": {
+      "provider": "Cboe",
+      "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
+    }
+  },
+  "synthetic_fallback": false
+}

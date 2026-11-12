@@ -850,7 +850,7 @@ def _render_home_loading_stage_markup(language: str, selected_market: str) -> st
     """
 
 
-@st.fragment(parallel=True)
+@st.fragment()
 def _render_home_headlines_fragment(language: str) -> None:
     render_html(
         _render_home_identity_markup(
@@ -862,7 +862,7 @@ def _render_home_headlines_fragment(language: str) -> None:
     )
 
 
-@st.fragment(parallel=True)
+@st.fragment()
 def _render_home_stock_cloud_fragment(language: str, selected_market: str) -> None:
     recommendation_pool, focus_market, focus_index, candles = _load_home_stock_cloud_data(
         language,
@@ -881,7 +881,7 @@ def _render_home_stock_cloud_fragment(language: str, selected_market: str) -> No
     _render_stock_controls(recommendation_pool, language)
 
 
-@st.fragment(parallel=True)
+@st.fragment()
 def _render_home_market_lens_fragment(language: str, selected_market: str) -> None:
     market_snapshot, lens_recommendations = _load_home_market_lens_data(selected_market)
     render_html(

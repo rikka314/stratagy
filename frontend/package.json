@@ -1,0 +1,24 @@
+{
+  "name": "strategy-lab-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@fontsource/instrument-serif": "latest",
+    "@fontsource/manrope": "latest",
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest",
+    "lucide-react": "latest",
+    "plotly.js-dist-min": "latest",
+    "react-plotly.js": "latest"
+  },
+  "devDependencies": {}
+}

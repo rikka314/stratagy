@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "name": "composite_cn_a_phase0_source_lock",
+  "market": "CN_A",
+  "primary_source": "full_cn_a_admission_60",
+  "confirmation_source": "full_cn_a_deans_60",
+  "sources": {
+    "full_cn_a_admission_60": {
+      "output_dir": "model-test/outputs/full_cn_a_admission_60",
+      "data_manifest": "model-test/outputs/full_cn_a_admission_60/data_manifest.json",
+      "config_snapshot": "model-test/outputs/full_cn_a_admission_60/config_snapshot.json",
+      "snapshot_dir": "model-test/outputs/full_cn_a_admission_60/data_snapshot"
+    },
+    "full_cn_a_deans_60": {
+      "output_dir": "model-test/outputs/full_cn_a_deans_60",
+      "data_manifest": "model-test/outputs/full_cn_a_deans_60/data_manifest.json",
+      "config_snapshot": "model-test/outputs/full_cn_a_deans_60/config_snapshot.json",
+      "snapshot_dir": "model-test/outputs/full_cn_a_deans_60/data_snapshot"
+    }
+  },
+  "benchmark": {
+    "preferred": {"market": "CN_A", "symbol": "000300", "source": "market_native_frozen_artifact"},
+    "fallback": "frozen_universe_equal_weight_close_return",
+    "minimum_required_end_date": "2026-07-31"
+  },
+  "execution": {
+    "market": "CN_A",
+    "commission_bps": 3.0,
+    "slippage_bps": 5.0,
+    "source_net_cost_treatment": "source_net_no_recharge",
+    "ohlcv_cost_treatment": "ohlcv_gross_charge_once"
+  },
+  "quality": {
+    "expected_symbol_count": 60,
+    "required_columns": ["date", "open", "high", "low", "close", "volume"],
+    "max_missing_core_fields": 0,
+    "max_duplicate_dates": 0,
+    "max_non_positive_prices": 0
+  },
+  "output_dir": "model-test/outputs/cn_a_factor_composite_source_lock"
+}

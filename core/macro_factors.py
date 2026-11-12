@@ -1,380 +1,394 @@
-"""
-宏观特征模块
-============
-实现市场层面的宏观因子，用于捕捉市场环境和个股相对表现
+"""Market-aware macro and relative factor calculations."""
 
-Phase 1 新增 5 个核心宏观维度：
-1. 市场波动率 regime (VIX)
-2. 相对强度 vs SPY
-3. 市场广度
-4. 个股 beta
-5. 行业相对表现
-"""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Mapping, Optional
 
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, Optional, Tuple
-import warnings
 
-warnings.filterwarnings('ignore', category=FutureWarning)
+from core.market_factor_context import MarketFactorContext, build_market_factor_context, normalize_market
+
+
+MACRO_FEATURE_COLUMNS = (
+    "vix_level",
+    "rel_strength_vs_spy",
+    "market_breadth",
+    "beta_20d",
+    "sector_momentum",
+)
+
+
+def _as_date_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    result = frame.copy()
+    if "date" not in result.columns:
+        if isinstance(result.index, pd.DatetimeIndex):
+            result = result.reset_index(names="date")
+        else:
+            raise ValueError("price frame must contain date")
+    result = result.rename(columns={"Close": "close"})
+    if "close" not in result.columns:
+        raise ValueError("price frame must contain close")
+    result["date"] = pd.to_datetime(result["date"], errors="raise")
+    result["close"] = pd.to_numeric(result["close"], errors="coerce")
+    if result["date"].duplicated().any():
+        raise ValueError("price frame dates must be unique")
+    return result.sort_values("date").reset_index(drop=True)
 
 
 class MacroFactors:
-    """宏观特征计算器"""
+    """Compute market factors from an explicit market context."""
 
-    def __init__(self, macro_data_dir: str = "data/macro"):
-        """
-        初始化宏观特征计算器
+    def __init__(
+        self,
+        data_dir: str | Path = "data/macro",
+        *,
+        macro_data_dir: str | Path | None = None,
+        context: MarketFactorContext | None = None,
+    ) -> None:
+        if macro_data_dir is not None:
+            data_dir = macro_data_dir
+        self.data_dir = Path(data_dir)
+        self.context = context
+        self._vix_data: pd.DataFrame | None = None
+        self._spy_data: pd.DataFrame | None = None
+        self._sector_map: pd.DataFrame | None = None
 
-        Args:
-            macro_data_dir: 宏观数据存储目录
-        """
-        self.macro_data_dir = Path(macro_data_dir)
-        self._vix_data: Optional[pd.DataFrame] = None
-        self._spy_data: Optional[pd.DataFrame] = None
-        self._cache = {}
+    @property
+    def sector_map(self) -> pd.DataFrame:
+        """Load the US sector map only when the US path uses it."""
+        if self._sector_map is None:
+            self._sector_map = self._load_sector_map()
+        return self._sector_map.copy()
 
-    def _load_vix(self) -> pd.DataFrame:
-        """加载 VIX 数据（延迟加载）"""
+    @property
+    def vix_data(self) -> pd.DataFrame:
+        """Load US VIX only when a caller explicitly requests it."""
         if self._vix_data is None:
-            vix_path = self.macro_data_dir / "vix_daily.parquet"
-            if vix_path.exists():
-                self._vix_data = pd.read_parquet(vix_path)
-                if not isinstance(self._vix_data.index, pd.DatetimeIndex):
-                    self._vix_data.index = pd.to_datetime(self._vix_data.index)
-            else:
-                # 返回空 DataFrame，后续会处理
-                self._vix_data = pd.DataFrame()
-        return self._vix_data
+            self._vix_data = self._load_optional("vix_daily.parquet")
+        return self._vix_data.copy()
 
-    def _load_spy(self) -> pd.DataFrame:
-        """加载 SPY 数据（延迟加载）"""
+    @property
+    def spy_data(self) -> pd.DataFrame:
+        """Load US SPY only when a caller explicitly requests it."""
         if self._spy_data is None:
-            spy_path = self.macro_data_dir / "spy_daily.parquet"
-            if spy_path.exists():
-                self._spy_data = pd.read_parquet(spy_path)
-                if not isinstance(self._spy_data.index, pd.DatetimeIndex):
-                    self._spy_data.index = pd.to_datetime(self._spy_data.index)
-            else:
-                self._spy_data = pd.DataFrame()
-        return self._spy_data
+            self._spy_data = self._load_optional("spy_daily.parquet")
+        return self._spy_data.copy()
 
-    def get_vix(self, date: pd.Timestamp) -> float:
-        """
-        获取指定日期的 VIX 值
-
-        Args:
-            date: 查询日期
-
-        Returns:
-            VIX 收盘价，如果不可用返回 NaN
-        """
-        vix = self._load_vix()
-        if vix.empty:
-            return np.nan
-
-        # 确保 date 是 Timestamp
-        if not isinstance(date, pd.Timestamp):
-            date = pd.to_datetime(date)
-
-        # 向前填充到最近的可用日期
-        valid_dates = vix.index[vix.index <= date]
-        if len(valid_dates) == 0:
-            return np.nan
-
-        latest_date = valid_dates[-1]
-        return float(vix.loc[latest_date, 'Close'])
-
-    def classify_vix_regime(self, date: pd.Timestamp) -> str:
-        """
-        分类 VIX regime
-
-        Args:
-            date: 查询日期
-
-        Returns:
-            'low' (VIX < 15), 'med' (15 <= VIX < 25), 'high' (VIX >= 25)
-        """
-        vix_level = self.get_vix(date)
-
-        if np.isnan(vix_level):
-            return 'med'  # 默认中等波动
-
-        if vix_level < 15:
-            return 'low'
-        elif vix_level < 25:
-            return 'med'
-        else:
-            return 'high'
-
-    def compute_relative_strength(
-        self,
-        stock_data: pd.DataFrame,
-        date: pd.Timestamp,
-        window: int = 20
-    ) -> float:
-        """
-        计算个股相对 SPY 的强度
-
-        相对强度 = (个股20日收益 - SPY 20日收益) / SPY 20日波动率
-
-        Args:
-            stock_data: 个股 OHLCV 数据，index 为日期
-            date: 查询日期
-            window: 回溯窗口（交易日）
-
-        Returns:
-            相对强度得分，标准化后的超额收益
-        """
-        spy = self._load_spy()
-        if spy.empty or stock_data.empty:
-            return np.nan
-
-        # 确保日期对齐
-        stock_data = stock_data.copy()
-        if not isinstance(stock_data.index, pd.DatetimeIndex):
-            stock_data.index = pd.to_datetime(stock_data.index)
-
-        # 获取窗口内的数据
-        end_date = date
-        stock_window = stock_data[stock_data.index <= end_date].tail(window + 1)
-        spy_window = spy[spy.index <= end_date].tail(window + 1)
-
-        if len(stock_window) < 2 or len(spy_window) < 2:
-            return np.nan
-
-        # 计算收益率
-        stock_return = (stock_window['Close'].iloc[-1] / stock_window['Close'].iloc[0]) - 1
-        spy_return = (spy_window['Close'].iloc[-1] / spy_window['Close'].iloc[0]) - 1
-
-        # 计算 SPY 波动率（用于标准化）
-        spy_daily_returns = spy_window['Close'].pct_change().dropna()
-        spy_vol = spy_daily_returns.std() * np.sqrt(252) if len(spy_daily_returns) > 1 else 0.01
-
-        # 相对强度 = 超额收益 / 市场波动率
-        excess_return = stock_return - spy_return
-        rel_strength = excess_return / (spy_vol + 1e-8)
-
-        return float(rel_strength)
-
-    def compute_rolling_beta(
-        self,
-        stock_data: pd.DataFrame,
-        date: pd.Timestamp,
-        window: int = 20
-    ) -> float:
-        """
-        计算个股相对 SPY 的 beta
-
-        Beta = Cov(stock, SPY) / Var(SPY)
-
-        Args:
-            stock_data: 个股 OHLCV 数据
-            date: 查询日期
-            window: 回溯窗口（交易日）
-
-        Returns:
-            Beta 系数
-        """
-        spy = self._load_spy()
-        if spy.empty or stock_data.empty:
-            return np.nan
-
-        # 确保日期对齐
-        stock_data = stock_data.copy()
-        if not isinstance(stock_data.index, pd.DatetimeIndex):
-            stock_data.index = pd.to_datetime(stock_data.index)
-
-        # 获取窗口内的数据
-        end_date = date
-        stock_window = stock_data[stock_data.index <= end_date].tail(window + 1)
-        spy_window = spy[spy.index <= end_date].tail(window + 1)
-
-        if len(stock_window) < 3 or len(spy_window) < 3:
-            return np.nan
-
-        # 计算日收益率
-        stock_returns = stock_window['Close'].pct_change().dropna()
-        spy_returns = spy_window['Close'].pct_change().dropna()
-
-        # 对齐日期（取交集）
-        common_dates = stock_returns.index.intersection(spy_returns.index)
-        if len(common_dates) < 3:
-            return np.nan
-
-        stock_returns = stock_returns.loc[common_dates]
-        spy_returns = spy_returns.loc[common_dates]
-
-        # 计算 beta
-        covariance = np.cov(stock_returns, spy_returns)[0, 1]
-        spy_variance = np.var(spy_returns)
-
-        if spy_variance < 1e-8:
-            return 1.0  # 默认 beta
-
-        beta = covariance / spy_variance
-        return float(beta)
+    def with_context(self, context: MarketFactorContext) -> "MacroFactors":
+        """Return a calculator bound to a new immutable context."""
+        return MacroFactors(data_dir=self.data_dir, context=context)
 
     def compute(
         self,
+        df: pd.DataFrame | pd.Timestamp | None = None,
+        symbol: str | pd.DataFrame | None = None,
+        *args: object,
+        market: str | None = None,
+        market_context: MarketFactorContext | None = None,
+        date: pd.Timestamp | None = None,
+        stock_data: pd.DataFrame | None = None,
+        stock_symbol: str | None = None,
+    ) -> pd.DataFrame | dict[str, float]:
+        """Compute market factors in the new or legacy calling convention.
+
+        The DataFrame-first form returns an augmented DataFrame. The historical
+        ``compute(date, stock_data, stock_symbol=None)`` form returns one factor
+        dictionary and remains US-only for compatibility with old research code.
+        """
+        if date is not None or stock_data is not None:
+            if df is not None or symbol is not None:
+                raise TypeError("use either legacy date/stock_data keywords or positional arguments")
+            df, symbol = date, stock_data
+        if args:
+            if len(args) > 1 or stock_symbol is not None:
+                raise TypeError("too many legacy compute arguments")
+            stock_symbol = str(args[0])
+        if isinstance(df, (pd.Timestamp, str)) and isinstance(symbol, pd.DataFrame):
+            if market not in (None, "US", "USA"):
+                raise ValueError("legacy MacroFactors.compute supports US only")
+            return self._compute_legacy_point(
+                pd.to_datetime(df), symbol, stock_symbol=stock_symbol
+            )
+        if not isinstance(df, pd.DataFrame) or not isinstance(symbol, str):
+            raise TypeError("compute expects (DataFrame, symbol) or (date, stock_data)")
+        result = _as_date_frame(df)
+        context = market_context or self.context
+        canonical = normalize_market(market or (context.market if context else "US"))
+        if context is None:
+            if canonical != "US":
+                raise ValueError("CN_A requires an explicit MarketFactorContext")
+            context = build_market_factor_context("US", data_dir=self.data_dir)
+        if context.market != canonical:
+            raise ValueError(f"market/context mismatch: {canonical} != {context.market}")
+        return self._compute_context_factors(result, symbol, context, cn_a=canonical == "CN_A")
+
+    def _compute_legacy_point(
+        self,
         date: pd.Timestamp,
         stock_data: pd.DataFrame,
-        stock_symbol: str = None
-    ) -> Dict[str, float]:
-        """
-        计算所有宏观特征
-
-        Args:
-            date: 查询日期
-            stock_data: 个股 OHLCV 数据
-            stock_symbol: 股票代码（可选，用于行业分类）
-
-        Returns:
-            包含 5 个宏观特征的字典
-        """
-        features = {}
-
-        # 1. VIX 市场波动率
-        features['vix_level'] = self.get_vix(date)
-        vix_regime = self.classify_vix_regime(date)
-        features['vix_regime_low'] = 1.0 if vix_regime == 'low' else 0.0
-        features['vix_regime_med'] = 1.0 if vix_regime == 'med' else 0.0
-        features['vix_regime_high'] = 1.0 if vix_regime == 'high' else 0.0
-
-        # 2. 相对强度 vs SPY
-        features['rel_strength_vs_spy'] = self.compute_relative_strength(
-            stock_data, date, window=20
+        *,
+        stock_symbol: str | None = None,
+    ) -> dict[str, float]:
+        prices = _as_date_frame(stock_data)
+        point = self._compute_context_factors(
+            prices, stock_symbol or "", build_market_factor_context("US", data_dir=self.data_dir), cn_a=False
         )
+        rows = point.loc[point["date"].eq(date)]
+        if rows.empty:
+            return {
+                "vix_level": self.get_vix(date),
+                "vix_regime_low": float(self.classify_vix_regime(date) == "low"),
+                "vix_regime_med": float(self.classify_vix_regime(date) == "med"),
+                "vix_regime_high": float(self.classify_vix_regime(date) == "high"),
+                "rel_strength_vs_spy": self.compute_relative_strength(prices, date),
+                "beta_20d": self.compute_rolling_beta(prices, date),
+                "market_breadth": float("nan"),
+                "sector_momentum": 0.0,
+            }
+        row = rows.iloc[-1]
+        return {
+            "vix_level": float(row["vix_level"]),
+            "vix_regime_low": float(row["vix_regime"] == 0),
+            "vix_regime_med": float(row["vix_regime"] == 1),
+            "vix_regime_high": float(row["vix_regime"] == 2),
+            "rel_strength_vs_spy": float(row["rel_strength_spy"]),
+            "beta_20d": float(row["beta_20d"]),
+            "market_breadth": float(row["market_breadth"]),
+            "sector_momentum": float(row["sector_momentum"]),
+        }
 
-        # 3. 个股 beta
-        features['beta_20d'] = self.compute_rolling_beta(
-            stock_data, date, window=20
-        )
+    def _compute_context_factors(
+        self,
+        df: pd.DataFrame,
+        symbol: str,
+        context: MarketFactorContext,
+        *,
+        cn_a: bool,
+    ) -> pd.DataFrame:
+        result = df.copy()
+        benchmark = context.benchmark_frame.rename(columns={"close": "_market_close"})
+        result = result.merge(benchmark[["date", "_market_close"]], on="date", how="left")
+        result["_market_close"] = result["_market_close"].ffill()
+        market_return_20 = result["_market_close"].pct_change(20, fill_method=None)
+        stock_return_20 = result["close"].pct_change(20, fill_method=None)
+        market_return_1 = result["_market_close"].pct_change(fill_method=None)
+        result["market_breadth"] = self._market_breadth(result, context)
+        beta = self._rolling_beta(result["close"], result["_market_close"])
+        if not cn_a:
+            result["beta_20d"] = beta
+            result["sector_momentum"] = self._us_sector_momentum(
+                result["close"], result["_market_close"], symbol
+            )
 
-        # 4. 市场广度（暂时使用 SPY 的动量作为代理）
-        spy = self._load_spy()
-        if not spy.empty:
-            spy_window = spy[spy.index <= date].tail(21)
-            if len(spy_window) >= 2:
-                spy_momentum = (spy_window['Close'].iloc[-1] / spy_window['Close'].iloc[0]) - 1
-                features['market_breadth'] = float(spy_momentum)
+        if cn_a:
+            result["market_vol_level"] = market_return_1.rolling(20, min_periods=20).std() * np.sqrt(252)
+            result["market_vol_regime"] = self._vol_regime(result["market_vol_level"])
+            result["rel_strength_market"] = stock_return_20 - market_return_20
+            result["market_beta_20d"] = beta
+            result["breadth_up_ratio_1"] = result["market_breadth"]
+            result["breadth_up_ratio_20"] = result["market_breadth"].rolling(20, min_periods=20).mean()
+            result["market_return_1"] = market_return_1
+            result["market_return_5"] = result["_market_close"].pct_change(5, fill_method=None)
+            result["market_return_20"] = market_return_20
+            result["market_drawdown_60"] = (
+                result["_market_close"] / result["_market_close"].rolling(60, min_periods=1).max() - 1.0
+            )
+            result["market_constituent_count"] = self._constituent_count(result, context)
+        else:
+            if context.volatility_frame is None:
+                result["vix_level"] = np.nan
+                result["vix_regime"] = np.nan
             else:
-                features['market_breadth'] = 0.0
-        else:
-            features['market_breadth'] = 0.0
+                volatility = context.volatility_frame.rename(columns={"close": "_vix_level"})
+                result = result.merge(volatility[["date", "_vix_level"]], on="date", how="left")
+                result["vix_level"] = result["_vix_level"].ffill()
+                result["vix_regime"] = self._vol_regime(result["vix_level"], thresholds=(15.0, 25.0))
+            result["rel_strength_spy"] = stock_return_20 - market_return_20
+            result["rel_strength_vs_spy"] = result["rel_strength_spy"]
 
-        # 5. 行业相对表现（暂时用个股 vs 市场的相对动量）
-        # TODO: 如果有行业分类数据，可以改进此特征
-        rel_strength = features['rel_strength_vs_spy']
-        if not np.isnan(rel_strength):
-            features['sector_momentum'] = rel_strength * 0.5  # 缩放到合理范围
-        else:
-            features['sector_momentum'] = 0.0
+        result = result.drop(columns=["_market_close", "_vix_level"], errors="ignore")
+        return result
 
-        return features
+    @staticmethod
+    def _vol_regime(series: pd.Series, thresholds: tuple[float, float] = (0.15, 0.25)) -> pd.Series:
+        return pd.cut(series, bins=[-np.inf, thresholds[0], thresholds[1], np.inf], labels=[0, 1, 2]).astype(float)
+
+    @staticmethod
+    def _rolling_beta(stock: pd.Series, market: pd.Series, window: int = 20) -> pd.Series:
+        stock_return = stock.pct_change(fill_method=None)
+        market_return = market.pct_change(fill_method=None)
+        variance = market_return.rolling(window).var()
+        beta = stock_return.rolling(window).cov(market_return) / variance
+        return beta.replace([np.inf, -np.inf], np.nan).fillna(1.0)
+
+    @staticmethod
+    def _market_breadth(frame: pd.DataFrame, context: MarketFactorContext) -> pd.Series:
+        if context.breadth_frame is not None and "breadth_up_ratio_1" in context.breadth_frame:
+            breadth = context.breadth_frame[["date", "breadth_up_ratio_1"]].rename(
+                columns={"breadth_up_ratio_1": "_breadth"}
+            )
+            merged = frame[["date"]].merge(breadth, on="date", how="left")
+            return merged["_breadth"].ffill()
+        return pd.Series(np.nan, index=frame.index, dtype=float)
+
+    @staticmethod
+    def _constituent_count(frame: pd.DataFrame, context: MarketFactorContext) -> pd.Series:
+        if context.breadth_frame is not None and "market_constituent_count" in context.breadth_frame:
+            values = context.breadth_frame[["date", "market_constituent_count"]]
+            return frame[["date"]].merge(values, on="date", how="left")["market_constituent_count"].ffill()
+        return pd.Series(np.nan, index=frame.index, dtype=float)
+
+    def get_vix(self, date: pd.Timestamp) -> float:
+        values = self.vix_data
+        if values.empty:
+            return float("nan")
+        eligible = values.loc[values["date"] <= pd.to_datetime(date)]
+        return float(eligible["close"].iloc[-1]) if not eligible.empty else float("nan")
+
+    def classify_vix_regime(self, date: pd.Timestamp) -> str:
+        level = self.get_vix(date)
+        if np.isnan(level):
+            return "med"
+        return "low" if level < 15 else "med" if level < 25 else "high"
+
+    def compute_relative_strength(
+        self, stock_data: pd.DataFrame, date: pd.Timestamp, window: int = 20
+    ) -> float:
+        stock = _as_date_frame(stock_data)
+        spy = self.spy_data
+        if spy.empty:
+            return float("nan")
+        end = pd.to_datetime(date)
+        stock_window = stock.loc[stock["date"] <= end, ["date", "close"]].tail(window + 1)
+        spy_window = spy.loc[spy["date"] <= end, ["date", "close"]].tail(window + 1)
+        if len(stock_window) < 2 or len(spy_window) < 2:
+            return float("nan")
+        stock_return = stock_window["close"].iloc[-1] / stock_window["close"].iloc[0] - 1
+        spy_return = spy_window["close"].iloc[-1] / spy_window["close"].iloc[0] - 1
+        spy_vol = spy_window["close"].pct_change().dropna().std() * np.sqrt(252)
+        if not np.isfinite(spy_vol):
+            spy_vol = 0.01
+        return float((stock_return - spy_return) / (spy_vol + 1e-8))
+
+    def compute_rolling_beta(
+        self, stock_data: pd.DataFrame, date: pd.Timestamp, window: int = 20
+    ) -> float:
+        stock = _as_date_frame(stock_data)
+        spy = self.spy_data
+        if spy.empty:
+            return float("nan")
+        end = pd.to_datetime(date)
+        joined = stock.loc[stock["date"] <= end, ["date", "close"]].merge(
+            spy.loc[spy["date"] <= end, ["date", "close"]], on="date", suffixes=("_stock", "_spy")
+        ).tail(window + 1)
+        if len(joined) < 3:
+            return float("nan")
+        market_return = joined["close_spy"].pct_change().dropna()
+        stock_return = joined["close_stock"].pct_change().dropna()
+        variance = market_return.var()
+        return float(stock_return.cov(market_return) / variance) if variance >= 1e-8 else 1.0
 
     def compute_batch(
-        self,
-        stock_data: pd.DataFrame,
-        dates: pd.DatetimeIndex = None
+        self, stock_data: pd.DataFrame, dates: pd.DatetimeIndex | None = None
     ) -> pd.DataFrame:
-        """
-        批量计算宏观特征（用于回测）
+        prices = _as_date_frame(stock_data)
+        selected = pd.to_datetime(dates) if dates is not None else prices["date"]
+        rows = []
+        for date in selected:
+            rows.append({
+                "date": date,
+                "vix_level": self.get_vix(date),
+                "vix_regime_low": float(self.classify_vix_regime(date) == "low"),
+                "vix_regime_med": float(self.classify_vix_regime(date) == "med"),
+                "vix_regime_high": float(self.classify_vix_regime(date) == "high"),
+                "rel_strength_vs_spy": self.compute_relative_strength(prices, date),
+                "beta_20d": self.compute_rolling_beta(prices, date),
+            })
+        return pd.DataFrame(rows).set_index("date")
 
-        Args:
-            stock_data: 个股 OHLCV 数据
-            dates: 要计算的日期列表，如果为 None 则使用 stock_data 的所有日期
+    def _us_sector_momentum(
+        self, stock_close: pd.Series, market_close: pd.Series, symbol: str
+    ) -> pd.Series:
+        if self.sector_map.empty or not {"symbol", "sector"}.issubset(self.sector_map.columns):
+            return pd.Series(0.0, index=stock_close.index)
+        sector = self._get_sector(symbol)
+        if sector == "Unknown":
+            return pd.Series(0.0, index=stock_close.index)
+        return (stock_close.pct_change(20, fill_method=None) - market_close.pct_change(20, fill_method=None)) * 0.5
 
-        Returns:
-            包含所有宏观特征的 DataFrame，index 为日期
-        """
-        if dates is None:
-            dates = stock_data.index
+    def _get_sector(self, symbol: str) -> str:
+        matches = self.sector_map.loc[self.sector_map["symbol"].eq(str(symbol)), "sector"]
+        return str(matches.iloc[0]) if not matches.empty else "Unknown"
 
-        # 确保 dates 是 DatetimeIndex
-        if not isinstance(dates, pd.DatetimeIndex):
-            dates = pd.to_datetime(dates)
+    def compute_batch_panel(
+        self,
+        universe: Mapping[str, pd.DataFrame] | pd.DataFrame,
+        dates: pd.DatetimeIndex | None = None,
+        *,
+        sector_map: Mapping[str, str] | None = None,
+        market_context: MarketFactorContext | None = None,
+        market: str = "US",
+    ) -> pd.DataFrame:
+        """Compute either the historical point panel or a symbol universe panel."""
+        if isinstance(universe, pd.DataFrame):
+            return self.compute_batch(universe, dates=dates)
+        if dates is not None:
+            raise TypeError("dates is only supported for a single stock DataFrame")
+        context = market_context or self.context
+        if context is None:
+            context = build_market_factor_context(market, data_dir=self.data_dir)
+        rows = []
+        for symbol, frame in universe.items():
+            factors = self.compute(frame, str(symbol), market=market, market_context=context)
+            factors = factors.assign(symbol=str(symbol))
+            columns = ["date", "symbol"] + [
+                column for column in MACRO_FEATURE_COLUMNS if column in factors.columns
+            ]
+            rows.append(factors[columns])
+        if not rows:
+            return pd.DataFrame(columns=["date", "symbol", *MACRO_FEATURE_COLUMNS])
+        return pd.concat(rows, ignore_index=True)
 
-        results = []
-        for date in dates:
-            features = self.compute(date, stock_data)
-            features['date'] = date
-            results.append(features)
+    def _load_optional(self, filename: str) -> pd.DataFrame:
+        path = self.data_dir / filename
+        if not path.is_file():
+            return pd.DataFrame(columns=["date", "close"])
+        return self._validate_macro_frame(pd.read_parquet(path), filename)
 
-        df = pd.DataFrame(results)
-        df.set_index('date', inplace=True)
-        return df
+    @staticmethod
+    def _validate_macro_frame(frame: pd.DataFrame, name: str) -> pd.DataFrame:
+        required = {"date", "close"}
+        missing = required - set(frame.columns)
+        if missing:
+            raise ValueError(f"{name} data missing columns: {', '.join(sorted(missing))}")
+        result = frame.loc[:, ["date", "close"]].copy()
+        result["date"] = pd.to_datetime(result["date"], errors="raise")
+        result["close"] = pd.to_numeric(result["close"], errors="coerce")
+        if result["date"].duplicated().any() or not result["date"].is_monotonic_increasing:
+            raise ValueError(f"{name} dates must be unique and sorted")
+        values = result["close"].to_numpy(dtype=float)
+        if not np.isfinite(values).all() or (values <= 0).any():
+            raise ValueError(f"{name} close values must be finite and positive")
+        return result
 
-
-def download_macro_data(start_date: str = "2015-01-01", end_date: str = "2026-01-01"):
-    """
-    下载宏观数据（VIX 和 SPY）
-
-    Args:
-        start_date: 开始日期
-        end_date: 结束日期
-    """
-    try:
-        import yfinance as yf
-    except ImportError:
-        raise ImportError("需要安装 yfinance: pip install yfinance")
-
-    import time
-
-    print(f"下载宏观数据: {start_date} 到 {end_date}")
-
-    # 创建目录
-    macro_dir = Path("data/macro")
-    macro_dir.mkdir(parents=True, exist_ok=True)
-
-    # 下载 VIX（带重试）
-    print("下载 VIX 数据...")
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            vix = yf.download("^VIX", start=start_date, end=end_date, progress=False)
-            if not vix.empty:
-                vix_path = macro_dir / "vix_daily.parquet"
-                vix.to_parquet(vix_path)
-                print(f"[OK] VIX 数据已保存: {vix_path} ({len(vix)} 行)")
-                break
-            else:
-                print(f"[警告] VIX 数据为空，尝试 {attempt + 1}/{max_retries}")
-                time.sleep(5)
-        except Exception as e:
-            print(f"[错误] VIX 下载失败 (尝试 {attempt + 1}/{max_retries}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(10)
-            else:
-                print("[警告] VIX 下载失败，将使用空数据")
-                vix = pd.DataFrame()
-
-    # 下载 SPY（带重试）
-    print("下载 SPY 数据...")
-    for attempt in range(max_retries):
-        try:
-            spy = yf.download("SPY", start=start_date, end=end_date, progress=False)
-            if not spy.empty:
-                spy_path = macro_dir / "spy_daily.parquet"
-                spy.to_parquet(spy_path)
-                print(f"[OK] SPY 数据已保存: {spy_path} ({len(spy)} 行)")
-                break
-            else:
-                print(f"[警告] SPY 数据为空，尝试 {attempt + 1}/{max_retries}")
-                time.sleep(5)
-        except Exception as e:
-            print(f"[错误] SPY 下载失败 (尝试 {attempt + 1}/{max_retries}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(10)
-            else:
-                print("[警告] SPY 下载失败，将使用空数据")
-                spy = pd.DataFrame()
-
-    print("\n宏观数据下载完成!")
-    return vix, spy
+    def _load_sector_map(self) -> pd.DataFrame:
+        path = self.data_dir / "us_sector_map.csv"
+        if not path.is_file():
+            return pd.DataFrame(columns=["symbol", "sector"])
+        return pd.read_csv(path, dtype={"symbol": str})
 
 
-if __name__ == "__main__":
-    # 测试下载功能
-    download_macro_data()
+_macro_factors_instance: Optional[MacroFactors] = None
+
+
+def get_macro_factors() -> MacroFactors:
+    global _macro_factors_instance
+    if _macro_factors_instance is None:
+        _macro_factors_instance = MacroFactors()
+    return _macro_factors_instance
+
+
+def add_macro_factors(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    return get_macro_factors().compute(df, symbol)

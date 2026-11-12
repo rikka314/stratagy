@@ -1,0 +1,281 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "frozen_research_archive",
+  "freeze_date": "2026-08-23",
+  "source_commit": "d2168bf8a0073360f5a19a0f4e85e91fc65410a7",
+  "source_branch": "transformer-state-v3",
+  "runtime_boundary": {
+    "streamlit_routes_unchanged": true,
+    "output_root": "model-test/outputs",
+    "ui_reader": "ui/model_evaluation.py",
+    "rule": "Missing Git-ignored evidence is pending/unavailable; never fabricate replacement metrics."
+  },
+  "experiments": [
+    {
+      "id": "baseline_sm_fsm_full_market",
+      "title": "SM/FSM full-market baseline",
+      "archive_path": "research/00_baseline_sm_fsm",
+      "status": "baseline_frozen",
+      "date_range": "2026-08-03..2026-08-17",
+      "markets": ["US", "CN_A"],
+      "question": "Do the original SM/FSM-era strategies remain useful across a frozen full-market universe?",
+      "decision": "A reproducible comparison and research candidate were established, but stable broad outperformance was not demonstrated; Naive remains a required control.",
+      "gate": "Full-run data freshness, source manifest, execution-cost, coverage, and market-local reporting contracts.",
+      "key_results": {
+        "us_top_candidate": "SM+Bayesian",
+        "us_total_score": 72.67,
+        "us_main_window_median_excess_return": -0.0795,
+        "us_main_window_median_sharpe": 0.03,
+        "us_beat_naive_ratio": 0.40,
+        "us_run_records": 5460
+      },
+      "limitations": ["US and CN_A conclusions are independent.", "A ranking is not a return promise.", "Small-sample segment winners are research leads only."],
+      "sources": [
+        "research/00_baseline_sm_fsm/plans/deans-award-research-contract.md",
+        "research/00_baseline_sm_fsm/plans/gate_0_20260803.md",
+        "research/00_baseline_sm_fsm/plans/gate_1_20260803.md",
+        "research/00_baseline_sm_fsm/plans/strategy_research_baseline_us_20260811.md",
+        "research/00_baseline_sm_fsm/plans/deans_award_upgrade_20260803.md",
+        "model-test/docs/README.md",
+        "model-test/configs/full_us_deans_60.json",
+        "model-test/configs/full_cn_a_deans_60.json",
+        "model-test/run_research.py"
+      ],
+      "evidence": [
+        {"path": "model-test/outputs/full_us_deans_60/report.json", "required": true},
+        {"path": "model-test/outputs/full_us_deans_60/data_manifest.json", "required": true},
+        {"path": "model-test/outputs/full_cn_a_deans_60/report.json", "required": false},
+        {"path": "model-test/outputs/full_cn_a_deans_60/data_manifest.json", "required": false}
+      ]
+    },
+    {
+      "id": "transformer_state_feasibility",
+      "title": "Transformer feasibility and state retrieval",
+      "archive_path": "research/01_transformer_feasibility",
+      "status": "stopped",
+      "date_range": "2026-08-18..2026-08-20",
+      "markets": ["US"],
+      "question": "Does state similarity/retrieval improve expert utility enough to justify Transformer work?",
+      "decision": "Engineering evidence passed, but query utility did not; Phase 2 STOP prevented Transformer training and product integration.",
+      "gate": "Primary state_match_balanced matched coverage >= 30%; v3 query utility/regret must beat the random-neighbor control under the predeclared test.",
+      "key_results": {
+        "w16_w18_primary_matched_coverage_by_fold": [0.0, 0.0, 0.0, 0.0],
+        "v3_b01_utility_consistency_delta_vs_random": 0.0175,
+        "v3_b02_utility_consistency_delta_vs_random": 0.02094,
+        "v3_b01_query_selected_utility_delta_vs_random": -0.003283,
+        "v3_b02_query_selected_utility_delta_vs_random": -0.005354
+      },
+      "limitations": ["W19 CN_A remains separate/pending.", "Similarity consistency was misaligned with realized expert utility.", "No Transformer effectiveness claim is allowed."],
+      "sources": [
+        "research/01_transformer_feasibility/plans/post_gate2_transformer_state_w16_w18_20260820.md",
+        "research/01_transformer_feasibility/plans/transformer_state_v3_phase1_baselines_20260820.md",
+        "research/01_transformer_feasibility/plans/transformer_state_v3_phase2_completion.md",
+        "research/01_transformer_feasibility/plans/post_gate2_model_upgrade_v2_transformer_state_execution.md",
+        "research/01_transformer_feasibility/plans/PHASE1_COMPLETE.md",
+        "research/01_transformer_feasibility/plans/PHASE1_EXECUTION.md",
+        "model-test/configs/transformer_state_us.json",
+        "model-test/configs/transformer_state_v3_us.json",
+        "model-test/run_transformer_state.py",
+        "model-test/run_baseline_phase1.py",
+        "model-test/run_diagnostic_phase2.py"
+      ],
+      "evidence": [
+        {"path": "model-test/outputs/transformer_state_us/transformer_state_evidence_manifest.json", "required": true},
+        {"path": "model-test/outputs/transformer_state_v3_us/baseline_artifacts/baseline_comparison.csv", "required": true},
+        {"path": "model-test/outputs/transformer_state_cn_a/transformer_state_source_manifest.json", "required": false}
+      ]
+    },
+    {
+      "id": "adaptive_dynamic_experts",
+      "title": "Adaptive routing and dynamic expert systems",
+      "archive_path": "research/02_adaptive_systems",
+      "status": "not_admitted",
+      "date_range": "2026-08-12..2026-08-18",
+      "markets": ["US", "CN_A"],
+      "question": "Can adaptive routing or a dynamic expert ensemble earn admission beyond frozen controls?",
+      "decision": "Phase A-F artifacts completed, but W11 non-inferiority breadth reached only US 1/4 and CN_A 2/4; W12 product admission was blocked.",
+      "gate": "Four test splits; at least 3/4 non-inferior windows; no worse drawdown; turnover <= 1.25x adaptive control.",
+      "key_results": {"us_non_inferior_windows": "1/4", "cn_a_non_inferior_windows": "2/4", "product_integration": "blocked"},
+      "limitations": ["Research-only; no shadow mode or Streamlit integration.", "Market-specific artifacts cannot be substituted across markets."],
+      "sources": [
+        "research/02_adaptive_systems/plans/dynamic-ensemble-research.md",
+        "research/02_adaptive_systems/plans/post_gate2_model_upgrade_v1_execution.md",
+        "research/02_adaptive_systems/plans/post_gate2_model_upgrade_20260809.md",
+        "research/02_adaptive_systems/plans/post_gate2_model_upgrade_w11_w12_20260817.md",
+        "model-test/docs/README.md",
+        "model-test/prepare_moe_baseline.py",
+        "model-test/prepare_expert_panel.py",
+        "model-test/run_dynamic_ensemble.py",
+        "model-test/run_dynamic_ensemble_v2.py",
+        "model-test/run_dynamic_ensemble_online.py",
+        "model-test/run_dynamic_ensemble_bandit.py",
+        "model-test/run_w11_admission.py"
+      ],
+      "evidence": [
+        {"path": "model-test/outputs/moe_v2_us/moe_v2_manifest.json", "required": true},
+        {"path": "model-test/outputs/moe_v2_cn_a/moe_v2_manifest.json", "required": true},
+        {"path": "model-test/outputs/w11_admission_us/w11_decision.json", "required": true},
+        {"path": "model-test/outputs/w11_admission_cn_a/w11_decision.json", "required": true}
+      ]
+    },
+    {
+      "id": "cn_a_composite_only",
+      "title": "CN_A Composite-only",
+      "archive_path": "research/03_composite_only_cn_a",
+      "status": "passed_research_gate",
+      "date_range": "2026-08-22..2026-08-23",
+      "markets": ["CN_A"],
+      "question": "Does market-native CN_A Composite beat SM/FSM under one frozen comparison?",
+      "decision": "Composite passed the CN_A research gate, but remains research-only and market-local.",
+      "gate": "Sharpe above baseline; fold consistency >= 75%; at least one risk improvement; unified market/universe/fold/horizon/execution contract; traceable manifest.",
+      "key_results": {"composite_sharpe": 0.5972, "sm_sharpe": 0.5277, "fsm_sharpe": 0.4984, "composite_mean_max_drawdown": -0.5481, "fold_consistency": 0.767},
+      "limitations": ["CN_A only.", "One frozen universe and four-fold comparison.", "Advisory was not part of this gate.", "Production review has not occurred."],
+      "sources": [
+        "research/03_composite_only_cn_a/plans/cn_a_factor_composite_phase1.md",
+        "research/03_composite_only_cn_a/plans/cn_a_factor_composite_phase2.md",
+        "research/03_composite_only_cn_a/plans/cn_a_factor_composite_phase3.md",
+        "research/03_composite_only_cn_a/plans/cn_a_factor_composite_phase4_fixed.md",
+        "research/03_composite_only_cn_a/plans/cn_a_factor_composite_phase6.md",
+        "model-test/configs/composite_cn_a.json",
+        "model-test/build_cn_a_factor_panel.py",
+        "model-test/run_cn_a_baseline.py",
+        "model-test/run_cn_a_composite.py",
+        "model-test/compare_cn_a_composite_v2.py",
+        "core/cn_a_market_factors.py",
+        "core/market_factor_context.py",
+        "core/composite_cn_a.py"
+      ],
+      "evidence": [
+        {"path": "model-test/outputs/composite_cn_a/composite_manifest.json", "required": true},
+        {"path": "model-test/outputs/cn_a_factor_composite_comparison/comparison_metrics.csv", "required": true},
+        {"path": "model-test/outputs/cn_a_factor_composite_comparison/comparison_manifest.json", "required": false}
+      ]
+    },
+    {
+      "id": "cn_a_composite_advisory",
+      "title": "CN_A Composite plus multi-expert advisory",
+      "archive_path": "research/04_composite_advisory_cn_a",
+      "status": "framework_complete_pending_real_data_gate",
+      "date_range": "2026-08-23",
+      "markets": ["CN_A"],
+      "question": "Can advisory experts reduce Composite risk without changing its direction or opening unauthorized positions?",
+      "decision": "The immutable contract, advisory policies, safety bounds, and tests are complete; no real-data pass is recorded because the expected advisory manifest and ablation outputs are absent.",
+      "gate": "Sharpe decline <= 10%; at least one risk improvement; turnover <= 30%; fallback/audit quality acceptable.",
+      "key_results": {"unit_tests": 29, "real_data_gate": "pending", "expected_manifest": "model-test/outputs/composite_advisory_cn_a/advisory_manifest.json"},
+      "limitations": ["Framework completion is not empirical improvement.", "Do not merge advisory into Composite-only evidence.", "Missing ignored output remains pending."],
+      "sources": [
+        "research/04_composite_advisory_cn_a/plans/composite-advisory-research.md",
+        "research/04_composite_advisory_cn_a/plans/cn_a_factor_composite_phase5.md",
+        "model-test/configs/composite_advisory_cn_a.json",
+        "model-test/run_cn_a_composite_advisory.py",
+        "core/composite_advisory_cn_a.py",
+        "tests/test_composite_advisory_cn_a.py"
+      ],
+      "evidence": [
+        {"path": "model-test/outputs/composite_advisory_cn_a/advisory_manifest.json", "required": true},
+        {"path": "model-test/outputs/composite_advisory_cn_a/ablation_metrics.csv", "required": true},
+        {"path": "model-test/outputs/composite_advisory_cn_a/decision_audit.csv", "required": true},
+        {"path": "model-test/outputs/composite_advisory_cn_a/quality_report.json", "required": true}
+      ]
+    },
+    {
+      "id": "ml_enhancement",
+      "title": "ML Enhancement and Parameter Optimization",
+      "archive_path": "research/05_ml_enhancement",
+      "status": "completed",
+      "date_range": "2025-Q1",
+      "markets": ["US", "CN_A"],
+      "question": "Can Bayesian optimization, genetic algorithms, and LightGBM filtering improve parameter search?",
+      "decision": "ML-enhanced variants integrated as research-optional features.",
+      "gate": "Performance comparison in full-market baseline.",
+      "key_results": {},
+      "limitations": [],
+      "sources": ["research/05_ml_enhancement/plans/PARAM_OPTIMIZATION_FIX.md", "core/optimizer.py"],
+      "evidence": []
+    },
+    {
+      "id": "us_composite",
+      "title": "US Composite (Phase 0-4)",
+      "archive_path": "research/09_us_composite",
+      "status": "passed_research_gate",
+      "date_range": "2026-08-20..2026-08-23",
+      "markets": ["US"],
+      "question": "Can US Composite with macro factors beat SM/FSM?",
+      "decision": "US Composite passed research gate.",
+      "gate": "Sharpe above baseline; fold consistency >= 75%.",
+      "key_results": {},
+      "limitations": [],
+      "sources": ["research/09_us_composite/plans/expert_system_reconstruction_roadmap.md"],
+      "evidence": []
+    },
+    {
+      "id": "news_fusion",
+      "title": "News fusion and sentiment factors",
+      "archive_path": "research/06_news_fusion",
+      "status": "completed",
+      "date_range": "2026-08-09",
+      "markets": ["US", "CN_A"],
+      "question": "Can leakage-safe news sentiment be added as an optional signal without breaking missing-data behavior?",
+      "decision": "News fusion was integrated as an optional research branch; missing coverage uses explicit fallback and is not treated as evidence of uplift.",
+      "gate": "Schema, coverage, duplicate/future-date, fallback, leakage and ablation checks.",
+      "key_results": {"status": "research_optional", "fallback": "explicit"},
+      "limitations": ["A local zero-coverage diagnostic validates fallback behavior only; it is not performance evidence."],
+      "sources": [
+        "research/06_news_fusion/README.md",
+        "document/news_sentiment_schema.md",
+        "document/acceptance/window_4_news_factor_20260809.md",
+        "core/news_factor.py",
+        "tests/test_news_factor.py"
+      ],
+      "evidence": [
+        {"path": "document/acceptance/window_4_news_factor_20260809.md", "required": true}
+      ]
+    },
+    {
+      "id": "frontend_evolution",
+      "title": "Frontend evolution (W6-W8)",
+      "archive_path": "research/07_frontend_evolution",
+      "status": "completed",
+      "date_range": "2026-08-07..2026-08-09",
+      "markets": ["US", "CN_A"],
+      "question": "Can the research and analysis surfaces become a readable, performant product tool without changing strategy contracts?",
+      "decision": "The shared warm-white visual system, route structure, export surface and performance work were frozen as the frontend baseline.",
+      "gate": "Route, state, HTML export, responsive layout and performance regression contracts.",
+      "key_results": {"status": "frontend_baseline_frozen"},
+      "limitations": ["Visual completion does not establish strategy performance or production admission."],
+      "sources": [
+        "research/07_frontend_evolution/README.md",
+        "research/07_frontend_evolution/plans/web_performance_phase_7_20260809.md",
+        "document/FRONTEND_STYLE_STANDARD.md",
+        "document/interfaces/frontend-contracts.md",
+        "ui/theme.py"
+      ],
+      "evidence": [
+        {"path": "research/07_frontend_evolution/plans/web_performance_phase_7_20260809.md", "required": true}
+      ]
+    },
+    {
+      "id": "deployment_optimization",
+      "title": "Deployment optimization and cross-device setup",
+      "archive_path": "research/08_deployment_optimization",
+      "status": "completed",
+      "date_range": "2026-08-09",
+      "markets": ["US", "CN_A"],
+      "question": "Can the application run consistently across local platforms and the /strategy subpath while preserving workspace and cache boundaries?",
+      "decision": "Cross-platform setup, Nginx subpath deployment, workspace persistence, cache invalidation and performance monitoring were documented and tested.",
+      "gate": "Deployment runtime, subpath routing, workspace recovery and cache contract checks.",
+      "key_results": {"status": "deployment_contracts_frozen"},
+      "limitations": ["Deployment contracts are operational boundaries, not evidence of investment performance."],
+      "sources": [
+        "research/08_deployment_optimization/README.md",
+        "document/interfaces/deploy-runtime.md",
+        "core/workspace_cache.py",
+        "core/market_cache.py",
+        "tests/test_workspace_cache.py"
+      ],
+      "evidence": [
+        {"path": "document/interfaces/deploy-runtime.md", "required": true}
+      ]
+    }
+  ]
+}

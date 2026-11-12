@@ -81,6 +81,7 @@ COMPARE_DETAIL_VIEW_KEY = "single_stock_compare_detail_view"
 ANALYSIS_SECTION_KEY = "single_stock_analysis_section"
 HEADER_DETAILS_KEY = "single_stock_header_details_expanded"
 SINGLE_DISPLAY_CACHE_KEY = "single_stock_display_cache"
+ROUTE_ANALYSIS_LOADING_KEY = "_route_analysis_loading"
 WORKFLOW_REQUEST_STATE_KEYS = (
     "single_stock_workflow_family",
     "single_stock_workflow_baseline_kind",
@@ -598,6 +599,7 @@ def _render_switch_stock_popover(*, symbol: str, market: str) -> None:
 
 def _switch_single_stock_symbol(symbol: str, market: str) -> None:
     st.session_state.pop(HEADER_DETAILS_KEY, None)
+    st.session_state[ROUTE_ANALYSIS_LOADING_KEY] = True
     st.session_state[SINGLE_ROUTE_STATE_KEY] = {
         "view": "analysis",
         "market": market,
@@ -954,6 +956,8 @@ def render_single_stock_page(params: dict, df_raw: pd.DataFrame, symbol: str) ->
                                 df_raw=df_raw,
                                 split_idx=split_idx,
                                 symbol=symbol,
+                                market=p.get("market", "US"),
+                                adjust=p.get("adjust", "qfq"),
                             )
                         for info_message in pipeline_result.info_messages:
                             render_status_note(info_message, tone="info")
@@ -1495,7 +1499,7 @@ def _render_workbench_entry(
         )
     with family_col:
         st.caption(tr("workflow.step1SelectFamily"))
-        family_options = ["", "baseline", "search"]
+        family_options = ["", "baseline", "search", "composite"]
         if _normalize_market_key(market) == "US":
             family_options.append("regime")
         if st.session_state.get("single_stock_workflow_family") not in family_options:
@@ -1507,6 +1511,7 @@ def _render_workbench_entry(
                 "": tr("validation.selectModelFamily"),
                 "baseline": "Baseline",
                 "search": "Search",
+                "composite": "Composite (Phase 1)",
                 "regime": "Regime (Experimental)",
             }[value],
             key="single_stock_workflow_family",
@@ -1541,7 +1546,63 @@ def _build_strategy_request(family: str) -> StrategyRequest:
         )
         return StrategyRequest(family="baseline", baseline_kind=baseline_kind or None)
 
-    if family == "regime":
+    elif family == "composite":
+        st.caption("🎯 Composite 使用多因子融合，自动训练权重（CN_A）或使用预定义专家池（US）")
+
+        composite_policy = st.selectbox(
+            "Advisory 策略",
+            options=[
+                "composite_only",
+                "composite_plus_trend",
+                "composite_plus_reversion",
+                "composite_plus_relative_strength",
+                "composite_plus_macro_cap",
+                "composite_plus_all_advisories",
+            ],
+            format_func=lambda value: {
+                "composite_only": "Composite Only（无 Advisory）",
+                "composite_plus_trend": "Composite + Trend Advisory",
+                "composite_plus_reversion": "Composite + Reversion Advisory",
+                "composite_plus_relative_strength": "Composite + Relative Strength",
+                "composite_plus_macro_cap": "Composite + Macro Cap",
+                "composite_plus_all_advisories": "Composite + All Advisories",
+            }[value],
+            key="single_stock_workflow_composite_policy",
+            help="Advisory 只能减少 Composite 仓位，不能增加或反向",
+        )
+
+        with st.expander("⚙️ Composite 高级设置", expanded=False):
+            composite_risk_budget = st.slider(
+                "风险预算（最大仓位）",
+                min_value=0.1,
+                max_value=1.0,
+                value=1.0,
+                step=0.1,
+                help="最大允许仓位，1.0 = 满仓",
+                key="composite_risk_budget",
+            )
+
+            composite_position_method = st.selectbox(
+                "仓位映射方法",
+                options=["linear_clip", "tanh_smooth", "quantile_5bin"],
+                format_func=lambda value: {
+                    "linear_clip": "线性归一化（推荐）",
+                    "tanh_smooth": "Tanh 平滑映射",
+                    "quantile_5bin": "分位数 5 档",
+                }[value],
+                index=0,
+                help="将 composite score 映射到 [0, risk_budget] 的方法",
+                key="composite_position_method",
+            )
+
+        return StrategyRequest(
+            family="composite",
+            composite_policy=composite_policy,
+            composite_risk_budget=composite_risk_budget,
+            composite_position_method=composite_position_method,
+        )
+
+    elif family == "regime":
         if st.session_state.get("single_stock_workflow_regime_kind") not in {
             ADAPTIVE_REGIME_KIND,
             "dual_state_router",
@@ -1563,7 +1624,9 @@ def _build_strategy_request(family: str) -> StrategyRequest:
         st.caption(tr("router.adaptive_v1_fallback"))
         return StrategyRequest(family="regime", regime_kind=regime_kind or None)
 
-    search_base = st.selectbox(
+    elif family == "search":
+        # ✅ 明确的 search 分支 - 只有 search 策略才显示这些配置
+        search_base = st.selectbox(
         tr("step2.search_base_model"),
         options=["", "sm", "fsm"],
         format_func=lambda value: {
@@ -1771,6 +1834,13 @@ def _render_model_configuration_guidance(request: StrategyRequest) -> None:
             st.info(tr("validation.select_baseline_type"))
         return
 
+    if request.family == "composite":
+        st.caption("📊 Composite 策略说明")
+        st.write("• CN_A 市场：使用 Ridge 回归自动训练因子权重")
+        st.write("• US 市场：使用预定义的 ExpertPoolV2")
+        st.write("• Advisory 策略只能减少仓位，不能增加或反向")
+        return
+
     if request.family == "regime":
         if request.regime_kind == ADAPTIVE_REGIME_KIND:
             st.caption(tr("algorithm.adaptivePathDescription"))
@@ -1844,6 +1914,11 @@ def _get_request_missing_items(request: StrategyRequest) -> list[str]:
             return [tr("configuration.regime.missing")]
         return []
 
+    if request.family == "composite":
+        # Composite trains/loads its own factor model and does not require
+        # the Search family's SM/FSM base-model selection.
+        return []
+
     missing_items: list[str] = []
     if request.search_base is None:
         missing_items.append(tr("strategy.selection_prompt"))
@@ -1876,6 +1951,17 @@ def _describe_request_pipeline(request: StrategyRequest) -> str | None:
         if request.regime_kind == ADAPTIVE_REGIME_KIND:
             return tr("strategy.generationFlow")
         return tr("strategy.regime_legacy_dual_state_routing")
+
+    if request.family == "composite":
+        policy_labels = {
+            "composite_only": "Composite Only",
+            "composite_plus_trend": "Composite + Trend Advisory",
+            "composite_plus_reversion": "Composite + Reversion Advisory",
+            "composite_plus_relative_strength": "Composite + Relative Strength",
+            "composite_plus_macro_cap": "Composite + Macro Cap",
+            "composite_plus_all_advisories": "Composite + All Advisories",
+        }
+        return f"Composite -> {policy_labels.get(request.composite_policy, request.composite_policy)} -> 生成策略"
 
     if request.search_base is None:
         return tr("search.await_sm_fsm_selection")

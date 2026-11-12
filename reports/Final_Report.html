@@ -392,6 +392,15 @@
       </div>
     </div>
 
+    <!-- CURRENT VERSION UPDATE: appended to the original detailed report -->
+    <div class="note" id="current-version-update">
+      <strong>Current-version addendum (2026-08)</strong>
+      <p>This report keeps the original detailed course chapters, formulas, tables and references. The following addendum records capabilities and research boundaries delivered after that report. Use the original chapters for the SM, FSM, ML, RSM, baseline and parameter-learning foundations, and this addendum for the current product surface.</p>
+      <p><strong>Product additions:</strong> bilingual route state (<code>?lang=zh</code> / <code>?lang=en</code>), the home market lens and same-source recommendations, single-stock and multi-stock workspaces, short-lived <code>ws</code> recovery, fresh/stale market caching, a read-only model-evaluation browser, the research evidence catalog, offline single-/multi-stock HTML export, and chapter deep links plus submit-only search in this report center.</p>
+      <p><strong>Research additions:</strong> the adaptive regime router, News Fusion, market-native CN_A factors, a CN_A Composite baseline and an advisory framework. In the frozen CN_A pooled comparison, <code>composite_only</code> records Sharpe <strong>0.5972</strong> versus SM <strong>0.5277</strong> and FSM <strong>0.4984</strong>, with average max drawdown <strong>-54.81%</strong> and symbol-fold consistency <strong>76.7% (46/60)</strong>. Those figures come from the frozen model fitted only on ten technical factors, not from an incremental test of the thirteen market-native panel factors; the results remain research-only. <code>model-test/</code> produces research outputs and <code>research/</code> records their provenance; research-only results do not silently become the production default.</p>
+      <p><strong>Boundary:</strong> missing data, offline artifacts or research outputs produce N/A, empty states or an explicit degraded fallback. These states are evidence and must not be read as zero return or model admission.</p>
+    </div>
+
     <!-- ══════════════════════════════════════════ -->
     <!-- SEARCH MODULE                               -->
     <!-- ══════════════════════════════════════════ -->
@@ -437,6 +446,7 @@
               <li><a href="#model-optimizer">2.5 Parameter Optimization</a></li>
               <li><a href="#model-baselines">2.6 Baseline Models</a></li>
               <li><a href="#model-interaction">2.7 Model Interaction &amp; Composition</a></li>
+              <li><a href="#model-composite">2.8 Composite Model (Research Line)</a></li>
             </ol>
           </details>
         </li>
@@ -451,8 +461,9 @@
               <li><a href="#analysis-regime">3.4 Adaptive Regime Router</a></li>
               <li><a href="#analysis-optimizer">3.5 Parameter Optimization</a></li>
               <li><a href="#analysis-baselines">3.6 Baseline Models (Naive, Mean, Drift)</a></li>
-              <li><a href="#analysis-cross-model">3.7 Cross-Model Dependency &amp; Failure Propagation</a></li>
-              <li><a href="#analysis-summary">3.8 Summary Comparison Matrix</a></li>
+              <li><a href="#analysis-composite">3.7 Composite Model Analysis</a></li>
+              <li><a href="#analysis-cross-model">3.8 Cross-Model Dependency &amp; Failure Propagation</a></li>
+              <li><a href="#analysis-summary">3.9 Summary Comparison Matrix</a></li>
             </ol>
           </details>
         </li>
@@ -469,6 +480,7 @@
               <li><a href="#baseline-research">4.6 Offline Research Validation</a></li>
               <li><a href="#baseline-webapp">4.7 WebApp Visualization</a></li>
               <li><a href="#baseline-reading-guide">4.8 How to Read the Baseline Comparison</a></li>
+              <li><a href="#baseline-composite">4.9 Composite vs SM/FSM (CN_A)</a></li>
             </ol>
           </details>
         </li>
@@ -520,6 +532,7 @@
               <li><a href="#interp-ml-filter">7.6 SM + ML Filter vs SM Alone</a></li>
               <li><a href="#interp-adaptive-regime">7.7 Adaptive Regime Router vs Static</a></li>
               <li><a href="#interp-hierarchy">7.8 Cross-Model Performance Hierarchy</a></li>
+              <li><a href="#interp-cn-a-composite">Composite Evidence by Market</a></li>
             </ol>
           </details>
         </li>
@@ -1313,8 +1326,15 @@
           <tr><td>12</td><td><code>sm_ml</code></td><td>SM+ML</td><td>SM + ML signal filter</td></tr>
           <tr><td>13</td><td><code>fsm_ml</code></td><td>FSM+ML</td><td>FSM + ML signal filter</td></tr>
           <tr><td>14</td><td><code>rsm_adaptive_v1</code></td><td>Regime</td><td>Adaptive router v1 (6-state KMeans)</td></tr>
+          <tr><td>15</td><td><code>composite_only</code></td><td>Composite</td><td>Independent Composite; the frozen Phase 4/6 weights fit ten technical factors</td></tr>
+          <tr><td>16</td><td><code>composite_plus_trend</code></td><td>Composite advisory</td><td>Composite plus trend advisory overlay</td></tr>
+          <tr><td>17</td><td><code>composite_plus_reversion</code></td><td>Composite advisory</td><td>Composite plus mean-reversion advisory overlay</td></tr>
+          <tr><td>18</td><td><code>composite_plus_relative_strength</code></td><td>Composite advisory</td><td>Composite plus relative-strength advisory overlay</td></tr>
+          <tr><td>19</td><td><code>composite_plus_macro_cap</code></td><td>Composite advisory</td><td>Composite plus macro risk-cap advisory</td></tr>
+          <tr><td>20</td><td><code>composite_plus_all_advisories</code></td><td>Composite advisory</td><td>Composite with all supported advisory overlays</td></tr>
         </tbody>
       </table>
+      <p class="note"><strong>New independent family:</strong> Composite is not an SM/FSM post-filter. It has its own learned forward-return objective, long-only position mapping and auditable decision/weight provenance. Its CN_A panel is designed for ten technical plus thirteen market-native factors, but the frozen Phase 4/6 numeric run selected only the ten technical factors for fitting; the reported metrics must not be attributed to the thirteen context factors. Advisory variants may only maintain or reduce exposure and cannot open a position when the Composite base position is zero.</p>
     
       <!-- ====================================================================== -->
       <!-- 1.6  Final Answer                                                      -->
@@ -2254,6 +2274,41 @@
         All models ultimately produce a daily <code>target_position &isin; [0, 1]</code> series that
         feeds into the shared backtest engine (<code>core/backtest.py &rarr; simulate_strategy()</code>),
         which computes equity curves, returns, and trade records under a unified framework.
+      </p>
+
+      <h3 id="model-composite">2.8 Composite Model: Design Capability and Frozen Evidence</h3>
+      <p>
+        The Composite family (implemented in <code>core/composite_cn_a.py</code> and the
+        corresponding research runners) is a separate strategy branch, rather than a filter
+        applied after SM or FSM. The Phase&nbsp;3 panel and <code>composite_cn_a.json</code> define
+        ten technical factors plus thirteen market-native context factors such as volatility,
+        regime, relative strength, beta, breadth and tradability. CN_A constructs that context
+        explicitly and does not silently read SPY/VIX.
+      </p>
+      <p>
+        The frozen Phase&nbsp;4/6 numeric model did <strong>not</strong> fit all 23 panel columns:
+        <code>run_cn_a_composite.py</code> sets <code>factor_cols</code> to
+        <code>technical_factors</code>, and every fold in <code>composite_weights_by_fold.json</code>
+        contains exactly ten technical-factor weights. The 23-factor panel is therefore not the
+        frozen model's actual feature set, and the 0.5972 Sharpe cannot be attributed to the
+        thirteen market-native factors.
+      </p>
+      <p>
+        Training targets are real <strong>20-trading-day forward returns</strong>. The fitting API
+        supports Ridge, Lasso and ElasticNet; the frozen run uses Ridge with <code>alpha=1.0</code>
+        inside train-only / purged-fold boundaries. The learned score is mapped
+        to a long-only position through <code>linear_clip</code>, <code>tanh_smooth</code> or
+        <code>quantile_5bin</code>, with risk-budget and execution-cost controls. Every run records
+        the decision, weights, feature provenance, fold and fallback status for auditability.
+      </p>
+      <p>
+        Advisory variants (<code>composite_plus_trend</code>, <code>composite_plus_reversion</code>,
+        <code>composite_plus_relative_strength</code>, <code>composite_plus_macro_cap</code> and
+        <code>composite_plus_all_advisories</code>) can only preserve or reduce a Composite
+        position. The CN_A design path requires valid explicit market context; missing or
+        invalid context fails closed as unavailable rather than silently substituting cash.
+        Only invalid advisory input uses a conservative cash fallback, and advisory logic never
+        creates a new long entry when the Composite base position is zero.
       </p>
     </section>
 
@@ -3667,9 +3722,41 @@
       </table>
     
       <!-- ====================================================================== -->
-      <!-- 3.7  Cross-Model Dependency & Failure Propagation                       -->
+      <h3 id="analysis-composite">3.7 Composite Model</h3>
+      <p>
+        Composite’s demonstrated distinction in the frozen run is supervised weight learning:
+        it fits Ridge weights over the same ten technical inputs using real forward returns,
+        instead of using SM’s hand-set weights or FSM’s unsupervised Factor Analysis. The wider
+        23-factor panel can support market-native context, but those thirteen context columns were
+        not selected by this run and are an unvalidated extension rather than an explanation for
+        the reported performance. The long-only map, risk budget and recorded weights make each
+        decision traceable, while the advisory contract provides a conservative safety boundary.
+      </p>
+      <table>
+        <thead><tr><th>Area</th><th>Assessment</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Strengths</strong></td><td>Outcome-trained Ridge direction over ten technical factors; extensible 23-factor panel; long-only exposure; auditable weights and decisions; lower drawdown in the frozen CN_A comparison.</td></tr>
+          <tr><td><strong>Weaknesses</strong></td><td>Higher data and training burden; sensitive to forward-return labels, fold stability and context coverage; evidence is limited to the frozen research universe.</td></tr>
+          <tr><td><strong>Constraints</strong></td><td>Research-only; cannot be promoted to the production default automatically; advisory versions have not passed a real-data experience gate; CN_A results must not be extrapolated to US or other markets.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>3.7.1 Composite Against the Existing Model Families</h4>
+      <table>
+        <thead><tr><th>Comparator</th><th>Structural difference</th><th>Current evidence boundary</th></tr></thead>
+        <tbody>
+          <tr><td><strong>SM</strong></td><td>Both frozen runs use ten technical factors as their actual model inputs. SM uses hand-set weights; Composite fits Ridge weights to real 20-day forward returns. The thirteen CN_A market-native columns exist in the panel but were not selected by this runner.</td><td>Phase 6 pooled evidence: Sharpe 0.5972 vs 0.5277 and average max drawdown -54.81% vs -74.07%; coverage is not fully paired, and the difference cannot be attributed to market context.</td></tr>
+          <tr><td><strong>FSM</strong></td><td>FSM applies unsupervised Factor Analysis to technical factors; the frozen Composite applies regularized supervised learning to ten technical factors. This numeric evidence does not test the incremental value of the other thirteen context columns.</td><td>Phase 6 pooled evidence: Sharpe 0.5972 vs 0.4984 and average max drawdown -54.81% vs -64.50%; coverage is not fully paired.</td></tr>
+          <tr><td><strong>ML Filter</strong></td><td>The ML Filter vetoes entries produced by SM/FSM. Composite produces the base score and long-only target position itself; only its advisory layer is restricted to holding or reducing exposure.</td><td>No frozen same-sample Composite-vs-ML numeric comparison is available; this row is structural only.</td></tr>
+          <tr><td><strong>Adaptive Router / RSM</strong></td><td>The router switches among candidate strategies by regime. Composite learns one market-specific score and position and does not route among candidate models.</td><td>The legacy RSM hierarchy cannot override the market-specific CN_A Composite evidence.</td></tr>
+          <tr><td><strong>Optimizer</strong></td><td>The optimizer searches windows, thresholds and risk parameters for SM/FSM. Composite primarily learns factor weights and is admitted under fixed fold/horizon rules.</td><td>No frozen fully paired Composite-vs-Optimizer numeric comparison is available.</td></tr>
+          <tr><td><strong>Naive / Mean / Drift</strong></td><td>Course baselines are simpler, need less data and provide robustness controls. Composite has a richer panel design, although the frozen fit used only ten technical factors.</td><td>The formal Composite numeric table currently aggregates only SM/FSM controls; design extensibility is not evidence of universal baseline dominance.</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 3.8  Cross-Model Dependency & Failure Propagation                       -->
       <!-- ====================================================================== -->
-      <h3 id="analysis-cross-model">3.7 Cross-Model Dependency &amp; Failure Propagation</h3>
+      <h3 id="analysis-cross-model">3.8 Cross-Model Dependency &amp; Failure Propagation</h3>
       <p>
         The layered architecture (Baselines &rarr; SM/FSM &rarr; ML Filter &rarr; Regime Router
         &rarr; Optimizer) creates dependency chains where a failure or degradation at one layer
@@ -3728,9 +3815,9 @@
       </table>
     
       <!-- ====================================================================== -->
-      <!-- 3.8  Summary Comparison Matrix                                          -->
+      <!-- 3.9  Summary Comparison Matrix                                          -->
       <!-- ====================================================================== -->
-      <h3 id="analysis-summary">3.8 Summary Comparison Matrix</h3>
+      <h3 id="analysis-summary">3.9 Summary Comparison Matrix</h3>
       <p>
         The following matrix provides a high-level comparison across all models on seven
         evaluation dimensions, rated on a qualitative scale
@@ -3747,6 +3834,7 @@
             <th>FSM</th>
             <th>ML Filter</th>
             <th>Adaptive Router</th>
+            <th>Composite</th>
             <th>Optimizer</th>
             <th>Baselines</th>
           </tr>
@@ -3759,6 +3847,7 @@
             <td>&#9679;&#9675;&#9675;</td>
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9679;&#9675;</td>
+            <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9679;&#9679;</td>
           </tr>
           <tr>
@@ -3767,6 +3856,7 @@
             <td>&#9679;&#9675;&#9675;</td>
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9679;&#9679;</td>
+            <td>&#9679;&#9679;&#9675; (context-capable; not in frozen fit)</td>
             <td>&#9679;&#9679;&#9679;</td>
             <td>&#9675;&#9675;&#9675;</td>
           </tr>
@@ -3776,6 +3866,7 @@
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9675;&#9675;</td>
             <td>&#9679;&#9679;&#9675;</td>
+            <td>&#9679;&#9679;&#9675; (Ridge; frozen ten-factor fit)</td>
             <td>&#9679;&#9675;&#9675;</td>
             <td>&#9679;&#9679;&#9679;</td>
           </tr>
@@ -3785,6 +3876,7 @@
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9675;&#9675; (high)</td>
             <td>&#9679;&#9679;&#9675;</td>
+            <td>&#9679;&#9675;&#9675; (medium-high)</td>
             <td>&#9679;&#9675;&#9675; (high)</td>
             <td>&#9679;&#9679;&#9679; (none)</td>
           </tr>
@@ -3794,6 +3886,7 @@
             <td>&#9679;&#9675;&#9675; (&ge;50+ clean rows)</td>
             <td>&#9679;&#9675;&#9675; (&ge;100 buy signals)</td>
             <td>&#9675;&#9675;&#9675; (&ge;252 days + SPY)</td>
+            <td>&#9679;&#9679;&#9675; (frozen fit: technical factors + 20-day labels; full panel also needs context)</td>
             <td>&#9675;&#9675;&#9675; (&ge;756 days)</td>
             <td>&#9679;&#9679;&#9679; (&ge;1&ndash;60 days)</td>
           </tr>
@@ -3803,6 +3896,7 @@
             <td>&#9679;&#9679;&#9679; (fast)</td>
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9679;&#9675;</td>
+            <td>&#9675;&#9675;&#9675; (training-intensive)</td>
             <td>&#9675;&#9675;&#9675; (expensive)</td>
             <td>&#9679;&#9679;&#9679; (trivial)</td>
           </tr>
@@ -3812,6 +3906,7 @@
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9679;&#9679;</td>
             <td>&#9679;&#9679;&#9679;</td>
+            <td>&#9679;&#9679;&#9675; (invalid context = unavailable; invalid advisory input = cash)</td>
             <td>&#9679;&#9679;&#9675;</td>
             <td>N/A</td>
           </tr>
@@ -3824,7 +3919,11 @@
         adds data-driven weighting but introduces Gaussian assumptions. The ML Filter can capture
         non-linear patterns but is prone to overfitting in the low-SNR financial domain. The Adaptive
         Router provides regime-awareness but depends on offline artifact quality and SPY data. The
-        Optimizer improves parameters but cannot guarantee out-of-sample performance. The Baselines
+        Composite design can accept explicit market context and learns direction from forward
+        returns, but the frozen numeric run validates only a ten-technical-factor Ridge fit; the
+        incremental value of the thirteen market-native factors remains untested. Composite requires
+        longer, market-specific research and remains research-only. The Optimizer improves parameters but
+        cannot guarantee out-of-sample performance. The Baselines
         provide robustness and simplicity but no alpha. This complementary structure is by design:
         the layered pipeline allows each model to contribute its strength while downstream layers
         compensate for upstream weaknesses.
@@ -4677,6 +4776,41 @@
         arise from differences in execution mechanics rather than differences in the underlying
         trading signals.
       </div>
+
+      <h3 id="baseline-composite">4.9 Composite vs SM/FSM: Frozen CN_A Comparison</h3>
+      <p>
+        Composite must also be compared with the two principal factor models, not only with
+        course baselines. The Phase&nbsp;6 manifest labels this research line
+        <code>CN_A / full_cn_a_admission_60</code> and records four configured fold IDs. The config
+        declares a 20-trading-day horizon with 3&nbsp;bps commission + 5&nbsp;bps slippage, and the
+        source runners deduct those configured costs from <code>strategy_return</code>; Phase&nbsp;6
+        does not expose separate cost attribution or cost-sensitivity columns. The frozen Composite
+        weights fit only ten technical factors, so the results cannot be attributed to the thirteen
+        market-native panel columns. The observed source rows are not fully paired: Composite has 60
+        symbol-fold rows from <code>fold_01</code>&ndash;<code>fold_03</code>, whereas SM and FSM each
+        have 20 rows across <code>fold_00</code>&ndash;<code>fold_03</code>. This is therefore a pooled
+        directional comparison, not a paired same-symbol/fold significance test. The figures are
+        frozen research evidence, not a production claim.
+      </p>
+      <p class="note"><strong>Auditable evidence:</strong> <code>model-test/outputs/cn_a_factor_composite_comparison/comparison_metrics.csv</code>, <code>comparison_fold_metrics.csv</code>, <code>comparison_manifest.json</code>, and <code>model-test/outputs/composite_cn_a/composite_weights_by_fold.json</code> for the actual fitted inputs.</p>
+      <table>
+        <thead><tr><th>Model</th><th>Mean Sharpe</th><th>Sharpe std</th><th>Average max drawdown</th><th>Win rate</th><th>Symbol-fold consistency<br>(Sharpe &ge; 0.3)</th><th>Admission</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Composite</strong> (<code>composite_only</code>)</td><td><strong>0.5972</strong></td><td>0.5659</td><td><strong>-54.81%</strong></td><td><strong>48.32%</strong></td><td><strong>76.7% (46/60)</strong></td><td>Passed pooled research gate</td></tr>
+          <tr><td>SM</td><td>0.5277</td><td>0.3630</td><td>-74.07%</td><td>19.35%</td><td>80.0% (16/20)</td><td>Comparison control</td></tr>
+          <tr><td>FSM</td><td>0.4984</td><td>0.3485</td><td>-64.50%</td><td>12.72%</td><td>80.0% (16/20)</td><td>Comparison control</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Composite’s Sharpe is 13.2% above SM and 19.8% above FSM, while its average drawdown is
+        less severe than either control. The Phase&nbsp;6 table compares returns, Sharpe, maximum
+        drawdown, win rate, and source-row consistency/coverage; it does not independently validate
+        turnover, cost sensitivity or fallback behaviour. Its <code>turnover_mean=0</code> is the
+        runner's default when <code>avg_turnover</code> is absent from the source summaries, not
+        evidence of zero turnover. CN_A evidence cannot be extrapolated to the US market, and Composite remains
+        <strong>research-only</strong>; the advisory variants have no passed real-data experience
+        gate and do not change the production default.
+      </p>
     </section>
 
 
@@ -7743,6 +7877,21 @@
         based on observed patterns; individual stocks or market periods may produce
         deviations.
       </p>
+      <p class="note"><strong>Scope clarification:</strong> the ranking below is the legacy SM/FSM/RSM interpretation. Composite is a newer, independent research branch and must be reported with market-specific frozen evidence rather than inserted into this historical global ordering.</p>
+
+      <h4 id="interp-cn-a-composite">Composite Evidence by Market</h4>
+      <p>
+        In the frozen CN_A admission comparison, <code>composite_only</code> ranks ahead of both
+        SM and FSM on the joint Sharpe/drawdown/consistency view (Sharpe 0.5972, average maximum
+        drawdown -54.81%, symbol-fold consistency 76.7% or 46/60; see Section&nbsp;4.9). The CN_A
+        source rows are pooled rather than fully paired. The frozen Composite fit uses ten
+        technical factors; the thirteen market-native panel columns were not selected, so this
+        result is not evidence of their incremental value. The US README records a
+        <code>passed_research_gate</code> narrative, but this report found no reviewable frozen
+        numeric artifact for that claim. US numeric status is therefore <strong>unavailable</strong>,
+        with no Composite-vs-SM/FSM win/loss statement made here. CN_A and US evidence cannot be
+        extrapolated to one another, and neither makes Composite production-ready.
+      </p>
     
       <h4>7.8.1 Typical Performance Ranking</h4>
       <table>
@@ -7831,7 +7980,7 @@
           </tr>
         </tbody>
       </table>
-    
+
       <h4>7.8.2 Marginal Improvement Analysis</h4>
       <p>
         The ranking above reflects not only absolute performance but the <em>marginal
@@ -8172,6 +8321,32 @@
     <!-- ══════════════════════════════════════════ -->
     <section id="submission-packaging">
       <h2>Submission Packaging</h2>
+      <h3 id="current-product-surface">Current product surface and user paths</h3>
+      <p>From home, the header provides Home, Single Stock, Multi Stock, Help and Research Evidence. News, indices, the watch pool and recommendations are independent degradable fragments; recommendations are a relative view of the same source, not a whole-market selector or a buy recommendation.</p>
+      <p>The single-stock entry supports search, ticker fallback and CSV upload. In analysis, the left workbench builds a <code>StrategyRequest</code> and the right board consumes a <code>StrategyArtifact</code>; generate, save and compare mean current result, session library and artifact comparison. Changing the symbol, upload, dates or train ratio resets the workflow workspace so stale results cannot leak into a new context.</p>
+      <p>The multi-stock entry can mix market symbols and uploaded files. Its information area covers price, relative strength, risk/return, correlation, factor score and periodic returns; its strategy area covers portfolio simulation, contribution, buy-and-hold controls, weights and portfolio optimization.</p>
+
+      <h3 id="current-runtime-recovery">Temporary workspace, cache and recovery</h3>
+      <p>The no-login temporary workspace is driven by a short-lived <code>ws</code> URL token and normally lasts 24 hours. It can restore routes, parameters, selections, uploaded CSVs, single-stock artifacts and multi-stock portfolio results. Stage cache, Plotly figures and display cache stay in-process and are rebuilt lazily; do not share a URL containing <code>ws</code>.</p>
+      <p>Market cache is isolated by market, symbol and adjustment: fresh data returns directly, stale data can refresh in the background, and manual refresh updates the same cache key. Upload content fingerprints participate in signatures, so same-name, same-length files with changed bytes cannot reuse old analysis or portfolio results.</p>
+
+      <h3 id="current-strategy-paths">Current strategy paths and safe fallbacks</h3>
+      <table><thead><tr><th>Path</th><th>Current meaning</th><th>Boundary</th></tr></thead><tbody>
+        <tr><td>Baseline</td><td>Transparent Naive, Mean and Drift controls</td><td>No Search, FSM or ML add-ons</td></tr>
+        <tr><td>Search</td><td>SM/FSM → parameter search → optional News Fusion → optional ML</td><td>Failures keep the last successful upstream stage</td></tr>
+        <tr><td>Regime</td><td>adaptive_router_v1 routes candidates by state</td><td>Missing/corrupt artifacts fall back to dual_state_router and mark degraded</td></tr>
+        <tr><td>Composite</td><td>Multi-factor score mapped to long-only target position</td><td>CN_A is market-isolated; advisory can only hold or reduce</td></tr>
+      </tbody></table>
+
+      <h3 id="current-research-status">Current research evidence status</h3>
+      <p><code>/strategy/model-evaluation</code> is read-only: it consumes existing <code>report.json</code>, QuantStats, MLflow and market artifacts, never starts research, and never fabricates missing output. <code>research/RESEARCH_CATALOG.md</code> is the conclusion-first provenance map for the five frozen research lines.</p>
+      <ul><li>Transformer state similarity: query utility failed; research stopped and is not connected to Streamlit.</li><li>Adaptive/dynamic experts: admission gate not reached; the default strategy was not changed.</li><li>CN_A Composite: Sharpe 0.5972 and 76.7% symbol-fold consistency (46/60) in the frozen pooled comparison; Composite has 60 source rows while SM and FSM have 20 each, so this is not a fully paired test. The research gate passed, but the model remains research-only.</li><li>CN_A advisory: contract and tests are complete; no empirical real-data gate pass is recorded.</li></ul>
+
+      <h3 id="current-cn-a-composite">CN_A Composite boundary</h3>
+      <p>CN_A explicitly constructs a market-native panel covering volatility, regime, relative strength, beta, breadth and tradability and never silently reads SPY/VIX. The design panel contains ten technical plus thirteen market-native factors, but the frozen Phase&nbsp;4/6 runner selects only the ten technical factors and fits Ridge weights to real forward returns; the 0.5972 result must not be attributed to market context. Advisory weights are not shared across markets, and the advisory layer cannot open a position when the Composite base position is zero. Missing explicit context makes the main Composite path fail closed as unavailable; only invalid advisory input invokes conservative cash protection. Interpret results with the recorded market, universe, fold, horizon, configured-cost and observed-coverage boundaries intact. Phase&nbsp;6 does not independently validate turnover, cost sensitivity or fallback behaviour.</p>
+
+      <h3 id="current-deployment-and-limitations">Deployment, export and known limitations</h3>
+      <p>Run locally with <code>run.bat</code> / <code>run.sh</code>; production uses the <code>/strategy</code> subpath, Nginx template and deployment scripts. Single- and multi-stock exports use shared builders; the report center renders bilingual HTML directly without an iframe. Quotes, recommendations, news and some research artifacts depend on network or local files, while API changes, limits, slippage, costs and data revisions can change results.</p>
       <p>
         The repository includes <code>scripts/prepare_final_zip.ps1</code> to create a cleaned
         submission package. It excludes <code>.git</code>, <code>__pycache__</code>, virtual

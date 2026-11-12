@@ -1,0 +1,66 @@
+D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈÝ\stratagy\model-test\run_cn_a_composite.py:296: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  train_panel_copy = train_panel_copy.groupby("symbol", group_keys=False).apply(
+D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈÝ\stratagy\model-test\run_cn_a_composite.py:296: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  train_panel_copy = train_panel_copy.groupby("symbol", group_keys=False).apply(
+D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈÝ\stratagy\model-test\run_cn_a_composite.py:296: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  train_panel_copy = train_panel_copy.groupby("symbol", group_keys=False).apply(
+Loading config: model-test\configs\composite_cn_a.json
+Output directory: model-test\outputs\composite_cn_a
+Loading data from: model-test\outputs\full_cn_a_admission_60
+Loading existing factor panel: model-test\outputs\composite_cn_a\cn_a_factor_panel.parquet
+Factor panel loaded: 267162 rows, 37 columns
+Created 4 folds
+
+============================================================
+Processing fold_00
+============================================================
+Skipping fold_00: no training data
+
+============================================================
+Processing fold_01
+============================================================
+Train: 23587 rows, Test: 43556 rows
+Fitting composite weights...
+Computing 20-day forward returns...
+Training samples after forward return computation: 23167
+Fitted weights: {'mom_short_z': np.float64(-0.03886301468573929), 'mom_long_z': np.float64(-0.023647815993076946), 'macd_z': np.float64(-0.03995822928823196), 'rsi_z': np.float64(0.08821961086991781), 'bb_position_rank': np.float64(-0.045266098004002754)}
+Running composite_only on test fold...
+Completed fold_01: 20 symbol results
+
+============================================================
+Processing fold_02
+============================================================
+Train: 66809 rows, Test: 82326 rows
+Fitting composite weights...
+Computing 20-day forward returns...
+Training samples after forward return computation: 66076
+Fitted weights: {'mom_short_z': np.float64(-0.012625172944523718), 'mom_long_z': np.float64(-0.026823632981183204), 'macd_z': np.float64(-0.01896438550315464), 'rsi_z': np.float64(0.09379955216664544), 'bb_position_rank': np.float64(-0.09336679776132417)}
+Running composite_only on test fold...
+Completed fold_02: 20 symbol results
+
+============================================================
+Processing fold_03
+============================================================
+Train: 148920 rows, Test: 117198 rows
+Fitting composite weights...
+Computing 20-day forward returns...
+Training samples after forward return computation: 147880
+Fitted weights: {'mom_short_z': np.float64(0.001429978625617495), 'mom_long_z': np.float64(-0.01918852882418985), 'macd_z': np.float64(-0.01665946779260331), 'rsi_z': np.float64(0.059576073781577664), 'bb_position_rank': np.float64(-0.0673511666682489)}
+Running composite_only on test fold...
+Completed fold_03: 20 symbol results
+
+============================================================
+Saving results...
+============================================================
+Saved: model-test\outputs\composite_cn_a\composite_weights_by_fold.json
+Saved: model-test\outputs\composite_cn_a\composite_fold_summary.csv
+
+Aggregate Metrics:
+               sharpe_ratio         max_drawdown win_rate
+                       mean     std         mean     mean
+strategy                                                 
+composite_only       0.5972  0.5659      -0.5481   0.4832
+Saved: model-test\outputs\composite_cn_a\composite_manifest.json
+
+Phase 4 CN_A Composite-only completed successfully
+Output directory: model-test\outputs\composite_cn_a

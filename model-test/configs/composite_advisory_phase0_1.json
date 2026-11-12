@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0",
+  "status": "research_only",
+  "phase": "composite_advisory_phase0_1",
+  "market": "US",
+  "primary_horizon_days": 20,
+  "random_seed": 42,
+  "source": {
+    "snapshot_dir": "model-test/outputs/full_us_deans_60/data_snapshot",
+    "data_manifest": "model-test/outputs/full_us_deans_60/data_manifest.json",
+    "macro_data_dir": "data/macro",
+    "macro_data_manifest": "data/macro/macro_data_manifest.json",
+    "required_data_end": "2026-07-31",
+    "adjustment": "qfq"
+  },
+  "execution": {
+    "commission_bps": 1.0,
+    "slippage_bps": 2.0,
+    "cost_treatment": "ohlcv_gross_charge_once"
+  },
+  "policy_version": "composite_advisory_phase1_v1",
+  "policies": [
+    "composite_only",
+    "composite_plus_trend",
+    "composite_plus_reversion",
+    "composite_plus_macro_cap",
+    "composite_plus_relative_strength",
+    "composite_plus_all_advisories",
+    "cash"
+  ],
+  "bounds": {
+    "trend_trigger": 0.50,
+    "trend_conflict_multiplier": 0.80,
+    "reversion_trigger": 0.60,
+    "reversion_multiplier": 0.75,
+    "relative_trigger": 0.25,
+    "relative_conflict_multiplier": 0.80,
+    "macro_cap_floor": 0.25,
+    "max_single_decision_change": 0.25,
+    "max_position": 1.0
+  },
+  "folds": [
+    {
+      "fold_id": "fold_01",
+      "test_start": "2022-02-09",
+      "test_end": "2023-04-06",
+      "purge_days": 20,
+      "embargo_days": 20
+    },
+    {
+      "fold_id": "fold_02",
+      "test_start": "2023-04-10",
+      "test_end": "2024-06-04",
+      "purge_days": 20,
+      "embargo_days": 20
+    },
+    {
+      "fold_id": "fold_03",
+      "test_start": "2024-06-06",
+      "test_end": "2025-08-05",
+      "purge_days": 20,
+      "embargo_days": 20
+    }
+  ],
+  "admission": {
+    "max_sharpe_drop_vs_composite_only": 0.20,
+    "max_total_return_drop_vs_composite_only": 0.10,
+    "max_fallback_rate": 0.01,
+    "max_trigger_rate": 1.0,
+    "max_turnover_multiple_vs_composite_only": 2.0,
+    "require_cross_fold_risk_improvement": true,
+    "risk_metrics": ["max_drawdown", "downside_return"]
+  },
+  "output_subdir": "model-test/outputs/composite_advisory_phase1"
+}

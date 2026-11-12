@@ -1,0 +1,109 @@
+{
+  "source_url": "http://127.0.0.1:8502/strategy/",
+  "captured_at": "2026-08-24T00:13:11.8672016+08:00",
+  "capture_method": "Codex in-app Browser client Playwright API",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "validation": {
+    "required_count": 10,
+    "actual_count": 10,
+    "png_signature": "89504E470D0A1A0A",
+    "all_png": true,
+    "all_over_20kb": true,
+    "all_dimensions": "1440x900"
+  },
+  "screenshots": [
+    {
+      "file": "01-home.png",
+      "route": "/strategy/?lang=zh",
+      "state": "中文系统首页；新闻、推荐股票星图与市场镜头已加载",
+      "width": 1440,
+      "height": 900,
+      "bytes": 411224,
+      "empty_state": false
+    },
+    {
+      "file": "02-single-entry.png",
+      "route": "/strategy/stock-analysis?lang=zh",
+      "state": "单股分析入口；市场选择、股票检索、CSV 上传与推荐股票区可见",
+      "width": 1440,
+      "height": 900,
+      "bytes": 424278,
+      "empty_state": false
+    },
+    {
+      "file": "03-single-config.png",
+      "route": "/strategy/stock-analysis?lang=zh",
+      "state": "AAPL 单股策略工作台配置态；模型控制台、训练比例、Baseline 路径与结果板同时可见",
+      "width": 1440,
+      "height": 900,
+      "bytes": 409454,
+      "empty_state": false
+    },
+    {
+      "file": "04-single-result.png",
+      "route": "/strategy/stock-analysis?lang=zh",
+      "state": "AAPL Baseline/Naive 实际结果；累计收益 21.87%、最大回撤 -13.82%、夏普 1.01",
+      "width": 1440,
+      "height": 900,
+      "bytes": 395354,
+      "empty_state": false
+    },
+    {
+      "file": "05-multi-entry.png",
+      "route": "/strategy/stocks-analysis?lang=zh",
+      "state": "多股分析入口；股票池检索、CSV 上传与开始分析入口可见",
+      "width": 1440,
+      "height": 900,
+      "bytes": 413426,
+      "empty_state": false
+    },
+    {
+      "file": "06-multi-result.png",
+      "route": "/strategy/stocks-analysis?lang=zh",
+      "state": "AAPL+MSFT 等权组合实际结果；净值/回撤图、组合 KPI 与权重控制台可见",
+      "width": 1440,
+      "height": 900,
+      "bytes": 535158,
+      "empty_state": false
+    },
+    {
+      "file": "07-model-eval.png",
+      "route": "/strategy/model-evaluation?lang=zh",
+      "state": "研究证据浏览器顶部；研究目录、状态与首个实验正文已加载",
+      "width": 1440,
+      "height": 900,
+      "bytes": 477134,
+      "empty_state": false
+    },
+    {
+      "file": "08-research-browser.png",
+      "route": "/strategy/model-evaluation?lang=zh",
+      "state": "模型评估页向下滚动；研究结论、基线模型综合分图与证据内容可见",
+      "width": 1440,
+      "height": 900,
+      "bytes": 493518,
+      "empty_state": false
+    },
+    {
+      "file": "09-final-report.png",
+      "route": "/strategy/final-report?lang=zh",
+      "state": "最终报告阅读器；报告说明、全文搜索、章节目录与正文可见",
+      "width": 1440,
+      "height": 900,
+      "bytes": 719472,
+      "empty_state": false
+    },
+    {
+      "file": "10-experiment-monitor.png",
+      "route": "/strategy/experiment-monitor?lang=zh",
+      "state": "本地实验监控；Window 3B campaign 完成状态、进度、市场序列与实时策略排名可见",
+      "width": 1440,
+      "height": 900,
+      "bytes": 392413,
+      "empty_state": false
+    }
+  ]
+}

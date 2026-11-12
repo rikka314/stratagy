@@ -1,0 +1,1269 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Strategy Research Story：从产品使用到研究历程，用真实实验数据验证每一个结论。">
+  <title>Strategy Research Story｜不预测明天，验证每一个结论</title>
+  <style>
+    :root {
+      --paper: #f4f0e7;
+      --paper-deep: #e8e1d4;
+      --ink: #101311;
+      --ink-soft: #434743;
+      --muted: #747770;
+      --line: rgba(16, 19, 17, .15);
+      --line-strong: rgba(16, 19, 17, .28);
+      --teal: #2f9f98;
+      --teal-dark: #176a67;
+      --teal-pale: #d9ebe7;
+      --violet: #675a9d;
+      --white: #fffdf8;
+      --shadow: 0 26px 70px rgba(42, 35, 25, .10);
+      --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, Georgia, serif;
+      --sans: "Inter", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+      --max: 1220px;
+    }
+
+    * { box-sizing: border-box; }
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 28px;
+      background: var(--paper);
+    }
+    html.story-autoplay-active { scroll-behavior: auto; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(47, 159, 152, .08), transparent 25rem),
+        radial-gradient(circle at 88% 22%, rgba(103, 90, 157, .08), transparent 29rem),
+        var(--paper);
+      font-family: var(--sans);
+      line-height: 1.75;
+      text-rendering: optimizeLegibility;
+    }
+    img, video { display: block; max-width: 100%; }
+    a { color: inherit; }
+    button { font: inherit; }
+    code { font-family: var(--mono); }
+    ::selection { background: var(--teal-pale); }
+
+    .skip-link {
+      position: fixed;
+      z-index: 100;
+      top: 12px;
+      left: 12px;
+      padding: 10px 15px;
+      border: 1px solid var(--ink);
+      border-radius: 999px;
+      background: var(--white);
+      transform: translateY(-150%);
+      transition: transform .2s ease;
+    }
+    .skip-link:focus { transform: translateY(0); }
+    .progress {
+      position: fixed;
+      z-index: 90;
+      inset: 0 auto auto 0;
+      width: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--teal), var(--violet));
+      box-shadow: 0 0 18px rgba(47, 159, 152, .35);
+    }
+    .hero-brand-row {
+      width: 100%;
+      margin: 0 auto 30px;
+      display: grid;
+      place-items: center;
+    }
+    .brand-lockup {
+      position: relative;
+      width: 190px;
+      height: 58px;
+      flex: 0 0 auto;
+      overflow: hidden;
+    }
+    .brand-lockup img {
+      position: absolute;
+      top: -59px;
+      left: -28px;
+      width: 238px;
+      max-width: none;
+      pointer-events: none;
+      mix-blend-mode: darken;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .story-play {
+      position: fixed;
+      z-index: 95;
+      top: 18px;
+      right: 18px;
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      color: var(--ink);
+      background: rgba(255, 253, 248, .58);
+      box-shadow: 0 5px 18px rgba(42, 35, 25, .09);
+      backdrop-filter: blur(10px);
+      cursor: pointer;
+      transition: color .2s ease, background .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    .story-play:hover { border-color: var(--teal); color: var(--teal-dark); background: rgba(255, 253, 248, .9); }
+    .story-play:active { transform: scale(.94); }
+    .story-play::before {
+      content: "";
+      width: 0;
+      height: 0;
+      margin-left: 2px;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+      border-left: 8px solid currentColor;
+    }
+    .story-play[aria-pressed="true"]::before {
+      width: 8px;
+      height: 10px;
+      margin-left: 0;
+      border: 0;
+      background: linear-gradient(90deg, currentColor 0 3px, transparent 3px 5px, currentColor 5px 8px);
+    }
+    :focus-visible { outline: 3px solid rgba(47, 159, 152, .55); outline-offset: 3px; }
+    main { overflow: hidden; }
+    .section-shell { width: min(calc(100% - 48px), var(--max)); margin: 0 auto; }
+
+    .hero {
+      min-height: 100svh;
+      padding: 54px 0 68px;
+      display: grid;
+      align-items: center;
+    }
+    .hero-inner { position: relative; text-align: center; }
+    .eyebrow {
+      margin: 0 0 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 0 8px rgba(47, 159, 152, .12);
+    }
+    .hero-title, .finale-title {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 600;
+      letter-spacing: -.075em;
+      line-height: .88;
+    }
+    .hero-title span, .finale-title span { display: block; }
+    .hero-title .ghost {
+      color: rgba(16, 19, 17, .29);
+      font-size: clamp(78px, 11.5vw, 176px);
+    }
+    .hero-title .solid {
+      position: relative;
+      z-index: 1;
+      margin-top: -.15em;
+      color: var(--ink);
+      font-size: clamp(70px, 10vw, 158px);
+    }
+    .pill-row {
+      margin: 30px auto 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 9px;
+    }
+    .pill, .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: rgba(255, 253, 248, .42);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+    .hero-chapters {
+      width: min(720px, 100%);
+      margin: 58px auto 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      text-align: left;
+    }
+    .hero-chapters a {
+      position: relative;
+      min-height: 104px;
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 253, 248, .48);
+      text-decoration: none;
+      overflow: hidden;
+    }
+    .hero-chapters a::after {
+      content: "↘";
+      position: absolute;
+      right: 18px;
+      bottom: 12px;
+      color: var(--teal-dark);
+      font-size: 24px;
+    }
+    .hero-chapters small {
+      display: block;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+    .hero-chapters strong {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--serif);
+      font-size: 25px;
+      font-weight: 600;
+    }
+
+    .act { padding: 122px 0; border-top: 1px solid var(--line); }
+    .act-dark {
+      color: #f4f0e7;
+      border-top: 0;
+      background:
+        radial-gradient(circle at 18% 0, rgba(47, 159, 152, .19), transparent 36rem),
+        radial-gradient(circle at 78% 18%, rgba(103, 90, 157, .28), transparent 36rem),
+        #111411;
+    }
+    .act-head {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 54px;
+      margin-bottom: 74px;
+    }
+    .act-head-simple { display: block; }
+    .act-index {
+      color: var(--teal-dark);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .act-dark .act-index, .act-dark .kicker { color: #78c9c3; }
+    .act-title {
+      margin: -10px 0 0;
+      font-family: var(--serif);
+      font-size: clamp(50px, 6.5vw, 96px);
+      font-weight: 500;
+      letter-spacing: -.05em;
+      line-height: 1.04;
+    }
+    .act-lede {
+      max-width: 760px;
+      margin: 26px 0 0;
+      color: var(--ink-soft);
+      font-size: clamp(18px, 1.8vw, 24px);
+    }
+    .act-dark .act-lede, .act-dark .section-intro { color: rgba(244, 240, 231, .72); }
+    .kicker {
+      margin: 0 0 12px;
+      color: var(--teal-dark);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .content-heading {
+      max-width: 820px;
+      margin: 0;
+      font-family: var(--serif);
+      font-size: clamp(34px, 4vw, 58px);
+      font-weight: 500;
+      letter-spacing: -.035em;
+      line-height: 1.15;
+    }
+    #flow-title {
+      max-width: none;
+      white-space: nowrap;
+      font-size: clamp(19px, 4vw, 58px);
+    }
+    .section-intro {
+      max-width: 760px;
+      margin: 20px 0 0;
+      color: var(--ink-soft);
+      font-size: 18px;
+    }
+
+    .page-map {
+      margin-top: 42px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--line);
+      border-left: 1px solid var(--line);
+    }
+    .page-card {
+      min-height: 280px;
+      padding: 28px 24px 24px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 253, 248, .28);
+    }
+    .page-number {
+      display: inline-grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--white);
+      background: var(--ink);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .page-card h3 {
+      margin: 38px 0 10px;
+      font-family: var(--serif);
+      font-size: 28px;
+      font-weight: 600;
+    }
+    .page-card p { margin: 0; color: var(--ink-soft); font-size: 15px; }
+
+    .flow-panel {
+      margin-top: 86px;
+      padding: 42px;
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      background: rgba(255, 253, 248, .46);
+      box-shadow: var(--shadow);
+    }
+    .flow {
+      margin-top: 34px;
+      display: grid;
+      grid-template-columns: repeat(9, auto);
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .flow-node {
+      min-width: 134px;
+      min-height: 108px;
+      display: grid;
+      place-items: center;
+      padding: 18px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 18px;
+      background: var(--white);
+      text-align: center;
+    }
+    .flow-node strong { display: block; font-family: var(--serif); font-size: 22px; }
+    .flow-node span {
+      display: block;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+    .flow-arrow { color: var(--teal-dark); font-family: var(--mono); font-size: 20px; }
+
+    .video-section { margin-top: 110px; }
+    .video-grid {
+      margin-top: 40px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 28px;
+    }
+    .video-card {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255, 253, 248, .5);
+      box-shadow: 0 16px 50px rgba(42, 35, 25, .08);
+    }
+    .video-card.wide { grid-column: 1 / -1; }
+    .video-frame {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+      background: #171a18;
+    }
+    .video-frame video, .video-frame .motion-poster {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .motion-poster { display: none; }
+    .video-pending {
+      position: absolute;
+      right: 16px;
+      top: 16px;
+      padding: 7px 10px;
+      border: 1px solid rgba(255, 255, 255, .28);
+      border-radius: 999px;
+      color: white;
+      background: rgba(16, 19, 17, .72);
+      backdrop-filter: blur(8px);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    .video-card.ready .video-pending { display: none; }
+    .video-copy { padding: 24px 26px 27px; }
+    .video-copy h3 { margin: 0; font-family: var(--serif); font-size: 26px; font-weight: 600; }
+    .video-copy p { margin: 9px 0 0; color: var(--ink-soft); font-size: 15px; }
+    .timeline { position: relative; max-width: 1040px; margin-left: auto; }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 28px;
+      width: 1px;
+      background: linear-gradient(#78c9c3, rgba(103, 90, 157, .8), rgba(244, 240, 231, .15));
+    }
+    .story-step { position: relative; padding: 0 0 104px 102px; }
+    .story-step:last-child { padding-bottom: 0; }
+    .step-number {
+      position: absolute;
+      z-index: 2;
+      left: 0;
+      top: 0;
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(244, 240, 231, .24);
+      border-radius: 50%;
+      color: #fffdf8;
+      background: #111411;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .story-step h3 {
+      margin: -8px 0 20px;
+      max-width: 860px;
+      font-family: var(--serif);
+      font-size: clamp(34px, 4.3vw, 61px);
+      font-weight: 500;
+      letter-spacing: -.035em;
+      line-height: 1.16;
+    }
+    .story-copy { max-width: 790px; color: rgba(244, 240, 231, .73); font-size: 18px; }
+    .story-copy p { margin: 0 0 18px; }
+    .story-copy em { color: #fffdf8; font-style: normal; }
+    .diagnosis-callout {
+      margin-top: 24px;
+      padding: 18px 20px;
+      border-left: 2px solid #78c9c3;
+      background: rgba(47, 159, 152, .08);
+    }
+    .diagnosis-callout p:last-child { margin-bottom: 0; }
+
+    .chart {
+      margin: 38px 0 0;
+      overflow: hidden;
+      border: 1px solid rgba(244, 240, 231, .17);
+      border-radius: 21px;
+      background: #f4f0e7;
+      box-shadow: 0 30px 90px rgba(0, 0, 0, .24);
+    }
+    .chart img { width: 100%; height: auto; background: #f4f0e7; }
+    .status {
+      margin-right: 7px;
+      color: #e8f6f4;
+      border-color: rgba(120, 201, 195, .38);
+      background: rgba(47, 159, 152, .13);
+    }
+    .status.stop {
+      color: #ffe8e8;
+      border-color: rgba(224, 116, 116, .4);
+      background: rgba(167, 70, 70, .16);
+    }
+    .status.diag {
+      color: #eee9fb;
+      border-color: rgba(164, 148, 220, .38);
+      background: rgba(103, 90, 157, .17);
+    }
+    .research-snapshot {
+      margin-top: 64px;
+      padding: 34px;
+      border: 1px solid rgba(244, 240, 231, .18);
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(47, 159, 152, .10), rgba(103, 90, 157, .12));
+    }
+    .research-snapshot h4 { margin: 0; font-family: var(--serif); font-size: 30px; font-weight: 500; }
+    .snapshot-grid {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .snapshot-item {
+      min-height: 120px;
+      padding: 18px;
+      border: 1px solid rgba(244, 240, 231, .16);
+      border-radius: 15px;
+      background: rgba(0, 0, 0, .12);
+    }
+    .snapshot-item strong { display: block; color: #fffdf8; font-family: var(--serif); font-size: 34px; font-weight: 500; }
+    .snapshot-item span { display: block; color: rgba(244, 240, 231, .62); font-size: 12px; }
+    .snapshot-caveat { margin: 18px 0 0; color: rgba(244, 240, 231, .62); font-size: 13px; }
+
+    .reflection { padding: 130px 0; background: var(--paper); }
+    .reflection-grid {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 70px;
+      align-items: start;
+    }
+    .reflection h2 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: clamp(48px, 6vw, 84px);
+      font-weight: 500;
+      letter-spacing: -.05em;
+      line-height: 1.06;
+    }
+    .reflection-copy { padding-top: 8px; color: var(--ink-soft); font-size: 18px; }
+    .reflection-copy p { margin: 0 0 19px; }
+    .principles { margin-top: 34px; display: grid; gap: 12px; }
+    .principle {
+      padding: 17px 19px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 253, 248, .43);
+    }
+    .principle strong {
+      color: var(--teal-dark);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .principle span { display: block; margin-top: 4px; }
+
+    .finale {
+      min-height: 100svh;
+      padding: 120px 0 62px;
+      display: grid;
+      align-items: center;
+      color: #fffdf8;
+      background:
+        radial-gradient(circle at 50% 30%, rgba(103, 90, 157, .4), transparent 34rem),
+        radial-gradient(circle at 15% 78%, rgba(47, 159, 152, .18), transparent 30rem),
+        #101310;
+    }
+    .finale-inner { width: min(calc(100% - 48px), 1430px); margin: 0 auto; text-align: center; }
+    .finale-title { font-weight: 500; }
+    .finale-title .ghost { color: rgba(244, 240, 231, .34); font-size: clamp(70px, 10.5vw, 160px); }
+    .finale-title .solid { margin-top: -.05em; color: #fffdf8; font-size: clamp(64px, 9.4vw, 145px); }
+    .finale-copy {
+      max-width: 900px;
+      margin: 48px auto 0;
+      color: rgba(244, 240, 231, .67);
+      font-size: clamp(17px, 1.8vw, 24px);
+    }
+    .finale-footer {
+      margin-top: 17vh;
+      padding-top: 22px;
+      border-top: 1px solid rgba(244, 240, 231, .18);
+      display: flex;
+      justify-content: space-between;
+      gap: 28px;
+      color: rgba(244, 240, 231, .55);
+      text-align: left;
+      font-size: 11px;
+    }
+    .finale-footer strong { color: rgba(244, 240, 231, .86); }
+    .back-top { color: #9bddd8; text-decoration: none; }
+
+    .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    @media (max-width: 1050px) {
+      .page-map { grid-template-columns: repeat(2, 1fr); }
+      .flow { grid-template-columns: 1fr; justify-items: stretch; }
+      .flow-node { width: 100%; min-height: 84px; }
+      .flow-arrow { transform: rotate(90deg); justify-self: center; }
+      .act-head { grid-template-columns: 160px 1fr; gap: 34px; }
+      .act-head-simple { display: block; }
+      .snapshot-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .section-shell, .finale-inner { width: min(calc(100% - 30px), var(--max)); }
+      .hero { min-height: auto; padding: 52px 0 76px; }
+      .hero-brand-row { margin-bottom: 26px; }
+      .brand-lockup { width: 150px; height: 46px; }
+      .brand-lockup img { top: -47px; left: -22px; width: 188px; }
+      .story-play { width: 28px; height: 28px; }
+      .eyebrow { max-width: 100%; justify-content: center; font-size: 9px; letter-spacing: .08em; }
+      .hero-title .ghost { font-size: clamp(56px, 12vw, 88px); line-height: .9; white-space: nowrap; }
+      .hero-title .solid { margin-top: .03em; font-size: clamp(50px, 11vw, 80px); line-height: .92; white-space: nowrap; }
+      .hero-chapters { grid-template-columns: 1fr; margin-top: 42px; }
+      #flow-title { font-size: clamp(15px, 5vw, 19px); }
+      .act { padding: 92px 0; }
+      .act-head { grid-template-columns: 1fr; gap: 16px; margin-bottom: 55px; }
+      .act-head-simple { display: block; }
+      .act-title { margin-top: 0; }
+      .page-map, .video-grid { grid-template-columns: 1fr; }
+      .page-card { min-height: 220px; }
+      .flow-panel { margin-top: 62px; padding: 26px 20px; }
+      .video-section { margin-top: 82px; }
+      .video-card.wide { grid-column: auto; }
+      .timeline { margin: 0; }
+      .timeline::before { left: 19px; }
+      .story-step { padding: 0 0 82px 64px; }
+      .step-number { width: 40px; height: 40px; }
+      .story-step h3 { margin-top: 0; font-size: 35px; }
+      .story-copy { font-size: 16px; }
+      .chart, .research-snapshot { margin-left: -64px; }
+      .chart { border-radius: 14px; }
+      .research-snapshot { padding: 24px 18px; }
+      .snapshot-grid { grid-template-columns: 1fr 1fr; }
+      .reflection { padding: 94px 0; }
+      .reflection-grid { grid-template-columns: 1fr; gap: 34px; }
+      .finale { min-height: auto; padding-top: 130px; }
+      .finale-title .ghost { font-size: clamp(60px, 18vw, 92px); line-height: .95; }
+      .finale-title .solid { margin-top: .12em; font-size: clamp(53px, 16vw, 82px); line-height: .98; }
+      .finale-footer { margin-top: 100px; flex-direction: column; }
+    }
+    @media (max-width: 430px) {
+      .hero-title .ghost, .hero-title .solid { letter-spacing: -.095em; }
+      .pill-row { justify-content: center; }
+      .pill { font-size: 9px; }
+      .snapshot-grid { grid-template-columns: 1fr; }
+      .snapshot-item { min-height: 100px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+      .reveal { opacity: 1; transform: none; }
+      .video-frame video { display: none; }
+      .video-frame .motion-poster { display: block; }
+    }
+    @media print {
+      .progress, .story-play { display: none !important; }
+      .hero, .finale { min-height: auto; }
+      .act, .reflection, .finale { break-before: page; }
+      .reveal { opacity: 1; transform: none; }
+      .chart { break-inside: avoid; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+  <div class="progress" aria-hidden="true"></div>
+
+  <main id="main">
+    <section class="hero" id="top" data-play-scene="hero">
+      <div class="section-shell hero-inner">
+        <div class="hero-brand-row">
+          <span class="brand-lockup" role="img" aria-label="YINCE">
+            <img src="strategy-story-assets/brand/yince-brand-board.png" alt="">
+          </span>
+        </div>
+        <button class="story-play" type="button" aria-pressed="false" title="播放五分钟演示">
+          <span class="sr-only">播放五分钟演示</span>
+        </button>
+        <p class="eyebrow">AIE1902 · AI Quant Research System</p>
+        <h1 class="hero-title">
+          <span class="ghost">不预测明天</span>
+          <span class="solid">验证每一个结论</span>
+        </h1>
+        <div class="pill-row" aria-label="研究原则">
+          <span class="pill">Local data first</span>
+          <span class="pill">Explainable signals</span>
+          <span class="pill">Walk-forward evidence</span>
+          <span class="pill">Research only</span>
+        </div>
+        <div class="hero-chapters" aria-label="正文分幕">
+          <a href="#product"><small>Act I · Product</small><strong>产品如何使用</strong></a>
+          <a href="#journey"><small>Act II · Research</small><strong>研究如何走到今天</strong></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="act" id="product">
+      <div class="section-shell">
+        <header class="act-head act-head-simple reveal" data-play-scene="product-title">
+          <h2 class="act-title">从如何用开始</h2>
+        </header>
+
+        <section aria-labelledby="map-title" data-play-scene="product-map">
+          <p class="kicker">01 · Page map</p>
+          <h3 class="content-heading" id="map-title">四个入口，各自回答一个问题</h3>
+          <div class="page-map">
+            <article class="page-card reveal">
+              <span class="page-number">01</span><h3>首页</h3>
+              <p>市场新闻、强势股票星图与市场镜头。先建立当天市场语境，再决定要研究什么。</p>
+            </article>
+            <article class="page-card reveal">
+              <span class="page-number">02</span><h3>单股分析</h3>
+              <p>搜索或上传数据，查看指标，生成策略，并比较净值、回撤与关键绩效指标。</p>
+            </article>
+            <article class="page-card reveal">
+              <span class="page-number">03</span><h3>多股分析</h3>
+              <p>管理多个标的，检查相关性与组合权重，再观察组合结果和个股贡献。</p>
+            </article>
+            <article class="page-card reveal" data-play-scene="product-map-end">
+              <span class="page-number">04</span><h3>研究证据</h3>
+              <p>浏览实验、gate、manifest 与报告。每个结论都要能回到具体产物，而不是只停留在页面数字。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="flow-panel reveal" aria-labelledby="flow-title" data-play-scene="product-flow">
+          <p class="kicker">02 · Research pipeline</p>
+          <h3 class="content-heading" id="flow-title">数据 → 因子 → 信号 → 回测 → 证据</h3>
+          <p class="section-intro">单股与多股页面共用这条研究骨架。页面展示的是结果，真正决定可信度的是每一步都能追溯。</p>
+          <div class="flow" role="img" aria-label="数据经过因子、信号、回测，最终形成证据">
+            <div class="flow-node"><div><strong>数据</strong><span>Data</span></div></div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="flow-node"><div><strong>因子</strong><span>Factors</span></div></div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="flow-node"><div><strong>信号</strong><span>Signals</span></div></div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="flow-node"><div><strong>回测</strong><span>Backtest</span></div></div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="flow-node"><div><strong>证据</strong><span>Evidence</span></div></div>
+          </div>
+        </section>
+
+        <section class="video-section" aria-labelledby="video-title" data-play-scene="product-videos">
+          <p class="kicker">03 · Five real workflows</p>
+          <h3 class="content-heading" id="video-title">实际操作</h3>
+          <div class="video-grid">
+            <article class="video-card wide reveal">
+              <div class="video-frame">
+                <video controls autoplay muted loop playsinline preload="metadata" poster="strategy-story-assets/posters/01_home.svg">
+                  <source src="strategy-story-assets/video/01_home.mp4" type="video/mp4">
+                </video>
+                <img class="motion-poster" src="strategy-story-assets/posters/01_home.svg" alt="首页录屏海报">
+                <span class="video-pending">Video pending · 10s</span>
+              </div>
+              <div class="video-copy">
+                <h3>首页：建立市场语境</h3>
+                <p>美股与 A 股切换、强势股票换一只，最后停在完整市场镜头。</p>
+              </div>
+            </article>
+            <article class="video-card reveal">
+              <div class="video-frame">
+                <video controls autoplay muted loop playsinline preload="metadata" poster="strategy-story-assets/posters/02_single_entry.svg">
+                  <source src="strategy-story-assets/video/02_single_entry.mp4" type="video/mp4">
+                </video>
+                <img class="motion-poster" src="strategy-story-assets/posters/02_single_entry.svg" alt="单股分析进入流程录屏海报">
+                <span class="video-pending">Video pending · 12s</span>
+              </div>
+              <div class="video-copy">
+                <h3>单股：进入分析</h3>
+                <p>选择美股、搜索 NVDA、加载本地样例，直到股票身份区和 K 线出现。</p>
+              </div>
+            </article>
+            <article class="video-card reveal">
+              <div class="video-frame">
+                <video controls autoplay muted loop playsinline preload="metadata" poster="strategy-story-assets/posters/03_single_analysis.svg">
+                  <source src="strategy-story-assets/video/03_single_analysis.mp4" type="video/mp4">
+                </video>
+                <img class="motion-poster" src="strategy-story-assets/posters/03_single_analysis.svg" alt="单股策略结果录屏海报">
+                <span class="video-pending">Video pending · 15s</span>
+              </div>
+              <div class="video-copy">
+                <h3>单股：查看结果</h3>
+                <p>从 K 线进入策略区，查看净值、回撤与 KPI，再切换两条已保存策略做比较。</p>
+              </div>
+            </article>
+            <article class="video-card reveal">
+              <div class="video-frame">
+                <video controls autoplay muted loop playsinline preload="metadata" poster="strategy-story-assets/posters/04_multi_entry.svg">
+                  <source src="strategy-story-assets/video/04_multi_entry.mp4" type="video/mp4">
+                </video>
+                <img class="motion-poster" src="strategy-story-assets/posters/04_multi_entry.svg" alt="多股分析进入流程录屏海报">
+                <span class="video-pending">Video pending · 12s</span>
+              </div>
+              <div class="video-copy">
+                <h3>多股：进入分析</h3>
+                <p>加入 NVDA、TSLA、META 本地样例，展示已选列表并进入三股分析上下文。</p>
+              </div>
+            </article>
+            <article class="video-card reveal" data-play-scene="product-videos-end">
+              <div class="video-frame">
+                <video controls autoplay muted loop playsinline preload="metadata" poster="strategy-story-assets/posters/05_multi_analysis.svg">
+                  <source src="strategy-story-assets/video/05_multi_analysis.mp4" type="video/mp4">
+                </video>
+                <img class="motion-poster" src="strategy-story-assets/posters/05_multi_analysis.svg" alt="多股组合结果录屏海报">
+                <span class="video-pending">Video pending · 15s</span>
+              </div>
+              <div class="video-copy">
+                <h3>多股：查看结果</h3>
+                <p>查看归一化价格与相关性，再进入等权组合结果、KPI 和个股贡献或周期热力图。</p>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="act act-dark" id="journey">
+      <div class="section-shell">
+        <header class="act-head reveal" data-play-scene="journey-title">
+          <div class="act-index">Act II · 研究历程</div>
+          <div>
+            <h2 class="act-title">我真正学到的，<br>来自结论被推翻的时候。</h2>
+            <p class="act-lede">
+              复杂模型、更多因子和更漂亮的阶段结果，都不能自动变成稳定证据。
+              这段历程记录了我怎样从“把所有东西都用上”，走到先问数据、边界和验证是否成立。
+            </p>
+          </div>
+        </header>
+        <div class="timeline">
+          <article class="story-step reveal" data-play-scene="journey-01">
+            <span class="step-number">01</span>
+            <h3>“把所有因子都用上，会不会更强？”</h3>
+            <div class="story-copy">
+              <p>这是我最早、也最自然的想法。既然每个因子都描述了市场的一部分，那把它们全部放进同一个模型，似乎就应该比单独使用更全面。</p>
+            </div>
+          </article>
+
+          <article class="story-step reveal" data-play-scene="journey-02">
+            <span class="step-number">02</span>
+            <h3>十因子巨无霸模型，从随机搜索 SM 开始</h3>
+            <div class="story-copy">
+              <p>我先把十个因子放在一起，用随机搜索 SM 寻找参数。那时我的判断很直接：如果搜索空间足够大，总能找到比手工设定更强的组合。</p>
+            </div>
+          </article>
+
+          <article class="story-step reveal" data-play-scene="journey-03">
+            <span class="step-number">03</span>
+            <h3>Bayesian、遗传算法、FA/FSM、ML：复杂度不断增加</h3>
+            <div class="story-copy">
+              <p>接着我逐步加入 Bayesian、遗传算法、FA/FSM 与机器学习。每加一层复杂度，我都期待它能把前一版的不足补掉，也越来越容易把“方法更先进”误当成“结果会更可靠”。</p>
+            </div>
+          </article>
+
+          <article class="story-step reveal" data-play-scene="journey-04">
+            <span class="step-number">04</span>
+            <h3>复杂度不断增加，优势却没有稳定增加</h3>
+            <div class="story-copy">
+              <p>全量实验给了我第一个意外：更复杂的搜索或模型，有时会在一个市场里领先，却没有在另一个市场里重复同样的排序。<em>复杂度可以带来候选解，但不能替代跨市场验证。</em></p>
+            </div>
+            <figure class="chart" data-play-scene="chart-model-leaderboard">
+              <img src="strategy-story-assets/charts/01_model_leaderboard.svg" alt="US 与 CN_A 双市场模型综合分排行榜，US 的 SM 加 Bayesian 与 CN_A 的基础 SM 被突出显示">
+            </figure>
+          </article>
+
+          <article class="story-step reveal" data-play-scene="journey-05">
+            <span class="step-number">05</span>
+            <h3>MOE 与 Transformer：相似，不等于有用</h3>
+            <div class="story-copy">
+              <p>后来我尝试用 MOE 和 Transformer 识别市场状态，希望“历史上相似的时刻”能告诉模型此刻该选哪一套策略。这个方向很吸引人，因为它看起来比固定规则更聪明。</p>
+              <p>但关键实验提醒我：表征的一致性可以提高，面向真实决策的 query utility 却同时下降。市场状态相似，并不代表未来最佳模型相同。因此这条线被明确标记为 STOP，不能把“更像”包装成“已经训练成功”。</p>
+            </div>
+            <figure class="chart" data-play-scene="chart-transformer">
+              <img src="strategy-story-assets/charts/02_transformer_stop.svg" alt="Transformer B01 和 B02 的一致性增量为正、query utility 增量为负的对比图">
+            </figure>
+          </article>
+
+          <article class="story-step reveal" data-play-scene="journey-06">
+            <span class="step-number">06</span>
+            <h3>我开始重视信息复用、正则化与 gate</h3>
+            <div class="story-copy">
+              <p>这些失败慢慢改变了我的问题：不再只问“还能加什么模型”，而是问“哪些信息真的被复用”“复杂度有没有被约束”“结论经过了什么 gate”。</p>
+            </div>
+          </article>
+
+          <article class="story-step reveal" data-play-scene="journey-07">
+            <span class="step-number">07</span>
+            <h3>因子分层、筛选，再走到五因子 Composite</h3>
+            <div class="story-copy">
+              <p>我把因子分层、做筛选，再从七个候选因子中留下五个。这不是为了做一个更小的故事，而是为了减少重复信息，让每个权重的意义更清楚。</p>
+              <p>一开始，我把权重理解成“每个因子贡献多少正面分数”。后来才意识到，一个因子也可以是在当前组合里提供反向约束。允许负权重后，模型不只是加票，也能对拥挤或重复的信号投反对票。</p>
+              <p>阶段目标值从 0.4230 依次提升到 0.9767、0.9897、0.9911；MACD 与“成交量×动量”获得明显负权重。这个结果不是未来收益承诺，而是优化问题在既定样本与目标函数下的跃迁。</p>
+            </div>
+            <figure class="chart" data-play-scene="chart-factor-selection">
+              <img src="strategy-story-assets/charts/03_factor_selection.svg" alt="七个候选因子重要性横条图，五个入选因子高亮，两个剔除因子弱化">
+            </figure>
+            <figure class="chart" data-play-scene="chart-optimization">
+              <img src="strategy-story-assets/charts/04_optimization_ladder.svg" alt="五因子 Composite 优化目标的四阶段跃迁以及包含 MACD 和成交量乘动量的正负权重">
+            </figure>
+          </article>
+
+          <article class="story-step reveal" data-play-scene="journey-08">
+            <span class="step-number">08</span>
+            <h3>五因子 Composite 有效果，但也暴露“拿住不松”</h3>
+            <div class="story-copy">
+              <p>在 CN_A 的冻结比较里，Composite 的 Sharpe 为 0.5972，高于同表中的 SM 0.5277 与 FSM 0.4984。这个结果让我确认：筛选与组合有价值，但我没有采用该表里覆盖不完全配对的平均收益，也没有拿默认 turnover 数字继续讲故事。</p>
+            </div>
+            <figure class="chart" data-play-scene="chart-composite">
+              <img src="strategy-story-assets/charts/05_cn_a_comparison.svg" alt="CN_A 市场中 Composite、SM 与 FSM 的 Sharpe 和最大回撤双面板比较">
+            </figure>
+            <div class="story-copy diagnosis-callout" data-play-scene="holding-diagnosis">
+              <p>更重要的缺陷来自 US 五只样例诊断：Composite 几乎一直处在满仓状态。它能告诉我“想持有”，却不够擅长告诉我什么时候松手。这个发现直接催生了 Advisor。</p>
+            </div>
+            <aside class="research-snapshot" data-play-scene="current-metrics">
+              <h4>当前</h4>
+              <div class="snapshot-grid">
+                <div class="snapshot-item"><strong>29%</strong><span>阶段记录值</span></div>
+                <div class="snapshot-item"><strong>0.62</strong><span>阶段记录值</span></div>
+                <div class="snapshot-item"><strong>1.14</strong><span>阶段记录值</span></div>
+                <div class="snapshot-item"><strong>63%</strong><span>阶段记录值</span></div>
+              </div>
+              <p class="snapshot-caveat">
+                以上四项来自作者研究总结中的当时记录。仓库当前尚未找到完全匹配、可冻结复现的机读产物，
+                因此不把它们绘制成独立结论图，也不与后续不同市场、不同实验阶段的结果直接比较。
+              </p>
+            </aside>
+          </article>
+
+          <article class="story-step reveal" data-play-scene="journey-09">
+            <span class="step-number">09</span>
+            <h3>“解决了”之后，还要再验证</h3>
+            <div class="story-copy">
+              <p>我围绕 trend、reversion、macro cap、relative strength 四类 Advisor，组合出七种 policy。早期三折实验里，<em>composite_plus_reversion</em> 获得 admission，看起来像是终于找到了修正“拿住不松”的方法。</p>
+              <p>但更严格的四折验证把结论重新拉回地面：所有 policy 都是 0/4 通过。所以准确说法不是“Advisor 已经解决问题”，而是 <em>Advisor 找到了有效方向，但尚不能宣称在所有窗口稳定准入。</em></p>
+            </div>
+            <figure class="chart" data-play-scene="chart-advisor">
+              <img src="strategy-story-assets/charts/07_advisory_gate.svg" alt="早期三折 Advisor 获得 admission，与严格四折所有 policy 零通过的逐折热力图">
+            </figure>
+          </article>
+
+          <article class="story-step reveal" data-play-scene="journey-10">
+            <span class="step-number">10</span>
+            <h3>AI 的价值，不是替我给出答案</h3>
+            <div class="story-copy">
+              <p>回看整个过程，我最重要的变化不是又学会了一个算法，而是知道怎样把一个模糊直觉变成实验，再让失败结果迫使自己修正问题。</p>
+              <p>AI 可以帮助我设计、执行和复核大量实验，提醒我比较边界、检查产物和追问证据；但市场选择、假设设定、风险判断和最终解释，仍然需要人承担。我想留下的不是“下一只股票”，而是一套能够继续被质疑、被复现、被改进的研究方法。</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="reflection" id="reflection" data-play-scene="reflection">
+      <div class="section-shell reflection-grid">
+        <div>
+          <p class="kicker">Research takeaway</p>
+          <h2>研究不是把结果说得更满，而是把边界说得更清楚。</h2>
+        </div>
+        <div class="reflection-copy">
+          <p>这个平台最终交付的，不是一句“看多”或“看空”，而是从数据源、因子构造、信号生成，到回测比较、失败边界和准入状态的一整条证据链。</p>
+          <p>页面中的图也遵守同一个原则：US 与 CN_A 不混用，正式冻结结果与诊断产物分开，缺失数据保持缺失，个人阶段记录保留其当时语境。</p>
+          <div class="principles">
+            <div class="principle"><strong>Explainable</strong><span>每个信号能回到因子、参数和数据。</span></div>
+            <div class="principle"><strong>Auditable</strong><span>市场、样本、研究状态与源路径随图呈现。</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="finale" id="finale" data-play-scene="finale">
+      <div class="finale-inner">
+        <p class="eyebrow">The last page</p>
+        <h2 class="finale-title">
+          <span class="ghost">AI 不替你预测明天</span>
+          <span class="solid">它帮助你验证今天。</span>
+        </h2>
+        <p class="finale-copy">
+          从数据来源到模型比较，从正面结果到失败边界，这个平台交付的不是“下一只股票”，
+          而是一套可以解释、复现和继续质疑的研究方法。
+        </p>
+        <div class="pill-row" aria-label="研究品质">
+          <span class="pill">Explainable</span><span class="pill">Reproducible</span>
+          <span class="pill">Auditable</span><span class="pill">Research-only</span>
+        </div>
+        <footer class="finale-footer">
+          <div>
+            <strong>研究范围：</strong> 单股 / 多股策略分析 · US / CN_A 分市场验证<br>
+            <strong>资产说明：</strong> 图表由本地冻结研究产物生成；视频待录入约定目录
+          </div>
+          <div>
+            <strong>风险声明：</strong> 本页面仅用于课程展示与研究验证，不构成投资建议；历史回测结果不代表未来收益。<br>
+            <a class="back-top" href="#top">返回开场 ↑</a>
+          </div>
+        </footer>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const progress = document.querySelector(".progress");
+      const playButton = document.querySelector(".story-play");
+      const playLabel = playButton?.querySelector(".sr-only");
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const playbackDuration = 300;
+
+      const sceneSettings = {
+        hero: { align: "top", offset: 0 },
+        "product-map-end": { align: "center" },
+        "product-flow": { align: "center" },
+        "product-videos-end": { align: "center" },
+        "chart-model-leaderboard": { align: "center" },
+        "chart-transformer": { align: "center" },
+        "chart-factor-selection": { align: "center" },
+        "chart-optimization": { align: "center" },
+        "chart-composite": { align: "center" },
+        "holding-diagnosis": { align: "center" },
+        "current-metrics": { align: "center" },
+        "chart-advisor": { align: "center" },
+        reflection: { align: "top", offset: .08 },
+        finale: { align: "center", selector: ".finale-title" }
+      };
+
+      const playbackTimeline = Object.freeze([
+        { start: 0, end: 25, from: "hero", to: "hero", move: 0 },
+        { start: 25, end: 30, from: "hero", to: "product-title", move: 1.2 },
+        { start: 30, end: 49, from: "product-title", to: "product-map-end", move: 1.3 },
+        { start: 49, end: 57, from: "product-map-end", to: "product-flow", move: 1 },
+        { start: 57, end: 68, from: "product-flow", to: "product-videos-end", move: 1.6 },
+        { start: 68, end: 75, from: "product-videos-end", to: "journey-title", move: 1.8 },
+        { start: 75, end: 90, from: "journey-title", to: "journey-01", move: 1.2 },
+        { start: 90, end: 104, from: "journey-01", to: "journey-02", move: 1 },
+        { start: 104, end: 116, from: "journey-02", to: "journey-03", move: 1 },
+        { start: 116, end: 133, from: "journey-03", to: "chart-model-leaderboard", move: 1.4 },
+        { start: 133, end: 161, from: "chart-model-leaderboard", to: "chart-transformer", move: 1.8 },
+        { start: 161, end: 174, from: "chart-transformer", to: "chart-transformer", move: 0 },
+        { start: 174, end: 187, from: "chart-transformer", to: "journey-06", move: 1.4 },
+        { start: 187, end: 200, from: "journey-06", to: "journey-07", move: 1 },
+        { start: 200, end: 211, from: "journey-07", to: "chart-factor-selection", move: 1.1 },
+        { start: 211, end: 220, from: "chart-factor-selection", to: "chart-optimization", move: 1 },
+        { start: 220, end: 228, from: "chart-optimization", to: "journey-08", move: 1, phase: "end" },
+        { start: 228, end: 232, from: "journey-08", to: "chart-composite", move: .8 },
+        { start: 232, end: 236, from: "chart-composite", to: "holding-diagnosis", move: .8, phase: "end" },
+        { start: 236, end: 244, from: "holding-diagnosis", to: "current-metrics", move: 1, phase: "end" },
+        { start: 244, end: 252, from: "current-metrics", to: "journey-09", move: 1, phase: "end" },
+        { start: 252, end: 268, from: "journey-09", to: "chart-advisor", move: 1.2 },
+        { start: 268, end: 283, from: "chart-advisor", to: "journey-10", move: 1.2, phase: "end" },
+        { start: 283, end: 292, from: "journey-10", to: "reflection", move: 1 },
+        { start: 292, end: 300, from: "reflection", to: "finale", move: 1.2 }
+      ]);
+
+      let playbackState = "idle";
+      let elapsedSeconds = 0;
+      let playbackStartedAt = 0;
+      let playbackFrame = 0;
+
+      const updateProgress = () => {
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        const ratio = scrollable > 0 ? window.scrollY / scrollable : 0;
+        progress.style.width = Math.min(100, Math.max(0, ratio * 100)) + "%";
+      };
+
+      const pageOffsetTop = (node) => {
+        let top = 0;
+        let current = node;
+        while (current) {
+          top += current.offsetTop || 0;
+          current = current.offsetParent;
+        }
+        return top;
+      };
+
+      const sceneY = (name) => {
+        const marker = document.querySelector(`[data-play-scene="${name}"]`);
+        if (!marker) return window.scrollY;
+        const settings = sceneSettings[name] || {};
+        const node = settings.selector ? marker.querySelector(settings.selector) || marker : marker;
+        const nodeTop = pageOffsetTop(node);
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const rawY = settings.align === "center"
+          ? nodeTop - (window.innerHeight - node.offsetHeight) / 2
+          : nodeTop - window.innerHeight * (settings.offset ?? .14);
+        return Math.min(maxScroll, Math.max(0, rawY));
+      };
+
+      const smoothStep = (value) => value * value * (3 - 2 * value);
+
+      const renderPlaybackAt = (seconds) => {
+        const bounded = Math.min(playbackDuration, Math.max(0, seconds));
+        const segment = playbackTimeline.find(({ start, end }) => bounded >= start && bounded < end)
+          || playbackTimeline[playbackTimeline.length - 1];
+        const duration = Math.max(.001, segment.end - segment.start);
+        const elapsedWithinSegment = Math.min(duration, Math.max(0, bounded - segment.start));
+        const moveDuration = Math.min(duration, Math.max(0, segment.move ?? 1.2));
+        const moveStart = segment.phase === "end" ? duration - moveDuration : 0;
+        const fromY = sceneY(segment.from);
+        const toY = sceneY(segment.to);
+        const moveProgress = moveDuration > 0
+          ? Math.min(1, Math.max(0, (elapsedWithinSegment - moveStart) / moveDuration))
+          : 0;
+        let easedProgress = smoothStep(moveProgress);
+
+        if (segment.from === segment.to || moveDuration === 0) easedProgress = 0;
+        if (reduceMotion.matches) easedProgress = elapsedWithinSegment > moveStart ? 1 : 0;
+
+        window.scrollTo(0, Math.round(fromY + (toY - fromY) * easedProgress));
+        updateProgress();
+      };
+
+      const setPlaybackState = (state) => {
+        playbackState = state;
+        document.documentElement.classList.toggle("story-autoplay-active", state === "running");
+        if (!playButton) return;
+        const isRunning = state === "running";
+        const isEnded = state === "ended";
+        const label = isRunning
+          ? "暂停五分钟演示"
+          : isEnded
+            ? "重新播放五分钟演示"
+            : state === "paused"
+              ? "继续五分钟演示"
+              : "播放五分钟演示";
+        playButton.setAttribute("aria-pressed", String(isRunning));
+        playButton.dataset.state = state;
+        playButton.title = label;
+        if (playLabel) playLabel.textContent = label;
+      };
+
+      const finishPlayback = () => {
+        cancelAnimationFrame(playbackFrame);
+        elapsedSeconds = playbackDuration;
+        renderPlaybackAt(playbackDuration);
+        setPlaybackState("ended");
+      };
+
+      const playbackTick = (now) => {
+        elapsedSeconds = Math.min(playbackDuration, (now - playbackStartedAt) / 1000);
+        renderPlaybackAt(elapsedSeconds);
+        if (elapsedSeconds >= playbackDuration) {
+          finishPlayback();
+          return;
+        }
+        playbackFrame = requestAnimationFrame(playbackTick);
+      };
+
+      const startPlayback = ({ restart = false } = {}) => {
+        const startsFromBeginning = restart || playbackState === "idle" || playbackState === "ended";
+        if (startsFromBeginning) {
+          elapsedSeconds = 0;
+        }
+        cancelAnimationFrame(playbackFrame);
+        playbackStartedAt = performance.now() - elapsedSeconds * 1000;
+        setPlaybackState("running");
+        if (startsFromBeginning) renderPlaybackAt(0);
+        playbackFrame = requestAnimationFrame(playbackTick);
+      };
+
+      const pausePlayback = () => {
+        if (playbackState !== "running") return;
+        elapsedSeconds = Math.min(playbackDuration, (performance.now() - playbackStartedAt) / 1000);
+        cancelAnimationFrame(playbackFrame);
+        setPlaybackState("paused");
+      };
+
+      const seekPlayback = (seconds) => {
+        cancelAnimationFrame(playbackFrame);
+        elapsedSeconds = Math.min(playbackDuration, Math.max(0, Number(seconds) || 0));
+        document.documentElement.classList.add("story-autoplay-active");
+        renderPlaybackAt(elapsedSeconds);
+        setPlaybackState(elapsedSeconds >= playbackDuration ? "ended" : "paused");
+      };
+
+      const renderPlaybackInstantlyAt = (seconds) => {
+        const wasActive = document.documentElement.classList.contains("story-autoplay-active");
+        document.documentElement.classList.add("story-autoplay-active");
+        renderPlaybackAt(seconds);
+        if (!wasActive) document.documentElement.classList.remove("story-autoplay-active");
+      };
+
+      playButton?.addEventListener("click", () => {
+        if (playbackState === "running") pausePlayback();
+        else startPlayback({ restart: playbackState === "ended" });
+      });
+
+      const pauseForManualInput = (event) => {
+        if (event?.target instanceof Element && event.target.closest(".story-play")) return;
+        pausePlayback();
+      };
+
+      window.addEventListener("wheel", pauseForManualInput, { passive: true });
+      window.addEventListener("touchstart", pauseForManualInput, { passive: true });
+      document.addEventListener("pointerdown", pauseForManualInput, { passive: true });
+      document.addEventListener("keydown", (event) => {
+        if (event.target instanceof Element && event.target.closest(".story-play, input, textarea, select")) return;
+        if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)) {
+          pausePlayback();
+        }
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) pausePlayback();
+      });
+      reduceMotion.addEventListener?.("change", () => renderPlaybackInstantlyAt(elapsedSeconds));
+
+      document.querySelectorAll(".video-card").forEach((card) => {
+        const video = card.querySelector("video");
+        if (!video) return;
+        const markReady = () => card.classList.add("ready");
+        video.addEventListener("canplay", markReady, { once: true });
+        if (video.readyState >= 3) markReady();
+      });
+
+      if ("IntersectionObserver" in window && !reduceMotion.matches) {
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: .12 });
+        document.querySelectorAll(".reveal").forEach((node) => observer.observe(node));
+      } else {
+        document.querySelectorAll(".reveal").forEach((node) => node.classList.add("visible"));
+      }
+
+      window.addEventListener("scroll", updateProgress, { passive: true });
+      window.addEventListener("resize", updateProgress);
+      window.addEventListener("resize", () => {
+        if (playbackState !== "idle") renderPlaybackInstantlyAt(elapsedSeconds);
+      });
+      window.__strategyStoryPlayback = Object.freeze({
+        duration: playbackDuration,
+        timeline: playbackTimeline,
+        play: () => startPlayback(),
+        pause: pausePlayback,
+        seek: seekPlayback,
+        getState: () => ({ state: playbackState, elapsedSeconds })
+      });
+      setPlaybackState("idle");
+      updateProgress();
+    })();
+  </script>
+</body>
+</html>

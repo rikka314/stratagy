@@ -392,6 +392,15 @@
       </div>
     </div>
 
+    <!-- CURRENT VERSION UPDATE: appended to the original detailed report -->
+    <div class="note" id="current-version-update">
+      <strong>当前版本增量说明（2026-08）</strong>
+      <p>本报告保留原始课程报告的完整章节、公式、表格和参考资料；以下内容补充后续版本已经落地的产品能力与研究边界。阅读旧章节可理解 SM、FSM、ML、RSM、基线和参数学习的原理，阅读本增量可了解当前网页如何组织这些能力。</p>
+      <p><strong>新增产品能力：</strong>顶部双语路由（<code>?lang=zh</code> / <code>?lang=en</code>）、首页市场镜头与同源推荐、单股策略工作区、多股组合工作区、短期 <code>ws</code> 临时恢复、fresh/stale 行情缓存、只读模型评估页、research 证据目录、单股/多股离线 HTML 导出，以及本帮助页的章节深链接和提交式搜索。</p>
+      <p><strong>新增研究能力：</strong>adaptive regime router、News Fusion、CN_A 市场原生因子、Composite baseline 与 advisory framework。冻结 CN_A pooled comparison 中，<code>composite_only</code> 的 Sharpe 为<strong>0.5972</strong>，高于 SM 的<strong>0.5277</strong>和 FSM 的<strong>0.4984</strong>；平均最大回撤为<strong>-54.81%</strong>，Sharpe &ge; 0.3 的 symbol-fold 一致性为<strong>76.7%（46/60）</strong>。这组数值对应仅拟合 10 个技术因子的冻结模型，不是 13 个 market-native panel 因子的增量效果证据；结果仍是 research-only。研究输出仍由 <code>model-test/</code> 生成，由 <code>research/</code> 记录 provenance；research-only 结果不会自动变成生产默认策略。</p>
+      <p><strong>重要边界：</strong>当数据、离线 artifact 或研究输出缺失时，页面会显示 N/A、空态或 degraded fallback；这些状态是证据的一部分，不应被解释为零收益或模型通过。</p>
+    </div>
+
     <!-- ══════════════════════════════════════════ -->
     <!-- SEARCH MODULE                               -->
     <!-- ══════════════════════════════════════════ -->
@@ -437,6 +446,7 @@
               <li><a href="#model-optimizer">2.5 参数优化</a></li>
               <li><a href="#model-baselines">2.6 基线模型</a></li>
               <li><a href="#model-interaction">2.7 模型交互与模型交互作品</a></li>
+              <li><a href="#model-composite">2.8 Composite 模型规格</a></li>
             </ol>
           </details>
         </li>
@@ -451,8 +461,9 @@
               <li><a href="#analysis-regime">3.4 自适应机制路由器</a></li>
               <li><a href="#analysis-optimizer">3.5 参数优化</a></li>
               <li><a href="#analysis-baselines">3.6 基线模型（朴素模型、平均模型、漂移模型）</a></li>
-              <li><a href="#analysis-cross-model">3.7 跨模型依赖&amp;故障传播</a></li>
-              <li><a href="#analysis-summary">3.8 总结比较矩阵</a></li>
+              <li><a href="#analysis-composite">3.7 Composite 分析</a></li>
+              <li><a href="#analysis-cross-model">3.8 跨模型依赖&amp;故障传播</a></li>
+              <li><a href="#analysis-summary">3.9 总结比较矩阵</a></li>
             </ol>
           </details>
         </li>
@@ -469,6 +480,7 @@
               <li><a href="#baseline-research">4.6 离线研究验证</a></li>
               <li><a href="#baseline-webapp">4.7 Web应用程序可视化</a></li>
               <li><a href="#baseline-reading-guide">4.8 如何阅读基线比较</a></li>
+              <li><a href="#baseline-composite">4.9 Composite 与 SM/FSM（CN_A）</a></li>
             </ol>
           </details>
         </li>
@@ -520,6 +532,7 @@
               <li><a href="#interp-ml-filter">7.6 SM + ML 滤波器与单独 SM 的比较</a></li>
               <li><a href="#interp-adaptive-regime">7.7 自适应机制路由器与静态路由器</a></li>
               <li><a href="#interp-hierarchy">7.8 跨模型性能层次结构</a></li>
+              <li><a href="#interp-cn-a-composite">Composite 的 CN_A 市场证据</a></li>
             </ol>
           </details>
         </li>
@@ -1290,6 +1303,7 @@
       </p>
 
       <h4>1.5.7 完整的模型枚举</h4>
+      <p class="callout-insight"><strong>Composite 是独立的策略家族。</strong>它不是 SM/FSM 之后的简单过滤器，而是拥有独立的权重学习、long-only 仓位映射与审计链。CN_A 面板的设计能力包含 10 个技术因子和 13 个市场原生因子；但当前冻结 Phase 4/6 数值运行只选择 10 个技术因子拟合权重，不能把本次指标归因于 13 个市场原生因子。以下 advisory 变体只表示研究中的可组合候选。</p>
       <p>
         作为参考，下表列出了在
         <code>model-test/</code> 离线研究工具：
@@ -1313,6 +1327,12 @@
           <tr><td>12</td><td><code>sm_ml</code></td><td>SM+ML</td><td>SM+ML信号滤波器</td></tr>
           <tr><td>13</td><td><code>FSM_ML</code></td><td>有限状态机+机器学习</td><td>FSM + ML 信号滤波器</td></tr>
           <tr><td>14</td><td><code>rsm_adaptive_v1</code></td><td>政权</td><td>自适应路由器 v1（6 状态 KMeans）</td></tr>
+          <tr><td>15</td><td><code>composite_only</code></td><td>Composite</td><td>独立综合模型；冻结 Phase 4/6 权重实际只拟合 10 个技术因子</td></tr>
+          <tr><td>16</td><td><code>composite_plus_trend</code></td><td>Composite advisory</td><td>Composite + 趋势 advisory</td></tr>
+          <tr><td>17</td><td><code>composite_plus_reversion</code></td><td>Composite advisory</td><td>Composite + 均值回归 advisory</td></tr>
+          <tr><td>18</td><td><code>composite_plus_relative_strength</code></td><td>Composite advisory</td><td>Composite + 相对强度 advisory</td></tr>
+          <tr><td>19</td><td><code>composite_plus_macro_cap</code></td><td>Composite advisory</td><td>Composite + 宏观上限 advisory</td></tr>
+          <tr><td>20</td><td><code>composite_plus_all_advisories</code></td><td>Composite advisory</td><td>Composite + 全部 advisory</td></tr>
         </tbody>
       </table>
 
@@ -2255,6 +2275,19 @@
         输入到共享回测引擎（<code>core/backtest.py &rarr;模拟策略()</code>),
         它在统一的框架下计算股票曲线、回报和交易记录。
       </p>
+      <!-- ====================================================================== -->
+      <!-- 2.8  Composite Model Specification                                    -->
+      <!-- ====================================================================== -->
+      <h3 id="model-composite">2.8 Composite 模型规格：设计能力与冻结证据</h3>
+      <p><strong>研究实现：</strong><code>core/composite_cn_a.py</code>；Composite 是独立策略分支，不读取 SPY/VIX 作为隐式代理。</p>
+      <ul>
+        <li><strong>因子面板能力：</strong><code>composite_cn_a.json</code> 与 Phase 3 panel 定义 10 个技术因子和 13 个 CN_A 市场原生因子，后者覆盖 market volatility、regime、relative strength、beta、breadth 与 tradability，并通过显式 benchmark/context 构建。</li>
+        <li><strong>本次冻结模型的实际输入：</strong><code>run_cn_a_composite.py</code> 明确把 <code>factor_cols</code> 设为 <code>technical_factors</code>；<code>composite_weights_by_fold.json</code> 的每个 fold 也只有 10 个技术因子权重。也就是说，23 因子 panel 不等于冻结模型的实际输入，13 个 market-native 因子尚未进入产生 0.5972 Sharpe 的这次权重拟合。</li>
+        <li><strong>训练目标：</strong>以真实 20 个交易日 forward returns 训练因子权重；拟合 API 支持 Ridge、Lasso、ElasticNet，而冻结运行使用 Ridge（<code>alpha=1.0</code>），并在 train-only / purged fold 边界内拟合而非使用未来信息。</li>
+        <li><strong>仓位映射：</strong>将综合分数映射到 [0,1] 的 long-only 目标仓位，可用 <code>linear_clip</code>、<code>tanh_smooth</code> 或 <code>quantile_5bin</code>，再施加 risk budget、no-trade/rebalance 等执行约束。</li>
+        <li><strong>Advisory 语义：</strong><code>composite_plus_trend</code>、<code>...reversion</code>、<code>...relative_strength</code>、<code>...macro_cap</code> 与 <code>...all_advisories</code> 只能维持或减仓；当 Composite 基础仓位为 0 时，advisory 不得开仓。</li>
+        <li><strong>降级与边界：</strong>CN_A 设计路径需要有效的显式 market context；缺失或无效 context 会 fail-closed / unavailable，而非静默回退到现金。只有 advisory 的无效输入可走保守现金保护并记录 provenance；当前结果仅适用于 CN_A 冻结 universe，research-only，advisory 的真实数据经验 gate 尚未通过。</li>
+      </ul>
     </section>
 
 
@@ -3666,10 +3699,29 @@
         </tbody>
       </table>
 
+      <h3 id="analysis-composite">3.7 Composite 分析</h3>
+      <h4>优势</h4>
+      <ul><li>与 SM 的手工权重、FSM 的无监督 Factor Analysis 不同，冻结 Composite 对同一组 10 个技术因子使用真实 forward return 监督学习 Ridge 权重。</li><li>设计层面的 23 因子 panel 还能提供波动、regime、breadth、beta 与可交易性等显式市场上下文，但这些 13 个字段没有进入本次冻结权重拟合；这是扩展能力，不是当前性能优势的已验证归因。</li><li>long-only、risk budget、decision 与 weights 均可追溯；在 CN_A 冻结 pooled comparison 中，Sharpe 与平均最大回撤同时优于 SM/FSM，且 Sharpe &ge; 0.3 的 symbol-fold 一致性为 76.7%（46/60）。</li></ul>
+      <h4>缺点与限制</h4>
+      <ul><li>训练、标签构造和市场原生 context 的数据要求更高；主 Composite 缺失 context 时会 fail-closed / unavailable，而不是静默现金回退。</li><li>forward-return 标签、正则化选择和 fold 稳定性可能带来方差与过拟合风险；研究证据只覆盖 <code>full_cn_a_admission_60</code> 研究线，不能外推 US 或其他市场。</li><li>Composite 及所有 advisory 目前均为 research-only，不能自动改写生产默认策略；只有 advisory 的无效输入有保守现金保护，且 advisory 尚无真实数据经验 gate 通过结论。</li></ul>
+
+      <h4>3.7.1 Composite 与现有模型的直接对照</h4>
+      <table>
+        <thead><tr><th>对照模型</th><th>核心差异</th><th>当前证据边界</th></tr></thead>
+        <tbody>
+          <tr><td><strong>SM</strong></td><td>两者在本次冻结运行中都以 10 个技术因子为实际模型输入；SM 使用手工权重，Composite 用真实 20-day forward returns 拟合 Ridge 权重。13 个 CN_A market-native 字段虽存在于 panel，却未被该 runner 选入。</td><td>Phase 6 pooled evidence：Sharpe 0.5972 vs 0.5277，平均最大回撤 -54.81% vs -74.07%；覆盖并不完全配对，且不能把差异归因于 market context。</td></tr>
+          <tr><td><strong>FSM</strong></td><td>FSM 用无监督 Factor Analysis 重组技术因子；冻结 Composite 对 10 个技术因子做面向 forward return 的正则化监督学习。本次数值证据没有检验额外 13 个 context 因子的增量价值。</td><td>Phase 6 pooled evidence：Sharpe 0.5972 vs 0.4984，平均最大回撤 -54.81% vs -64.50%；覆盖并不完全配对。</td></tr>
+          <tr><td><strong>ML Filter</strong></td><td>ML Filter 是 SM/FSM 买入信号之上的 veto 层；Composite 本身产生基础分数和 long-only 目标仓位，advisory 才是只能维持或减仓的覆盖层。</td><td>没有冻结的同样本 Composite-vs-ML 数值比较，只能做结构比较。</td></tr>
+          <tr><td><strong>Adaptive Router / RSM</strong></td><td>Router 根据 regime 在多个候选策略间切换；Composite 在一个市场专属因子空间内学习分数与仓位，不负责跨候选模型路由。</td><td>旧 RSM 排名属于 legacy SM/FSM/RSM 研究线，不能覆盖 CN_A Composite 的市场限定结论。</td></tr>
+          <tr><td><strong>Optimizer</strong></td><td>Optimizer 搜索现有 SM/FSM 的窗口、阈值和风险参数；Composite 主要学习因子权重，并在固定 fold/horizon 下接受准入检查。</td><td>没有冻结的完全配对 Composite-vs-Optimizer 数值比较。</td></tr>
+          <tr><td><strong>Naive / Mean / Drift</strong></td><td>课程基线规则简单、数据要求低、可作为稳健性下界；Composite 的设计面板更丰富，但本次冻结 fit 仅使用 10 个技术因子。</td><td>当前正式 Composite 数值表只直接汇总 SM/FSM；不得把设计扩展性写成已验证的基线全面胜出。</td></tr>
+        </tbody>
+      </table>
+
       <!-- ====================================================================== -->
-      <!-- 3.7  Cross-Model Dependency & Failure Propagation                       -->
+      <!-- 3.8  Cross-Model Dependency & Failure Propagation                       -->
       <!-- ====================================================================== -->
-      <h3 id="analysis-cross-model">3.7 跨模型依赖&amp;故障传播</h3>
+      <h3 id="analysis-cross-model">3.8 跨模型依赖&amp;故障传播</h3>
       <p>
         分层架构（基线→SM/FSM→ML过滤器→制度路由器
         ➡️优化器）创建依赖链，其中一层出现故障或降级
@@ -3728,9 +3780,9 @@
       </table>
 
       <!-- ====================================================================== -->
-      <!-- 3.8  Summary Comparison Matrix                                          -->
+      <!-- 3.9  Summary Comparison Matrix                                          -->
       <!-- ====================================================================== -->
-      <h3 id="analysis-summary">3.8 总结比较矩阵</h3>
+      <h3 id="analysis-summary">3.9 总结比较矩阵</h3>
       <p>
         以下矩阵提供了七个模型上所有模型的高级比较
         评估维度，按定性等级评定
@@ -3747,6 +3799,7 @@
             <th>有限状态机</th>
             <th>ML过滤器</th>
             <th>自适应路由器</th>
+            <th>Composite</th>
             <th>优化器</th>
             <th>基线</th>
           </tr>
@@ -3758,6 +3811,7 @@
             <td>&#9679;&#9675;&#9675;</td>
             <td>&#9679;&#9675;&#9675;</td>
             <td>&#9679;&#9679;&#9675;</td>
+            <td>&#9679;&#9679;&#9675;（weights/decision 可追溯）</td>
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9679;&#9679;</td>
           </tr>
@@ -3767,6 +3821,7 @@
             <td>&#9679;&#9675;&#9675;</td>
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9679;&#9679;</td>
+            <td>&#9679;&#9679;&#9675;（可扩展 market context；冻结数值未入模）</td>
             <td>&#9679;&#9679;&#9679;</td>
             <td>&#9675;&#9675;&#9675;</td>
           </tr>
@@ -3776,6 +3831,7 @@
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9675;&#9675;</td>
             <td>&#9679;&#9679;&#9675;</td>
+            <td>&#9679;&#9679;&#9675;（Ridge；冻结 fit 为 10 个技术因子）</td>
             <td>&#9679;&#9675;&#9675;</td>
             <td>&#9679;&#9679;&#9679;</td>
           </tr>
@@ -3785,16 +3841,18 @@
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9675;&#9675; （高的）</td>
             <td>&#9679;&#9679;&#9675;</td>
+            <td>&#9679;&#9679;&#9675; （中高，需 purged folds）</td>
             <td>&#9679;&#9675;&#9675; （高的）</td>
             <td>&#9679;&#9679;&#9679; （没有任何）</td>
           </tr>
           <tr>
             <td><strong>数据要求</strong></td>
             <td>&#9679;&#9679;&#9675; （≥60 天）</td>
-            <td>&#9679;&#9675;&#9675; （>50+ 干净行）</td>
-            <td>&#9679;&#9675;&#9675; （>100 个买入信号）</td>
+            <td>&#9679;&#9675;&#9675; （&gt;50+ 干净行）</td>
+            <td>&#9679;&#9675;&#9675; （&gt;100 个买入信号）</td>
             <td>&#9675;&#9675;&#9675; （≥252 天 + 间谍）</td>
-            <td>&#9675;&#9675;&#9675; （>756 天）</td>
+            <td>&#9679;&#9675;&#9675; （冻结 fit：技术因子 + 20-day labels；完整 panel 另需 context）</td>
+            <td>&#9675;&#9675;&#9675; （&gt;756 天）</td>
             <td>&#9679;&#9679;&#9679; (&ge;1&ndash;60 天)</td>
           </tr>
           <tr>
@@ -3803,6 +3861,7 @@
             <td>&#9679;&#9679;&#9679; （快速地）</td>
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9679;&#9675;</td>
+            <td>&#9679;&#9675;&#9675; （训练较贵）</td>
             <td>&#9675;&#9675;&#9675; （昂贵的）</td>
             <td>&#9679;&#9679;&#9679; （琐碎的）</td>
           </tr>
@@ -3812,6 +3871,7 @@
             <td>&#9679;&#9679;&#9675;</td>
             <td>&#9679;&#9679;&#9679;</td>
             <td>&#9679;&#9679;&#9679;</td>
+            <td>&#9679;&#9679;&#9675;（无效 context = unavailable；仅 advisory 无效输入 → 现金保护）</td>
             <td>&#9679;&#9679;&#9675;</td>
             <td>N/A</td>
           </tr>
@@ -3823,8 +3883,10 @@
         SM 提供可解释性和较低的过拟合风险，但缺乏适应性。密克罗尼西亚联邦
         添加数据驱动的加权，但引入高斯假设。 ML 过滤器可以捕获
         非线性模式，但在低信噪比金融领域容易过度拟合。适应性
-        路由器提供状态感知，但取决于离线工件质量和 SPY 数据。的
-        优化器改进了参数，但不能保证样本外性能。基线
+        路由器提供状态感知，但取决于离线工件质量和 SPY 数据。Composite 的设计面板
+        可接收显式 market context，并以 forward-return 学习方向；但当前冻结数值只验证了
+        10 个技术因子的 Ridge fit，13 个 market-native 因子的增量价值仍未验证。它需要更长的
+        市场专属研究并保持 research-only。优化器改进了参数，但不能保证样本外性能。基线
         提供稳健性和简单性，但没有 alpha。这种互补结构是有意设计的：
         分层管道允许每个模型贡献自己的力量，而下游层
         弥补上游的弱点。
@@ -4677,6 +4739,29 @@
         源于执行机制的差异，而不是底层的差异
         交易信号。
       </div>
+
+      <h3 id="baseline-composite">4.9 CN_A Composite 与 SM/FSM 的冻结比较</h3>
+      <p>
+        Composite 还必须与两个主要因子模型直接比较，而不能只和课程基线比较。
+        Phase 6 manifest 将本次研究标记为 <code>CN_A / full_cn_a_admission_60</code>，
+        配置了 <code>fold_00</code> 至 <code>fold_03</code>。配置声明 20-day horizon、
+        3 bps commission + 5 bps slippage，源 runner 的 <code>strategy_return</code> 按该配置扣费；
+        但 Phase 6 汇总表没有单独的成本归因或成本敏感性列。冻结 Composite 权重实际只由
+        10 个技术因子拟合，不能把下方差异归因于 13 个 market-native 因子。实际汇总行也不完全配对：
+        Composite 有 60 个 symbol-fold 行，来自 <code>fold_01</code> 至 <code>fold_03</code>；
+        SM 与 FSM 各有 20 行，覆盖 <code>fold_00</code> 至 <code>fold_03</code>。
+        因此下表是 pooled directional comparison，不是同一批 symbol-fold 的配对显著性检验。
+      </p>
+      <p class="note"><strong>可复核证据：</strong><code>model-test/outputs/cn_a_factor_composite_comparison/comparison_metrics.csv</code>、<code>comparison_fold_metrics.csv</code>、<code>comparison_manifest.json</code>，以及用于核对实际输入的 <code>model-test/outputs/composite_cn_a/composite_weights_by_fold.json</code>。</p>
+      <table>
+        <thead><tr><th>模型</th><th>Sharpe 均值</th><th>Sharpe std</th><th>平均最大回撤</th><th>Win rate</th><th>symbol-fold 一致性<br>（Sharpe &ge; 0.3）</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Composite</strong>（<code>composite_only</code>）</td><td><strong>0.5972</strong></td><td>0.5659</td><td><strong>-54.81%</strong></td><td><strong>48.32%</strong></td><td><strong>76.7%（46/60）</strong></td><td>通过 pooled research gate；research-only</td></tr>
+          <tr><td>SM</td><td>0.5277</td><td>0.3630</td><td>-74.07%</td><td>19.35%</td><td>80.0%（16/20）</td><td>比较对照</td></tr>
+          <tr><td>FSM</td><td>0.4984</td><td>0.3485</td><td>-64.50%</td><td>12.72%</td><td>80.0%（16/20）</td><td>比较对照</td></tr>
+        </tbody>
+      </table>
+      <p class="note"><strong>解读：</strong>在这份 pooled evidence 中，Composite 的 Sharpe 较 SM 高 13.2%、较 FSM 高 19.8%；平均最大回撤严重度分别改善约 26.0% 与 15.0%。Phase 6 表实际比较的是 return、Sharpe、最大回撤、win rate 与源行一致性/覆盖；它不单独验证换手、成本敏感性或 fallback 行为，<code>turnover_mean=0</code> 是源表缺少 <code>avg_turnover</code> 时的默认填充值，不能解释成零换手。覆盖差异已经显式披露，因此这些结果支持“当前 CN_A 研究样本中 Composite 排名领先”的方向性结论，但不能替代完全配对检验，更不能据此宣称 production ready 或跨市场最优。advisory 变体的真实数据经验 gate 仍待通过。</p>
     </section>
 
 
@@ -7743,6 +7828,16 @@
         基于观察到的模式；个股或市场周期可能会产生
         偏差。
       </p>
+      <p class="note"><strong>口径说明：</strong>下方旧的自适应路由器优先层次是 legacy SM/FSM/RSM 研究线的历史综合，不是 CN_A Composite 的统一市场排名。Composite 必须按具体市场、冻结 universe 和同一执行口径单独比较。</p>
+
+      <h4 id="interp-cn-a-composite">Composite 按市场的证据</h4>
+      <p>在 <code>CN_A / full_cn_a_admission_60</code> 研究线、20-day horizon、3 bps commission + 5 bps slippage 的冻结 pooled 口径下，Composite-only 位于 SM 与 FSM 之前：Composite Sharpe 0.5972，SM 0.5277，FSM 0.4984；相对 SM/FSM 分别高 13.2%/19.8%，平均最大回撤严重度改善约 26.0%/15.0%。这次 Composite 权重只由 10 个技术因子训练，13 个 market-native 因子虽存在于 panel，却没有进入冻结 fit。源表覆盖也不完全配对（Composite 60 个 symbol-fold 行，SM/FSM 各 20 行），因此这是市场限定的方向性 research-only 排名，不是 market-context 增量效果、配对显著性、production ready 或跨市场最优证明；advisory 变体仍待真实经验 gate。</p>
+      <table><thead><tr><th>CN_A 层次</th><th>Sharpe</th><th>平均最大回撤</th><th>解释</th></tr></thead><tbody>
+        <tr><td>Composite-only</td><td>0.5972</td><td>-54.81%</td><td>冻结输入为 10 个技术因子；forward-return Ridge 训练</td></tr>
+        <tr><td>SM（legacy 对照）</td><td>0.5277</td><td>-74.07%</td><td>10 因素手工权重</td></tr>
+        <tr><td>FSM（legacy 对照）</td><td>0.4984</td><td>-64.50%</td><td>因子分析加权</td></tr>
+      </tbody></table>
+      <p class="note"><strong>US 证据状态：</strong><code>research/09_us_composite/README.md</code> 记录了 <code>passed_research_gate</code> 的研究叙述，但当前帮助报告没有找到可复核的冻结数值 artifact。因此 US 数值状态在本报告中标记为 <strong>unavailable</strong>，不宣称 Composite 相对 SM/FSM 胜出；CN_A 与 US 的结论也不能互相外推。</p>
 
       <h4>7.8.1 典型性能排名</h4>
       <table>
@@ -8172,6 +8267,32 @@
     <!-- ══════════════════════════════════════════ -->
     <section id="submission-packaging">
       <h2>提交包装</h2>
+      <h3 id="current-product-surface">当前产品界面与使用路径</h3>
+      <p>从首页开始，顶部导航依次提供首页、单股、多股、帮助和研究证据入口。首页的新闻、指数、观察池和推荐股票是独立的可降级片段；推荐池只表示同源数据中的相对观察，不是全市场选股器，也不构成买入建议。</p>
+      <p>单股入口支持搜索、代码回退和 CSV 上传。进入分析后，左侧工作台构造 <code>StrategyRequest</code>，右侧结果板消费 <code>StrategyArtifact</code>；生成、保存、比较分别对应当前结果、会话内策略库和多个 artifact 的对照。改变股票、上传内容、日期或训练比例会重置 workflow workspace，避免旧结果混入新上下文。</p>
+      <p>多股入口支持市场标的与多个上传文件混合使用。基础信息区提供价格、相对强弱、风险收益、相关性、因子分数和周期收益，策略区提供组合模拟、个股贡献、买入并持有对照、权重和组合优化。</p>
+
+      <h3 id="current-runtime-recovery">临时工作区、缓存与恢复</h3>
+      <p>无登录临时工作区由 URL 的 <code>ws</code> 短期标识驱动，默认保存 24 小时，可恢复路由、参数、选择、上传 CSV、单股 artifact 和多股组合结果。stage cache、Plotly figure 和展示缓存不落盘，恢复后按数据懒重建；不要分享包含 <code>ws</code> 的 URL。</p>
+      <p>行情缓存按市场、标的和复权方式隔离：fresh 数据直接命中，stale 数据可后台刷新，手动刷新会更新同一缓存键。上传文件按内容摘要参与签名，因此同名同长度但内容变化的文件不会误用旧分析或组合结果。</p>
+
+      <h3 id="current-strategy-paths">当前策略路径与安全降级</h3>
+      <table><thead><tr><th>路径</th><th>当前语义</th><th>限制</th></tr></thead><tbody>
+        <tr><td>Baseline</td><td>Naive、Mean、Drift 透明对照</td><td>不叠加 Search、FSM、ML</td></tr>
+        <tr><td>Search</td><td>SM/FSM → 参数搜索 → 可选 News Fusion → 可选 ML</td><td>失败时保留最近成功上游阶段</td></tr>
+        <tr><td>Regime</td><td>adaptive_router_v1 按状态选择候选策略</td><td>artifact 缺失/损坏时降级 dual_state_router，并标记 degraded</td></tr>
+        <tr><td>Composite</td><td>多因子分数映射 long-only 目标仓位</td><td>CN_A 与其他市场隔离；advisory 只能维持或减仓</td></tr>
+      </tbody></table>
+
+      <h3 id="current-research-status">研究证据的当前状态</h3>
+      <p><code>/strategy/model-evaluation</code> 只读消费已有 <code>report.json</code>、QuantStats、MLflow 和市场研究 artifact，不启动研究，也不为缺失输出补造结果。<code>research/RESEARCH_CATALOG.md</code> 是五条冻结研究线的结论和 provenance 导航。</p>
+      <ul><li>Transformer state similarity：query utility 未通过，研究停止，不接入 Streamlit。</li><li>Adaptive/dynamic experts：未达到 admission gate，不改变默认策略。</li><li>CN_A Composite：在 <code>full_cn_a_admission_60</code> 的冻结统一比较中 Sharpe 0.5972、平均最大回撤 -54.81%、symbol-fold 一致性 76.7%（46/60，门槛 75%），通过 research gate，但仍是 research-only。</li><li>对照结果：同口径 SM Sharpe 0.5277 / MDD -74.07%，FSM 0.4984 / -64.50%；Composite 实际覆盖 60 个 symbol-fold，SM 与 FSM 各覆盖 20 个（对照合计 40 个）。</li><li>CN_A advisory：contract 和测试框架完成，真实数据经验 gate 尚未记录通过。</li></ul>
+
+      <h3 id="current-cn-a-composite">CN_A Composite 的实现边界</h3>
+      <p>CN_A 使用显式 benchmark/context 构建包含市场波动、regime、relative strength、beta、breadth 和 tradability 的 market-native panel，且禁止隐式读取 SPY/VIX。设计面板共有 10 个技术因子与 13 个 market-native 因子；但冻结 Phase 4/6 runner 只选择 10 个技术因子，用真实 forward returns 拟合 Ridge 权重，所以 0.5972 等结果不能归因于市场上下文。advisory 不跨市场共享权重；当 Composite 基础仓位为 0 时，advisory 不得开仓。主 Composite 缺失显式 context 时 fail-closed / unavailable，只有 advisory 无效输入使用保守现金保护。研究结论必须同时保留 market、universe、fold、horizon、成本配置和实际覆盖差异；Phase 6 不单独验证换手、成本敏感性或 fallback，也不能把 CN_A pooled 结果外推到 US，或将 research gate 误写成 production ready。</p>
+
+      <h3 id="current-deployment-and-limitations">部署、导出与已知限制</h3>
+      <p>本地使用 <code>run.bat</code> / <code>run.sh</code>，线上使用 <code>/strategy</code> 子路径、Nginx 模板和部署脚本。单股、多股导出使用共享 builder；报告中心直接渲染双语 HTML，不使用 iframe。外部行情、推荐、新闻和部分研究产物依赖网络或本地文件，接口波动、限流、字段变化、滑点、成本和数据修订都可能改变结果。</p>
       <p>
         该存储库包括 <code>scripts/prepare_final_zip.ps1</code> 创建一个干净的
         提交包。它排除 <code>.git</code>, <code>__pycache__</code>, 虚拟

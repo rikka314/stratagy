@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "name": "composite_advisory_cn_a",
+  "market": "CN_A",
+  "phase": "phase5_advisory",
+  "description": "CN_A Composite advisory ablation testing",
+
+  "advisory_config": {
+    "trend_trigger": 0.50,
+    "trend_conflict_multiplier": 0.75,
+    "reversion_trigger": 0.65,
+    "reversion_multiplier": 0.70,
+    "relative_trigger": 0.30,
+    "relative_conflict_multiplier": 0.75,
+    "macro_cap_floor": 0.25,
+    "macro_cap_ceiling": 1.0,
+    "max_single_decision_change": 0.25,
+    "max_position": 1.0
+  },
+
+  "execution": {
+    "commission_bps": 3,
+    "slippage_bps": 5,
+    "cost_bps": 8
+  },
+
+  "ablation_policies": [
+    "composite_only",
+    "composite_plus_trend",
+    "composite_plus_reversion",
+    "composite_plus_relative_strength",
+    "composite_plus_macro_cap",
+    "composite_plus_all_advisories",
+    "cash"
+  ],
+
+  "acceptance_thresholds": {
+    "max_sharpe_degradation": 0.10,
+    "require_risk_improvement": true,
+    "max_avg_turnover": 0.30,
+    "max_fallback_rate": 0.05
+  },
+
+  "phase4_dependency": {
+    "baseline_path": "model-test/outputs/composite_cn_a",
+    "required_status": "phase4_passed_ready_for_phase5"
+  },
+
+  "phase3_dependency": {
+    "factor_panel_path": "model-test/outputs/composite_cn_a/cn_a_factor_panel.parquet"
+  },
+
+  "output_subdir": "composite_advisory_cn_a"
+}

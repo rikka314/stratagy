@@ -1,0 +1,82 @@
+{
+  "phase": "phase4_advisory_from_phase01",
+  "description": "Phase 4 advisory evaluation using Phase 0/1 decision audit data",
+  "phase01_dir": "outputs/composite_advisory_phase1",
+  "output_dir": "outputs/composite_stability_phase4_advisory",
+  "market": "US",
+  "base_commission": 0.001,
+  "base_slippage": 0.0005,
+  "folds": [
+    {
+      "fold_id": "fold_01",
+      "test_start": "2022-01-01",
+      "test_end": "2022-12-31"
+    },
+    {
+      "fold_id": "fold_02",
+      "test_start": "2023-01-01",
+      "test_end": "2023-12-31"
+    },
+    {
+      "fold_id": "fold_03",
+      "test_start": "2024-01-01",
+      "test_end": "2024-12-31"
+    },
+    {
+      "fold_id": "fold_04",
+      "test_start": "2025-01-01",
+      "test_end": "2025-12-31"
+    }
+  ],
+  "strategy_candidates": [
+    {
+      "variant": "cash",
+      "description": "Cash baseline (zero position)"
+    },
+    {
+      "variant": "composite_only",
+      "description": "Composite baseline without advisory"
+    },
+    {
+      "variant": "composite_plus_trend",
+      "description": "Composite + trend confirmation advisory"
+    },
+    {
+      "variant": "composite_plus_reversion",
+      "description": "Composite + mean reversion warning advisory"
+    },
+    {
+      "variant": "composite_plus_macro_cap",
+      "description": "Composite + macro risk cap advisory"
+    },
+    {
+      "variant": "composite_plus_relative_strength",
+      "description": "Composite + relative strength advisory"
+    },
+    {
+      "variant": "composite_plus_all_advisories",
+      "description": "Composite + all advisory overlays"
+    }
+  ],
+  "admission_gate": {
+    "min_fold_pass_rate": 0.75,
+    "min_sharpe_ratio": 0.3,
+    "min_sortino_ratio": 0.4,
+    "max_drawdown_threshold": 0.30,
+    "max_volatility": 0.40,
+    "max_cost_to_gross_ratio": 0.50,
+    "max_turnover_multiple": 50.0,
+    "max_near_max_rate": 0.90,
+    "min_mean_exposure": 0.05,
+    "allow_data_quality_issues": false,
+    "allow_pit_violations": false,
+    "allow_audit_failures": false
+  },
+  "notes": [
+    "使用Phase 0/1的60-symbol US数据",
+    "Decision audit包含1,007,377行预计算决策",
+    "每个fold从decision_audit提取并聚合为equal-weight组合",
+    "Advisory策略相对composite_only的增量价值评估",
+    "Phase 0/1已通过research admission: composite_plus_reversion"
+  ]
+}

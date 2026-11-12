@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+from functools import wraps
 from time import perf_counter
 from typing import Any
 
@@ -24,17 +25,20 @@ from ui.i18n import tr
 from core.config import DATA_DIR
 from core.perf import emit_performance_event
 from ui.theme import (
+    clear_route_loading_slots,
     inject_analysis_styles,
     inject_base_styles,
     inject_entry_styles,
     inject_home_styles,
     inject_report_styles,
+    register_route_loading_slot,
+    render_route_loading_marker,
     render_route_nav,
+    reset_route_loading_slots,
 )
 from ui.workspace import (
     checkpoint_workspace,
     ensure_workspace_session,
-    render_workspace_restore_notice,
     render_workspace_sidebar_actions,
 )
 
@@ -43,6 +47,7 @@ SINGLE_ROUTE_STATE_KEY = "route_single_state"
 MULTI_ROUTE_STATE_KEY = "route_multi_state"
 MODEL_EVALUATION_ROUTE = "model-evaluation"
 EXPERIMENT_MONITOR_ROUTE = "experiment-monitor"
+ROUTE_ANALYSIS_LOADING_KEY = "_route_analysis_loading"
 
 
 st.set_page_config(
@@ -156,6 +161,32 @@ def _multi_seed_token(state: dict[str, Any]) -> str:
     return f"multi::{state.get('market')}::{selected_symbols}::{uploaded_names}"
 
 
+def _set_route_analysis_loading(value: bool) -> None:
+    st.session_state[ROUTE_ANALYSIS_LOADING_KEY] = bool(value)
+
+
+def _clear_route_analysis_loading() -> None:
+    _set_route_analysis_loading(False)
+    clear_route_loading_slots()
+
+
+def _route_analysis_loading_error_safe(render):
+    """Clear ordinary render failures without swallowing Streamlit control flow."""
+
+    @wraps(render)
+    def guarded(*args, **kwargs):
+        reset_route_loading_slots()
+        try:
+            return render(*args, **kwargs)
+        except Exception:
+            # Streamlit rerun/stop exceptions inherit from BaseException and
+            # intentionally bypass this cleanup path.
+            _clear_route_analysis_loading()
+            raise
+
+    return guarded
+
+
 def _render_home_route() -> None:
     inject_home_styles()
     from ui.home import render_home_page
@@ -164,6 +195,7 @@ def _render_home_route() -> None:
     checkpoint_workspace()
 
 
+@_route_analysis_loading_error_safe
 def _render_single_stock_route() -> None:
     from core.data import load_uploaded_bytes
     from core.utils import load_or_fetch_stock
@@ -172,12 +204,15 @@ def _render_single_stock_route() -> None:
     from ui.single_stock_entry import render_single_stock_entry_page
 
     render_workspace_sidebar_actions()
+    nav_rendered = False
     state = _get_single_route_state()
     if state["view"] != "analysis":
         inject_entry_styles()
         render_route_nav("single")
-        render_workspace_restore_notice()
-        action = render_single_stock_entry_page(initial_market=state.get("market", "US"))
+        nav_rendered = True
+        entry_slot = st.empty()
+        with entry_slot.container():
+            action = render_single_stock_entry_page(initial_market=state.get("market", "US"))
         if action is not None:
             if action["kind"] == "upload":
                 st.session_state[SINGLE_ROUTE_STATE_KEY] = {
@@ -199,14 +234,27 @@ def _render_single_stock_route() -> None:
                     "uploaded_bytes": None,
                     "source": action.get("source"),
                 }
+            _set_route_analysis_loading(True)
             checkpoint_workspace()
-            st.rerun()
-        checkpoint_workspace()
-        return
+            entry_slot.empty()
+            state = _get_single_route_state()
+        else:
+            checkpoint_workspace()
+            return
 
     inject_analysis_styles()
-    render_route_nav("single")
-    render_workspace_restore_notice()
+    if not nav_rendered:
+        render_route_nav("single")
+    # A route rerun can briefly reconcile the new analysis tree while the
+    # selected market data is still loading.  Keep a single, lightweight
+    # loading marker in the new tree so the previous entry surface cannot be
+    # shown underneath it (which otherwise produces duplicate CSV controls).
+    analysis_loading_slot = st.empty()
+    register_route_loading_slot(analysis_loading_slot)
+    route_analysis_loading = bool(st.session_state.get(ROUTE_ANALYSIS_LOADING_KEY, False))
+    with analysis_loading_slot:
+        if route_analysis_loading:
+            render_route_loading_marker(state.get("symbol"))
 
     initial_symbols = [] if state.get("uploaded_bytes") is not None else ([state["symbol"]] if state.get("symbol") else None)
     params = render_sidebar(
@@ -218,6 +266,7 @@ def _render_single_stock_route() -> None:
     validation_error = _validate_strategy_params(params)
     if validation_error is not None:
         st.sidebar.error(validation_error)
+        _clear_route_analysis_loading()
         checkpoint_workspace()
         return
 
@@ -232,12 +281,14 @@ def _render_single_stock_route() -> None:
         symbol = state["symbol"]
 
     if state.get("uploaded_bytes") is not None:
+        _set_route_analysis_loading(False)
         df_raw = load_uploaded_bytes(state["uploaded_bytes"])
         st.info(tr("message.currentUploadedData", name=state.get("uploaded_name")))
     else:
         compare_stocks = params.get("compare_stocks") or ([symbol] if symbol else [])
         if not compare_stocks:
             st.warning(tr("error.no_stocks_to_analyze"))
+            _clear_route_analysis_loading()
             checkpoint_workspace()
             return
         if len(compare_stocks) > 1:
@@ -245,25 +296,35 @@ def _render_single_stock_route() -> None:
         symbol = compare_stocks[0]
         state["symbol"] = symbol
         state["market"] = params.get("market", state.get("market", "US"))
-        df_raw = load_or_fetch_stock(symbol, params["adjust"], market=params.get("market", "US"))
+        df_raw = load_or_fetch_stock(
+            symbol,
+            params["adjust"],
+            market=params.get("market", "US"),
+            show_spinner=False,
+        )
         if df_raw is None:
             st.error(tr("message.dataFetchFailed", symbol=symbol))
+            _clear_route_analysis_loading()
             checkpoint_workspace()
             return
 
     if not _ensure_valid_dataframe(df_raw, empty_message=tr("data.loadingFailed")):
+        _clear_route_analysis_loading()
         checkpoint_workspace()
         return
 
     df_raw, _is_datetime, _start_ts, _end_ts = _apply_date_filter(df_raw, params["selected_range"])
     if df_raw.empty:
         st.warning(tr("error.no_data_in_selected_range"))
+        _clear_route_analysis_loading()
         checkpoint_workspace()
         return
 
     params["compare_stocks"] = [symbol] if symbol else []
     params["symbol"] = symbol
+    _set_route_analysis_loading(False)
     render_single_stock_page(params, df_raw, symbol)
+    _clear_route_analysis_loading()
     checkpoint_workspace()
 
 
@@ -283,6 +344,7 @@ def _build_uploaded_multi_sources(uploads: list[dict[str, Any]]) -> dict[str, An
     return prefetched
 
 
+@_route_analysis_loading_error_safe
 def _render_multi_stock_route() -> None:
     import pandas as pd
 
@@ -291,12 +353,15 @@ def _render_multi_stock_route() -> None:
     from ui.sidebar import render_sidebar
 
     render_workspace_sidebar_actions()
+    nav_rendered = False
     state = _get_multi_route_state()
     if state["view"] != "analysis":
         inject_entry_styles()
         render_route_nav("multi")
-        render_workspace_restore_notice()
-        action = render_multi_stock_entry_page(initial_market=state.get("market", "US"))
+        nav_rendered = True
+        entry_slot = st.empty()
+        with entry_slot.container():
+            action = render_multi_stock_entry_page(initial_market=state.get("market", "US"))
         if action is not None:
             st.session_state[MULTI_ROUTE_STATE_KEY] = {
                 "view": "analysis",
@@ -304,14 +369,24 @@ def _render_multi_stock_route() -> None:
                 "symbols": action["symbols"],
                 "uploads": action["uploads"],
             }
+            _set_route_analysis_loading(True)
             checkpoint_workspace()
-            st.rerun()
-        checkpoint_workspace()
-        return
+            entry_slot.empty()
+            state = _get_multi_route_state()
+        else:
+            checkpoint_workspace()
+            return
 
     inject_analysis_styles()
-    render_route_nav("multi")
-    render_workspace_restore_notice()
+    if not nav_rendered:
+        render_route_nav("multi")
+    analysis_loading_slot = st.empty()
+    register_route_loading_slot(analysis_loading_slot)
+    route_analysis_loading = bool(st.session_state.get(ROUTE_ANALYSIS_LOADING_KEY, False))
+    with analysis_loading_slot:
+        if route_analysis_loading:
+            loading_symbol = (state.get("symbols") or ["stocks"])[0]
+            render_route_loading_marker(loading_symbol)
 
     params = render_sidebar(
         initial_market=state.get("market", "US"),
@@ -322,6 +397,7 @@ def _render_multi_stock_route() -> None:
     validation_error = _validate_strategy_params(params)
     if validation_error is not None:
         st.sidebar.error(validation_error)
+        _clear_route_analysis_loading()
         checkpoint_workspace()
         return
 
@@ -332,6 +408,7 @@ def _render_multi_stock_route() -> None:
     total_count = len(compare_stocks) + len(prefetched_sources)
     if total_count < 2:
         st.warning(tr("stockPool.insufficientWarning"))
+        _clear_route_analysis_loading()
         checkpoint_workspace()
         return
 
@@ -349,6 +426,7 @@ def _render_multi_stock_route() -> None:
         end_ts,
         prefetched_stock_data=prefetched_sources,
     )
+    _clear_route_analysis_loading()
     checkpoint_workspace()
 
 

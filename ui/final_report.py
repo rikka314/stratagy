@@ -33,7 +33,11 @@ SUB_TOC_LINK_PATTERN = re.compile(
     r'<li>\s*<a href="#([^"]+)">(.*?)</a>\s*</li>',
     re.IGNORECASE | re.DOTALL,
 )
-TOC_HREF_PATTERN = re.compile(r'href="#([A-Za-z][A-Za-z0-9_-]*)"', re.IGNORECASE)
+TOC_ANCHOR_HREF_PATTERN = re.compile(
+    r'(?P<prefix>\bhref\s*=\s*)(?P<quote>["\'])#'
+    r'(?P<anchor>[A-Za-z][A-Za-z0-9_-]*)(?P=quote)',
+    re.IGNORECASE,
+)
 SAFE_ANCHOR_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 ID_TAG_PATTERN = re.compile(
     r'<[A-Za-z][^>]*\bid="([A-Za-z][A-Za-z0-9_-]*)"[^>]*>',
@@ -46,6 +50,7 @@ HERO_METADATA_PATTERN = re.compile(
 ACTIVE_SECTION_STATE_KEY = "final_report_active_section"
 SUBMITTED_QUERY_STATE_KEY = "final_report_submitted_query"
 SEARCH_DRAFT_STATE_KEY = "final_report_search_draft"
+REPORT_RESULT_QUERY_KEY = "report_result"
 
 
 def _visible_text(markup: str) -> str:
@@ -208,26 +213,364 @@ def _search_snippet(
     return f"{prefix}{visible_text[start:end]}{suffix}"
 
 
-def _report_section_href(section_id: str, language: str, anchor_id: str | None = None) -> str:
+def _report_section_href(
+    section_id: str,
+    language: str,
+    anchor_id: str | None = None,
+    *,
+    clear_search: bool = False,
+) -> str:
     path = route_href("final-report", language=language)
     separator = "&" if "?" in path else "?"
     fragment = f"#{anchor_id}" if anchor_id else ""
-    return f"{path}{separator}{urlencode({'section': section_id})}{fragment}"
+    query = {"section": section_id}
+    if clear_search:
+        query[REPORT_RESULT_QUERY_KEY] = "open"
+    return f"{path}{separator}{urlencode(query)}{fragment}"
 
 
-def render_report_toc(reader: dict[str, Any], language: str) -> str:
-    """Retain the archived TOC while pointing unloaded anchors to their owning chapter."""
-    anchor_to_section = reader["anchor_to_section"]
+def _report_anchor_href(
+    anchor_id: str,
+    owner_section: str,
+    language: str,
+    active_section: str | None,
+) -> str:
+    """Keep same-chapter jumps local while routing unloaded anchors through their chapter."""
+    if active_section and owner_section == active_section:
+        return f"#{anchor_id}"
+    return _report_section_href(owner_section, language, anchor_id)
+
+
+def _rewrite_report_toc_links(
+    toc_html: str,
+    anchor_to_section: dict[str, str],
+    language: str,
+    active_section: str | None,
+) -> str:
+    """Keep the archived TOC usable if its structure no longer matches the popover parser."""
 
     def replace_href(match: re.Match[str]) -> str:
-        anchor_id = match.group(1)
-        section_id = anchor_to_section.get(anchor_id)
-        if not section_id:
+        anchor_id = match.group("anchor")
+        owner_section = anchor_to_section.get(anchor_id)
+        if not owner_section:
             return match.group(0)
-        href = _report_section_href(section_id, language, anchor_id)
-        return f'href="{html.escape(href, quote=True)}"'
+        href = _report_anchor_href(anchor_id, owner_section, language, active_section)
+        quote = match.group("quote")
+        return f'{match.group("prefix")}{quote}{html.escape(href, quote=True)}{quote}'
 
-    return TOC_HREF_PATTERN.sub(replace_href, reader["toc_html"])
+    return TOC_ANCHOR_HREF_PATTERN.sub(replace_href, toc_html)
+
+
+def render_report_toc(
+    reader: dict[str, Any],
+    language: str,
+    active_section: str | None = None,
+) -> str:
+    """Rebuild the archived TOC as mutually exclusive native popovers."""
+    anchor_to_section = reader["anchor_to_section"]
+    groups = TOC_GROUP_PATTERN.findall(reader["toc_html"])
+    source_anchor_ids = [
+        match.group("anchor")
+        for match in TOC_ANCHOR_HREF_PATTERN.finditer(reader["toc_html"])
+    ]
+    parsed_anchor_ids: list[str] = []
+    for section_id, _label_markup, sub_toc_markup in groups:
+        parsed_anchor_ids.append(section_id)
+        parsed_anchor_ids.extend(
+            anchor_id
+            for anchor_id, _subsection_markup in SUB_TOC_LINK_PATTERN.findall(sub_toc_markup)
+        )
+    if not groups or parsed_anchor_ids != source_anchor_ids:
+        return _rewrite_report_toc_links(
+            reader["toc_html"],
+            anchor_to_section,
+            language,
+            active_section,
+        )
+
+    toc_label = "目录" if language == "zh" else "Contents"
+    close_label = "关闭子目录" if language == "zh" else "Close subsection list"
+    rows: list[str] = []
+    for group_index, (section_id, label_markup, sub_toc_markup) in enumerate(groups):
+        if not SAFE_ANCHOR_PATTERN.fullmatch(section_id):
+            continue
+        owner_section = anchor_to_section.get(section_id, section_id)
+        chapter_href = _report_anchor_href(
+            section_id,
+            owner_section,
+            language,
+            active_section,
+        )
+        chapter_label = _visible_text(label_markup)
+        panel_id = f"report-toc-panel-{section_id}"
+        panel_title_id = f"report-toc-title-{section_id}"
+        anchor_name = f"--report-toc-anchor-{group_index}"
+        expand_label = (
+            f"展开“{chapter_label}”子目录"
+            if language == "zh"
+            else f"Open subsections for {chapter_label}"
+        )
+        sub_links: list[str] = []
+        for anchor_id, subsection_markup in SUB_TOC_LINK_PATTERN.findall(sub_toc_markup):
+            if not SAFE_ANCHOR_PATTERN.fullmatch(anchor_id):
+                continue
+            subsection_owner = anchor_to_section.get(anchor_id)
+            if not subsection_owner:
+                continue
+            subsection_href = _report_anchor_href(
+                anchor_id,
+                subsection_owner,
+                language,
+                active_section,
+            )
+            subsection_label = _visible_text(subsection_markup)
+            sub_links.append(
+                f'<li><a href="{html.escape(subsection_href, quote=True)}" '
+                f'data-report-anchor="{html.escape(anchor_id, quote=True)}">'
+                f"{html.escape(subsection_label)}</a></li>"
+            )
+
+        rows.append(
+            f'<li class="report-toc-popover" data-report-toc-align="'
+            f'{"end" if group_index % 2 else "start"}" style="anchor-name: {anchor_name};">'
+            f'<div class="report-toc-row">'
+            f'<button class="report-toc-popover-trigger" type="button" '
+            f'popovertarget="{panel_id}" aria-controls="{panel_id}" aria-expanded="false" '
+            f'aria-label="{html.escape(expand_label, quote=True)}"><span aria-hidden="true">+</span></button>'
+            f'<a class="report-toc-chapter-link" href="{html.escape(chapter_href, quote=True)}" '
+            f'data-report-anchor="{html.escape(section_id, quote=True)}">{html.escape(chapter_label)}</a>'
+            f"</div>"
+            f'<div id="{panel_id}" class="report-toc-popover-panel" popover="auto" role="dialog" '
+            f'aria-labelledby="{panel_title_id}" style="position-anchor: {anchor_name};">'
+            f'<div class="report-toc-popover-heading"><strong id="{panel_title_id}">'
+            f"{html.escape(chapter_label)}</strong>"
+            f'<button class="report-toc-popover-close" type="button" popovertarget="{panel_id}" '
+            f'popovertargetaction="hide" aria-label="{html.escape(close_label, quote=True)}">×</button></div>'
+            f'<nav class="report-toc-popover-nav" aria-label="{html.escape(expand_label, quote=True)}">'
+            f'<ul class="sub-toc" role="list">{"".join(sub_links)}</ul></nav></div></li>'
+        )
+
+    return (
+        f'<nav class="toc report-toc" id="toc-nav" aria-label="{toc_label}" '
+        f'data-report-toc-root="true" data-report-toc-exclusive="native-auto">'
+        f"<h2>{toc_label}</h2><ul class=\"report-toc-list\" role=\"list\">{''.join(rows)}</ul></nav>"
+    )
+
+
+def build_report_interaction_script() -> str:
+    """Return the trusted report-only bridge for popover state and post-rerun anchors."""
+    return """
+<script data-report-toc-script="true">
+(() => {
+  const controllerKey = "__strategyReportTocController";
+  const previousController = window[controllerKey];
+  if (previousController && typeof previousController.abort === "function") {
+    previousController.abort();
+  }
+  const controller = new AbortController();
+  window[controllerKey] = controller;
+  const signal = controller.signal;
+  const anchorTimers = new Set();
+  signal.addEventListener("abort", () => {
+    anchorTimers.forEach((timerId) => window.clearTimeout(timerId));
+    anchorTimers.clear();
+  }, {once: true});
+  const scheduleAnchorTask = (callback, delay) => {
+    const timerId = window.setTimeout(() => {
+      anchorTimers.delete(timerId);
+      if (!signal.aborted) callback();
+    }, delay);
+    anchorTimers.add(timerId);
+  };
+  const supportsPopover = typeof HTMLElement !== "undefined"
+    && typeof HTMLElement.prototype.showPopover === "function";
+  const readings = Array.from(document.querySelectorAll(".native-report-reading"));
+  const reading = readings[readings.length - 1];
+  if (!reading) return;
+  const root = reading.querySelector('[data-report-toc-root="true"]');
+  const panels = root
+    ? Array.from(root.querySelectorAll(".report-toc-popover-panel"))
+    : [];
+  const triggers = root
+    ? Array.from(root.querySelectorAll(".report-toc-popover-trigger"))
+    : [];
+  const triggerFor = (panel) => triggers.find(
+    (trigger) => trigger.getAttribute("aria-controls") === panel.id
+  );
+  const syncPanel = (panel, expanded) => {
+    const trigger = triggerFor(panel);
+    if (!trigger) return;
+    trigger.setAttribute("aria-expanded", expanded ? "true" : "false");
+    const icon = trigger.querySelector('[aria-hidden="true"]');
+    if (icon) icon.textContent = expanded ? "−" : "+";
+  };
+  const isOpen = (panel) => {
+    if (!supportsPopover) {
+      return panel.getAttribute("data-report-fallback-open") === "true";
+    }
+    try {
+      return panel.matches(":popover-open");
+    } catch (_error) {
+      return false;
+    }
+  };
+  const closePanel = (panel, restoreFocus = false) => {
+    if (!isOpen(panel)) return;
+    if (supportsPopover && typeof panel.hidePopover === "function") {
+      panel.hidePopover();
+      return;
+    }
+    panel.hidden = true;
+    panel.setAttribute("aria-hidden", "true");
+    panel.removeAttribute("data-report-fallback-open");
+    syncPanel(panel, false);
+    if (restoreFocus) {
+      const trigger = triggerFor(panel);
+      if (trigger) trigger.focus();
+    }
+  };
+  const openFallbackPanel = (panel) => {
+    panels.forEach((sibling) => {
+      if (sibling !== panel) closePanel(sibling);
+    });
+    panel.hidden = false;
+    panel.setAttribute("aria-hidden", "false");
+    panel.setAttribute("data-report-fallback-open", "true");
+    syncPanel(panel, true);
+    const focusTarget = panel.querySelector(".report-toc-popover-close, a[href]");
+    if (focusTarget instanceof HTMLElement) {
+      focusTarget.focus({preventScroll: true});
+    }
+  };
+
+  panels.forEach((panel) => {
+    if (!supportsPopover) {
+      panel.hidden = true;
+      panel.setAttribute("aria-hidden", "true");
+      const trigger = triggerFor(panel);
+      if (trigger) {
+        trigger.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (isOpen(panel)) closePanel(panel);
+          else openFallbackPanel(panel);
+        }, {signal});
+      }
+      const closeButton = panel.querySelector(".report-toc-popover-close");
+      if (closeButton) {
+        closeButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          closePanel(panel, true);
+        }, {signal});
+      }
+    }
+    panel.addEventListener("beforetoggle", (event) => {
+      if (event.newState !== "open") return;
+      panels.forEach((sibling) => {
+        if (sibling !== panel) closePanel(sibling);
+      });
+    }, {signal});
+    panel.addEventListener("toggle", (event) => {
+      syncPanel(panel, event.newState === "open");
+    }, {signal});
+    panel.querySelectorAll("a[href]").forEach((link) => {
+      link.addEventListener("click", () => closePanel(panel), {signal});
+    });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    cancelAnchorSettling();
+    if (event.key !== "Escape") return;
+    panels.forEach((panel) => closePanel(panel, true));
+  }, {signal});
+  document.addEventListener("pointerdown", (event) => {
+    cancelAnchorSettling();
+    const openPanel = panels.find(isOpen);
+    if (!openPanel) return;
+    const trigger = triggerFor(openPanel);
+    const target = event.target;
+    if (target instanceof Node && (
+      openPanel.contains(target) || (trigger && trigger.contains(target))
+    )) {
+      if (target !== openPanel) return;
+      const bounds = openPanel.getBoundingClientRect();
+      const insidePanel = event.clientX >= bounds.left && event.clientX <= bounds.right
+        && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+      if (insidePanel) return;
+    }
+    closePanel(openPanel);
+  }, {signal, capture: true});
+
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const validAnchor = /^[A-Za-z][A-Za-z0-9_-]*$/;
+  const decodeAnchor = (value) => {
+    try {
+      return decodeURIComponent(value);
+    } catch (_error) {
+      return "";
+    }
+  };
+  const findNewestTarget = (anchorId) => {
+    const localTarget = reading ? reading.querySelector(`[id="${anchorId}"]`) : null;
+    if (localTarget) return localTarget;
+    const targets = document.querySelectorAll(`[id="${anchorId}"]`);
+    return targets.length ? targets[targets.length - 1] : null;
+  };
+  const scrollToAnchor = (anchorId, behavior = reducedMotion ? "auto" : "smooth") => {
+    if (!validAnchor.test(anchorId)) return false;
+    const target = findNewestTarget(anchorId);
+    if (!target) return false;
+    target.scrollIntoView({
+      behavior,
+      block: "start",
+    });
+    if (!target.hasAttribute("tabindex")) {
+      target.setAttribute("tabindex", "-1");
+      target.setAttribute("data-report-focus-target", "true");
+    }
+    target.focus({preventScroll: true});
+    return true;
+  };
+  let anchorRun = 0;
+  const cancelAnchorSettling = () => {
+    anchorRun += 1;
+    anchorTimers.forEach((timerId) => window.clearTimeout(timerId));
+    anchorTimers.clear();
+  };
+  const scrollToCurrentHash = () => {
+    cancelAnchorSettling();
+    const run = anchorRun;
+    const anchorId = decodeAnchor(window.location.hash.slice(1));
+    if (!anchorId) return;
+    [0, 120, 400, 900, 1600, 2600].forEach((delay, index) => {
+      scheduleAnchorTask(() => {
+        if (run !== anchorRun) return;
+        window.requestAnimationFrame(() => {
+          if (signal.aborted || run !== anchorRun) return;
+          scrollToAnchor(
+            anchorId,
+            index === 0 && !reducedMotion ? "smooth" : "auto"
+          );
+        });
+      }, delay);
+    });
+  };
+
+  document.addEventListener("wheel", cancelAnchorSettling, {signal, passive: true});
+  document.addEventListener("touchstart", cancelAnchorSettling, {signal, passive: true});
+
+  window.addEventListener("hashchange", scrollToCurrentHash, {signal});
+  document.addEventListener("click", (event) => {
+    cancelAnchorSettling();
+    if (!(event.target instanceof Element)) return;
+    const link = event.target.closest('.native-report-reading a[href^="#"]');
+    if (!link) return;
+    const anchorId = decodeAnchor(link.getAttribute("href").slice(1));
+    scheduleAnchorTask(() => scrollToAnchor(anchorId), 0);
+  }, {signal});
+  scrollToCurrentHash();
+})();
+</script>
+""".strip()
 
 
 def build_report_navigation(
@@ -263,7 +606,7 @@ def build_report_navigation(
         )
         owner_section = (anchor_to_section or {}).get(section_id, section_id)
         href = (
-            _report_section_href(owner_section, language, section_id)
+            _report_anchor_href(section_id, owner_section, language, active_section)
             if anchor_to_section is not None
             else f"#{section_id}"
         )
@@ -330,6 +673,20 @@ def _query_section_id() -> str:
         return ""
 
 
+def _consume_report_result_request() -> bool:
+    """Consume the one-shot query marker used when a search result opens a chapter."""
+    try:
+        value = st.query_params.get(REPORT_RESULT_QUERY_KEY, "")
+        if isinstance(value, (list, tuple)):
+            value = value[-1] if value else ""
+        requested = str(value or "") == "open"
+        if requested:
+            del st.query_params[REPORT_RESULT_QUERY_KEY]
+        return requested
+    except (AttributeError, KeyError, TypeError):
+        return False
+
+
 def _get_active_section(reader: dict[str, Any]) -> dict[str, str]:
     sections = reader["sections"]
     if not sections:
@@ -337,9 +694,16 @@ def _get_active_section(reader: dict[str, Any]) -> dict[str, str]:
     available = {section["id"]: section for section in sections}
     default_section = reader["chapters"][0] if reader["chapters"] else sections[0]
     query_section = _query_section_id()
+    report_result_requested = _consume_report_result_request()
     saved_section = str(st.session_state.get(ACTIVE_SECTION_STATE_KEY, ""))
-    active = available.get(query_section) or available.get(saved_section, default_section)
-    if query_section in available and query_section != saved_section:
+    active = (
+        available.get(query_section, default_section)
+        if query_section
+        else available.get(saved_section, default_section)
+    )
+    if report_result_requested or (
+        query_section in available and query_section != saved_section
+    ):
         st.session_state[SUBMITTED_QUERY_STATE_KEY] = ""
     st.session_state[ACTIVE_SECTION_STATE_KEY] = active["id"]
     return active
@@ -380,7 +744,7 @@ def _render_search(reader: dict[str, Any], language: str) -> tuple[dict[str, str
 
     st.caption(t(f"找到 {len(matches)} 个匹配章节", f"{len(matches)} matching sections"))
     cards = "".join(
-        f'<a class="report-search-result" href="{html.escape(_report_section_href(match["id"], language), quote=True)}">'
+        f'<a class="report-search-result" href="{html.escape(_report_section_href(match["id"], language, clear_search=True), quote=True)}">'
         f'<strong>{html.escape(match["title"])}</strong><span>{html.escape(match["snippet"])}</span></a>'
         for match in matches
     )
@@ -414,7 +778,7 @@ def render_final_report_page() -> None:
     if matches is not None:
         return
 
-    toc_html = render_report_toc(reader, language)
+    toc_html = render_report_toc(reader, language, active_section=active_section["id"])
     navigation_markup = build_report_navigation(
         reader["toc_html"],
         language,
@@ -428,4 +792,9 @@ def render_final_report_page() -> None:
             f'{navigation_markup}<div class="report-reading-document">{toc_html}{active_section["html"]}</div>'
             f'<a class="report-back-top" href="#report-top" aria-label="{top_label}" title="{top_label}">↑</a></div>',
             localize=False,
+        )
+        render_html(
+            build_report_interaction_script(),
+            localize=False,
+            unsafe_allow_javascript=True,
         )

@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "name": "composite_cn_a_240",
+  "market": "CN_A",
+  "universe": "benchmark_cn_a_deans_240",
+  "random_seed": 42,
+  "horizon_days": 20,
+  "execution": {
+    "commission_bps": 3,
+    "slippage_bps": 5,
+    "cost_treatment": "ohlcv_gross_charge_once"
+  },
+  "benchmark": {
+    "policy": "cn_a_native_then_frozen_universe_equal_weight",
+    "symbol": "000300",
+    "fallback": "frozen_universe_equal_weight"
+  },
+  "position_policy": "long_only",
+  "selection_scope": "train_only",
+  "output_subdir": "composite_cn_a_240",
+  "factor_panel": {
+    "warm_up_days": 60,
+    "max_missing_rate": 0.02,
+    "technical_factors": [
+      "mom_short_z",
+      "mom_long_z",
+      "macd_z",
+      "rsi_z",
+      "bb_position_rank",
+      "price_position_rank",
+      "vol_z",
+      "drawdown_rank",
+      "obv_trend_rank",
+      "volume_ratio_rank"
+    ],
+    "market_factors": [
+      "market_vol_level",
+      "market_vol_regime",
+      "rel_strength_market",
+      "market_breadth",
+      "breadth_up_ratio_1",
+      "breadth_up_ratio_20",
+      "market_beta_20d",
+      "sector_momentum",
+      "market_return_1",
+      "market_return_5",
+      "market_return_20",
+      "market_drawdown_60",
+      "market_constituent_count"
+    ]
+  },
+  "source_lock": {
+    "base_universe": "benchmark_cn_a_deans_240",
+    "expected_symbol_count": 240,
+    "minimum_data_end_date": "2023-12-31"
+  },
+  "quality_gates": {
+    "universe_coverage": 0.95,
+    "technical_factor_missing_rate": 0.02,
+    "market_factor_missing_rate": 0.05,
+    "duplicate_primary_key_rate": 0.0,
+    "forward_looking_violations": 0
+  }
+}

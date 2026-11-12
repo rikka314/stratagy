@@ -1,0 +1,68 @@
+{
+  "phase": "phase3_position_mapping",
+  "description": "Position mapping and execution constraint research",
+  "phase2_output_dir": "model-test/outputs/composite_stability_phase2",
+  "data_path": "data/demo_factors_output.parquet",
+  "test_start_date": "2020-10-01",
+  "output_dir": "model-test/outputs",
+  "market": "US",
+  "base_commission": 0.001,
+  "base_slippage": 0.0005,
+  "position_maps": [
+    {
+      "variant": "quantile_5bin",
+      "description": "Five quantile bins with fixed positions"
+    },
+    {
+      "variant": "dead_zone_softsign",
+      "description": "Dead-zone softsign with threshold and scale"
+    },
+    {
+      "variant": "vol_target",
+      "description": "Volatility-targeted position sizing"
+    },
+    {
+      "variant": "monotone_calibrated",
+      "description": "Isotonic regression calibration to future returns"
+    }
+  ],
+  "execution_constraints": [
+    {
+      "no_trade_band": 0.02,
+      "max_daily_delta_increase": 0.20,
+      "max_daily_delta_decrease": 0.20,
+      "rebalance_cadence_days": 1,
+      "description": "Baseline: tight band, daily rebalance"
+    },
+    {
+      "no_trade_band": 0.05,
+      "max_daily_delta_increase": 0.10,
+      "max_daily_delta_decrease": 0.15,
+      "rebalance_cadence_days": 1,
+      "description": "Conservative: wider band, smaller deltas"
+    },
+    {
+      "no_trade_band": 0.02,
+      "rebalance_cadence_days": 3,
+      "description": "Low frequency: 3-day rebalance"
+    },
+    {
+      "no_trade_band": 0.05,
+      "rebalance_cadence_days": 5,
+      "description": "Very low frequency: 5-day rebalance"
+    }
+  ],
+  "cost_multipliers": [1.0, 2.0, 4.0],
+  "saturation_gate": {
+    "near_max_position_rate_threshold": 0.90,
+    "description": "Maximum allowed proportion of near-saturated positions"
+  },
+  "notes": [
+    "Phase 3 consumes Phase 2 frozen weights",
+    "All map parameters fit on train data only",
+    "Validation/test only transform with frozen parameters",
+    "Cost sensitivity tests base, 2x, 4x transaction costs",
+    "Saturation gate: near_max_rate <= 90%",
+    "Selection prioritizes robust performance across cost scenarios"
+  ]
+}

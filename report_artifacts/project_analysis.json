@@ -1,0 +1,150 @@
+{
+  "metadata": {
+    "project_name": "stratagy 模块化量化策略分析系统",
+    "project_type": "Python / Streamlit 双市场量化研究与课程设计项目",
+    "language": "Python 3.10+",
+    "markets": ["US", "CN_A"],
+    "base_path": "/strategy",
+    "local_start": ["run.bat", "./run.sh"],
+    "analysis_date": "2026-08-23",
+    "source_of_truth": ["AI_CONTEXT.md", "README.md", "requirements.txt", "app.py", "core/", "ui/", "tests/"]
+  },
+  "tech_stack": [
+    {"technology": "Python", "version": "3.10+", "purpose": "业务逻辑、研究执行与测试"},
+    {"technology": "Streamlit", "version": ">=1.60.0,<1.62.0", "purpose": "交互式 Web 应用与路由"},
+    {"technology": "pandas / NumPy", "version": "requirements.txt 约束", "purpose": "时序数据处理与向量化计算"},
+    {"technology": "Plotly", "version": "requirements.txt 约束", "purpose": "交互式金融图表"},
+    {"technology": "AkShare / yfinance", "version": "requirements.txt 约束", "purpose": "A 股与美股行情获取"},
+    {"technology": "scikit-learn / LightGBM", "version": "requirements.txt 约束", "purpose": "机器学习过滤与组合模型"},
+    {"technology": "Optuna", "version": "requirements.txt 约束", "purpose": "参数与组合权重优化"},
+    {"technology": "PyArrow", "version": "requirements.txt 约束", "purpose": "Parquet 研究数据读写"},
+    {"technology": "MLflow / QuantStats", "version": "requirements.txt 约束", "purpose": "实验跟踪与绩效报告"},
+    {"technology": "pytest", "version": "requirements-dev.txt 约束", "purpose": "单元、契约与回归测试"}
+  ],
+  "architecture_layers": [
+    {"layer": "路由与页面壳层", "components": ["app.py"], "responsibility": "解析 /strategy 子路径并分发首页、单股、多股、模型评估与本地实验监控页面"},
+    {"layer": "交互与展示层", "components": ["ui/"], "responsibility": "参数输入、工作流编排、图表、主题、离线报告与研究浏览"},
+    {"layer": "量化领域核心层", "components": ["core/"], "responsibility": "数据、指标、信号、市场状态、回测、评估、优化、组合与缓存"},
+    {"layer": "离线研究层", "components": ["model-test/"], "responsibility": "批量实验、稳定性研究、跨 fold 准入与 CN_A 组合研究"},
+    {"layer": "证据与交付层", "components": ["research/", "reports/", "document/"], "responsibility": "冻结研究导航、HTML 报告、接口与验收文档"},
+    {"layer": "运行与部署层", "components": ["run.bat", "run.sh", "deploy/", ".streamlit/"], "responsibility": "本地环境、Streamlit 子路径、Nginx 与服务器同步"},
+    {"layer": "质量保障层", "components": ["tests/", "pytest.ini"], "responsibility": "算法、界面契约、缓存、研究目录与部署回归验证"}
+  ],
+  "routes": [
+    {"path": "/strategy", "scope": "public", "page": "首页与入口"},
+    {"path": "/strategy/stock-analysis", "scope": "public", "page": "单股策略分析"},
+    {"path": "/strategy/stocks-analysis", "scope": "public", "page": "多股组合分析"},
+    {"path": "/strategy/model-evaluation", "scope": "public", "page": "离线模型评估"},
+    {"path": "/strategy/experiment-monitor", "scope": "local-control", "page": "实验监控，仅 STRATAGY_RESEARCH_CONTROL=1 时注册"}
+  ],
+  "modules": [
+    {"file": "app.py", "responsibility": "路由壳层与页面分发", "key_symbols": ["_render_home_route", "_render_single_stock_route", "_render_multi_stock_route", "_render_model_evaluation_route", "_render_experiment_monitor_route"]},
+    {"file": "core/data.py", "responsibility": "统一行情加载、市场与标的规范化", "key_symbols": ["load_stock_data"]},
+    {"file": "core/indicators.py", "responsibility": "RSI、z-score、rolling rank/percentile 等指标", "key_symbols": ["add_indicators", "rolling_rank", "rolling_percentile"]},
+    {"file": "core/signals.py", "responsibility": "因子评分、阈值决策与持仓状态机", "key_symbols": ["generate_signals"]},
+    {"file": "core/backtest.py", "responsibility": "交易仿真、交易提取、Sharpe 与最大回撤", "key_symbols": ["simulate_strategy", "extract_trades"]},
+    {"file": "core/evaluation.py", "responsibility": "绩效指标、交易统计与策略评估", "key_symbols": ["evaluate_strategy"]},
+    {"file": "core/optimizer.py", "responsibility": "Optuna 参数搜索与结果结构", "key_symbols": ["optimize_parameters"]},
+    {"file": "core/regime_model.py", "responsibility": "Legacy 市场状态识别与路由", "key_symbols": ["RegimeModel"]},
+    {"file": "core/adaptive_regime.py", "responsibility": "自适应状态特征、分类、候选聚合、路由与 artifact", "key_symbols": ["classify_state", "select_routing_policy"]},
+    {"file": "core/factor_pipeline.py", "responsibility": "趋势动量、均值回归、风险成交量、宏观相对四层因子管线", "key_symbols": ["FactorPipeline"]},
+    {"file": "core/macro_factors.py", "responsibility": "VIX、相对强度、beta、市场广度宏观因子", "key_symbols": ["calculate_macro_factors"]},
+    {"file": "core/market_factor_context.py", "responsibility": "显式 benchmark 与市场因子上下文契约", "key_symbols": ["MarketFactorContext"]},
+    {"file": "core/cn_a_market_factors.py", "responsibility": "A 股 benchmark、波动、广度、beta 与可交易性因子", "key_symbols": ["build_cn_a_market_factors"]},
+    {"file": "core/composite_cn_a.py", "responsibility": "CN_A 组合权重、Ridge 拟合与 long-only 仓位映射", "key_symbols": ["fit_composite", "map_score_to_position"]},
+    {"file": "core/composite_advisory_cn_a.py", "responsibility": "CN_A advisory 决策、fallback 与 long-only 约束", "key_symbols": ["build_advisory_decision"]},
+    {"file": "core/fa_filter.py", "responsibility": "基本面特征拟合与变换", "key_symbols": ["fit_fa_filter", "transform_fa_features"]},
+    {"file": "core/ml_filter.py", "responsibility": "机器学习特征包与概率过滤", "key_symbols": ["build_ml_features"]},
+    {"file": "core/news_factor.py", "responsibility": "新闻因子的市场与标的规范化", "key_symbols": ["normalize_news_factor"]},
+    {"file": "core/portfolio.py", "responsibility": "多股组合模拟与 Bayesian optimization", "key_symbols": ["simulate_portfolio", "optimize_portfolio"]},
+    {"file": "core/visualization.py", "responsibility": "价格、收益、信号与绩效图表准备", "key_symbols": ["plot_price_chart", "plot_returns"]},
+    {"file": "core/market_context.py", "responsibility": "外部市场快照与安全调用", "key_symbols": ["get_market_context"]},
+    {"file": "core/workspace_cache.py", "responsibility": "24 小时临时工作区快照与 LRU 管理", "key_symbols": ["WorkspaceCache"]},
+    {"file": "core/market_cache.py", "responsibility": "market/symbol/adjust 隔离的 fresh/stale 行情缓存", "key_symbols": ["MarketCache"]},
+    {"file": "ui/sidebar.py", "responsibility": "公共市场、标的搜索与策略参数出口", "key_symbols": ["render_sidebar"]},
+    {"file": "ui/single_stock_workflow.py", "responsibility": "单股阶段编排、缓存、lineage 与降级", "key_symbols": ["StrategyRequest", "StageResult", "StrategyArtifact", "PipelineRunResult"]},
+    {"file": "ui/single_stock.py", "responsibility": "单股分析执行、结果展示与导出", "key_symbols": ["render_single_stock_page"]},
+    {"file": "ui/multi_stock.py", "responsibility": "多股数据签名、组合分析、缓存隔离与展示", "key_symbols": ["render_multi_stock_page"]},
+    {"file": "ui/model_evaluation.py", "responsibility": "离线 model-test 输出发现与只读评估展示", "key_symbols": ["render_model_evaluation_page"]},
+    {"file": "ui/export_reports.py", "responsibility": "单股、多股、模型评估离线 HTML builder", "key_symbols": ["build_single_stock_report", "build_multi_stock_report"]},
+    {"file": "ui/theme.py", "responsibility": "base/home/entry/analysis/report 五类 CSS bundle", "key_symbols": ["inject_route_styles"]},
+    {"file": "ui/final_report.py", "responsibility": "Final_Report HTML 阅读、目录、搜索与锚点跳转", "key_symbols": ["render_final_report"]},
+    {"file": "ui/research_browser.py", "responsibility": "研究目录、证据和状态浏览", "key_symbols": ["render_research_browser"]}
+  ],
+  "algorithms": [
+    {"name": "滚动指标与百分位", "files": ["core/indicators.py"], "summary": "使用 rolling window 计算 RSI、z-score、rank 与 percentile，并通过 NumPy raw window 降低开销。"},
+    {"name": "多因子信号评分", "files": ["core/signals.py", "core/factor_pipeline.py"], "summary": "把趋势、均值回归、风险成交量和宏观相对因子归一化后加权，生成入场、退出与持有状态。"},
+    {"name": "Legacy Regime 路由", "files": ["core/regime_model.py"], "summary": "依据市场状态选择不同策略族或禁用市场上下文。"},
+    {"name": "Adaptive Regime 分类与降级", "files": ["core/adaptive_regime.py", "ui/single_stock_workflow.py"], "summary": "训练或读取状态分类器并聚合候选表现；artifact 缺失时降级到 dual_state_router。"},
+    {"name": "成本敏感回测", "files": ["core/backtest.py", "core/evaluation.py"], "summary": "按持仓变化、交易成本、收益曲线计算策略净值、交易、Sharpe、回撤、胜率和换手。"},
+    {"name": "Optuna 参数优化", "files": ["core/optimizer.py"], "summary": "以风险调整后目标搜索指标窗口、阈值与策略参数。"},
+    {"name": "CN_A 市场因子构建", "files": ["core/cn_a_market_factors.py", "core/market_factor_context.py"], "summary": "从基准与横截面构造相对强度、breadth、beta、波动和可交易性上下文。"},
+    {"name": "稳健组合权重研究", "files": ["model-test/model_test/robust_weight_research.py"], "summary": "仅在训练段执行 clipping/scaling、方向预算、家族预算、多目标 utility、bootstrap 与交互消融。"},
+    {"name": "Ridge Composite", "files": ["core/composite_cn_a.py"], "summary": "拟合正则化组合分数，冻结权重与决策并映射为 long-only 仓位。"},
+    {"name": "仓位映射与执行约束", "files": ["model-test/model_test/position_map_research.py"], "summary": "比较 quantile、softsign、vol-target、monotone calibration，并加入 no-trade band、再平衡频率与 delta limit。"},
+    {"name": "跨 fold 准入", "files": ["model-test/model_test/cross_fold_admission.py"], "summary": "先进行数据质量阻断，再按 Sharpe、回撤、饱和度等阈值计算单 fold 与总体准入。"},
+    {"name": "多股组合优化", "files": ["core/portfolio.py"], "summary": "对多资产权重进行组合模拟与 Bayesian optimization，并展示风险收益结果。"}
+  ],
+  "data_flows": [
+    "app.py -> ui/sidebar.py / ui/* -> ui/single_stock_workflow.py -> core/data.py -> core/indicators.py -> core/signals.py -> core/regime_model.py 或 core/adaptive_regime.py -> core/backtest.py -> core/evaluation.py -> ui/single_stock.py / ui/export_reports.py",
+    "ui/multi_stock.py -> core/data.py + core/market_context.py + core/portfolio.py -> core/visualization.py -> UI / HTML export",
+    "model-test/outputs -> ui/model_evaluation.py -> ui/research_browser.py / ui/export_reports.py（只读，不改变 Streamlit runtime）",
+    "core/market_factor_context.py -> core/cn_a_market_factors.py -> model-test factor panel / composite runners -> core/composite_cn_a.py -> core/composite_advisory_cn_a.py"
+  ],
+  "tests": {
+    "main_command": ".venv\\Scripts\\python.exe -m pytest -q",
+    "fresh_run_status": "562 passed, 5 failed, 2 warnings in 44.69s (2026-08-23)",
+    "fresh_run_failures": [
+      "tests/test_composite_integration.py::TestFallbackMechanisms::test_insufficient_training_samples - 预期训练样本不足提示，实际先触发 rsi_z 缺失率校验",
+      "tests/test_composite_integration.py::TestBacktestConsistency::test_equity_curve_monotonic_with_positive_returns - 测试期望 equity 列，当前实现输出 strategy_equity",
+      "tests/test_composite_integration.py::TestBacktestConsistency::test_evaluation_metrics_present - 测试期望 volatility 指标，当前 eval 未提供",
+      "tests/test_refetch_us_snapshot_akshare.py::test_refetch_success_writes_relative_manifest_paths - Windows os.replace 触发 PermissionError",
+      "tests/test_web_performance_contracts.py::test_home_renders_shell_before_three_parallel_data_fragments - 历史契约期望 3 个 parallel fragment，当前实现为 0"
+    ],
+    "historical_evidence": [
+      {"scope": "Web Phase 7 full matrix", "result": "156 passed", "source": "AI_CONTEXT.md / archived acceptance history"},
+      {"scope": "CN_A market factors", "result": "22 passed", "source": "tests/test_cn_a_market_factors.py and AI_CONTEXT.md"},
+      {"scope": "CN_A factor panel", "result": "15 passed", "source": "tests/test_cn_a_factor_panel.py and research plans"},
+      {"scope": "CN composite", "result": "19 passed", "source": "tests/test_composite_cn_a.py and AI_CONTEXT.md"},
+      {"scope": "CN_A advisory", "result": "29 passed", "source": "tests/test_composite_advisory_cn_a.py and AI_CONTEXT.md"},
+      {"scope": "Phase 1 context/factor/pipeline", "result": "32 passed", "source": "tests/test_market_factor_context.py, tests/test_macro_factors.py, tests/test_factor_pipeline.py"},
+      {"scope": "Phase 3 position mapping", "result": "12 passed", "source": "tests/test_position_map_research.py and AI_CONTEXT.md"},
+      {"scope": "Phase 4 cross-fold admission", "result": "18 passed", "source": "tests/test_cross_fold_admission.py and AI_CONTEXT.md"}
+    ],
+    "representative_test_files": [
+      "tests/test_factor_pipeline.py", "tests/test_macro_factors.py", "tests/test_market_factor_context.py", "tests/test_composite_cn_a.py", "tests/test_composite_advisory_cn_a.py", "tests/test_position_map_research.py", "tests/test_cross_fold_admission.py", "tests/test_single_stock_workflow.py", "tests/test_web_performance_contracts.py", "tests/test_final_report_page.py"
+    ]
+  },
+  "experiments": [
+    {"name": "Phase 2 稳健权重", "result": "2,784 weight paths；2,088 interaction rows", "status": "data_quality_blocked", "limitation": "6 个 symbol/fold 因 warm-up 或覆盖不足不可用；不能宣称 gate 通过", "source": "AI_CONTEXT.md; model-test/configs/composite_stability_phase2.json"},
+    {"name": "Phase 2.5 高级优化", "result": "Sharpe 0.42 -> 0.99（+134%）", "status": "research_diagnostic", "limitation": "属于历史研究诊断，非生产与非实盘收益", "source": "AI_CONTEXT.md; model-test/phase2_5_advanced_optimization.py"},
+    {"name": "Phase 3 仓位映射", "result": "4 类映射与执行约束框架；12 tests passed", "status": "framework_complete", "limitation": "尚待真实 run 生成 ablation 并通过饱和度 gate", "source": "AI_CONTEXT.md; model-test/model_test/position_map_research.py"},
+    {"name": "Phase 4 跨 fold 准入", "result": "30+ 指标；18 tests passed", "status": "framework_complete", "limitation": "待承接 Phase 3 best map 运行，部分 advisory 候选尚未实现", "source": "AI_CONTEXT.md; model-test/model_test/cross_fold_admission.py"},
+    {"name": "CN_A pooled composite", "result": "Composite Sharpe 0.5972；SM 0.5277；FSM 0.4984；consistency 46/60=76.7%", "status": "research_only", "limitation": "覆盖并非完全配对，不可宣称 production 优势", "source": "AI_CONTEXT.md; research/03_composite_only_cn_a/"},
+    {"name": "CN_A advisory Phase 5", "result": "advisory 与 fallback 框架完成", "status": "phase5_framework_complete", "limitation": "尚未完成真实数据验证", "source": "AI_CONTEXT.md; core/composite_advisory_cn_a.py"},
+    {"name": "Transformer v3 Phase 2", "result": "query utility 为负", "status": "STOP", "limitation": "未进入训练或生产", "source": "AI_CONTEXT.md; research/01_transformer_feasibility/"}
+  ],
+  "screenshot_scenarios": [
+    {"id": "01", "name": "系统首页（中文）", "route": "/strategy", "purpose": "展示课程项目入口、市场选择与整体视觉"},
+    {"id": "02", "name": "首页研究故事/报告入口", "route": "/strategy", "purpose": "展示课程结果入口与研究导航"},
+    {"id": "03", "name": "单股分析入口", "route": "/strategy/stock-analysis", "purpose": "展示市场、标的与参数选择"},
+    {"id": "04", "name": "单股核心指标与信号", "route": "/strategy/stock-analysis", "purpose": "展示技术指标、买卖信号与状态"},
+    {"id": "05", "name": "单股回测绩效", "route": "/strategy/stock-analysis", "purpose": "展示净值、Sharpe、回撤等实验结果"},
+    {"id": "06", "name": "单股策略参数与高级配置", "route": "/strategy/stock-analysis", "purpose": "展示可配置算法与表单"},
+    {"id": "07", "name": "多股分析入口", "route": "/strategy/stocks-analysis", "purpose": "展示组合标的与权重设置"},
+    {"id": "08", "name": "多股组合结果", "route": "/strategy/stocks-analysis", "purpose": "展示组合绩效与相关性"},
+    {"id": "09", "name": "模型评估页", "route": "/strategy/model-evaluation", "purpose": "展示离线研究 run 与只读评估"},
+    {"id": "10", "name": "研究浏览器", "route": "/strategy/model-evaluation", "purpose": "展示 research catalog、evidence 与状态"},
+    {"id": "11", "name": "最终报告阅读器", "route": "/strategy", "purpose": "展示目录、搜索与跨章节锚点"},
+    {"id": "12", "name": "实验监控", "route": "/strategy/experiment-monitor", "purpose": "展示本地研究控制界面；需启用 STRATAGY_RESEARCH_CONTROL=1"}
+  ],
+  "report_cautions": [
+    "本项目不是 Spring Boot / Vue / MyBatis 项目，报告不得套用 IoC、动态 SQL、Lombok、JSR-303、Axios 等模板技术点。",
+    "离线 model-test 研究结果与 Streamlit runtime 必须分开描述；未接入 runtime 的结果不能写成已上线功能。",
+    "历史 passed 数量只可作为已有证据，并需与本次 fresh 测试结果区分。",
+    "Phase 2 的 data_quality_blocked、Phase 3/4 的待运行 gate、Transformer STOP 必须明确保留。",
+    "回测与 Sharpe 等指标不代表未来或实盘收益；外部行情数据有可用性、修订和缓存差异。",
+    "CN_A pooled 比较存在覆盖非完全配对，不应表述为严格 production superiority。",
+    "封面姓名、学号、班级和指导教师未知时应使用清晰占位符，不应猜测。"
+  ]
+}

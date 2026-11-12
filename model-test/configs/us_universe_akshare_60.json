@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "status": "research_only",
+  "market": "US",
+  "data": {
+    "start": "2016-07-19",
+    "end": "2026-08-07",
+    "adjustment": "qfq"
+  },
+  "universe": {
+    "fingerprint": "5e4c43ff1e924919f571d27374b41dd273f5969423cd2b3c659060cea5a250fc",
+    "selection_rationale": "AkShare qfq-compatible mature US equities with complete requested-window OHLCV and registered quality checks",
+    "replaced_symbols": [
+      "ABBV", "ACN", "APP", "AVGO", "BA", "BABA", "CAT", "COF", "CRM", "CVX",
+      "HCA", "HD", "HON", "IBM", "INTC", "JPM", "LRCX", "MA", "NFLX", "NVDA",
+      "NVO", "ORCL", "PLTR", "PM", "QCOM", "RUBI", "SBUX", "SHOP", "SPGI", "SUZ",
+      "UBER", "WFC", "XOM"
+    ],
+    "symbols": [
+      "AAPL", "MU", "WMT", "MSFT", "TSLA", "T", "AMZN", "AMD", "V", "ABT",
+      "GOOGL", "COST", "BAC", "GOOG", "TMUS", "JNJ", "TSM", "AMAT", "DHR", "ISRG",
+      "NOW", "LLY", "PG", "BSX", "INTU", "ASML", "KO", "LMT", "UPS", "MMM",
+      "GE", "TMO", "AMGN", "ADBE", "CSCO", "VZ", "MDT", "DUK", "UNH", "GILD",
+      "PFE", "NKE", "ED", "NSC", "UNP", "WM", "RSG", "ECL", "EL", "ADP",
+      "SCHW", "NDAQ", "MAR", "CMCSA", "AJG", "BDX", "BMY", "CDNS", "CI", "CTAS"
+    ]
+  }
+}

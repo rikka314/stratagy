@@ -1168,8 +1168,8 @@ LOCALES: dict[str, dict[str, str]] = {
         "en": "RSI Upper Threshold"
     },
     "validation.familyParam": {
-        "zh": "family 只支持 baseline、search 或 regime",
-        "en": "Family only supports 'baseline', 'search', or 'regime'."
+        "zh": "family 只支持 baseline、search、composite 或 regime",
+        "en": "Family only supports 'baseline', 'search', 'composite', or 'regime'."
     },
     "action.exportAnalysisReport": {
         "zh": "📤 导出分析报告",
@@ -4122,6 +4122,10 @@ LOCALES: dict[str, dict[str, str]] = {
     "data.loading": {
         "zh": "数据...",
         "en": "Data..."
+    },
+    "data.loadingStock": {
+        "zh": "正在加载 {symbol} 数据...",
+        "en": "Loading {symbol} data..."
     },
     "latest.change": {
         "zh": "最新涨跌",

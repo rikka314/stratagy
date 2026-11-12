@@ -1,0 +1,2 @@
+Generated with built-in imagegen, 2026-09-13. Reference: reports/strategy-story-assets/brand/yince-brand-board.png
+Prompt: Simplify the YINCE mark into one square white-background website icon. Preserve converging inputs using two graceful ink-black curved strokes, one horizontal exit, and a single warm terracotta focal dot. Remove enclosing frame and peripheral nodes. Contemporary artistic minimalism, deliberate curves, generous negative space, crisp flat shapes readable at favicon size. No text, gradients, shadows or mockup.

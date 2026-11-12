@@ -1,0 +1,100 @@
+{
+  "phase": "phase4_cross_fold_admission_advisory",
+  "description": "Cross-fold admission testing for composite strategies with advisory overlays",
+  "phase3_output_dir": "outputs/phase3_20260822_223619",
+  "phase2_output_dir": "outputs/composite_stability_phase2",
+  "data_path": "../data/demo_factors_output.parquet",
+  "output_dir": "outputs",
+  "market": "US",
+  "base_commission": 0.001,
+  "base_slippage": 0.0005,
+  "folds": [
+    {
+      "fold_id": "fold_01",
+      "train_start": "2020-01-01",
+      "train_end": "2020-06-30",
+      "test_start": "2020-07-01",
+      "test_end": "2020-09-30",
+      "purge_days": 5,
+      "embargo_days": 5
+    },
+    {
+      "fold_id": "fold_02",
+      "train_start": "2020-01-01",
+      "train_end": "2020-07-31",
+      "test_start": "2020-08-01",
+      "test_end": "2020-10-31",
+      "purge_days": 5,
+      "embargo_days": 5
+    },
+    {
+      "fold_id": "fold_03",
+      "train_start": "2020-01-01",
+      "train_end": "2020-08-31",
+      "test_start": "2020-09-01",
+      "test_end": "2020-11-30",
+      "purge_days": 5,
+      "embargo_days": 5
+    },
+    {
+      "fold_id": "fold_04",
+      "train_start": "2020-01-01",
+      "train_end": "2020-09-30",
+      "test_start": "2020-10-01",
+      "test_end": "2020-12-31",
+      "purge_days": 5,
+      "embargo_days": 5
+    }
+  ],
+  "strategy_candidates": [
+    {
+      "variant": "cash",
+      "description": "Cash baseline (zero position)"
+    },
+    {
+      "variant": "composite_only",
+      "description": "Composite with Phase 3 best map and execution"
+    },
+    {
+      "variant": "composite_plus_trend",
+      "description": "Composite + trend confirmation advisory"
+    },
+    {
+      "variant": "composite_plus_reversion",
+      "description": "Composite + mean reversion warning advisory"
+    },
+    {
+      "variant": "composite_plus_macro_cap",
+      "description": "Composite + macro risk cap advisory"
+    },
+    {
+      "variant": "composite_plus_relative_strength",
+      "description": "Composite + relative strength advisory"
+    },
+    {
+      "variant": "composite_plus_all_advisories",
+      "description": "Composite + all advisory overlays"
+    }
+  ],
+  "admission_gate": {
+    "min_fold_pass_rate": 0.75,
+    "min_sharpe_ratio": 0.3,
+    "min_sortino_ratio": 0.4,
+    "max_drawdown_threshold": 0.30,
+    "max_volatility": 0.40,
+    "max_cost_to_gross_ratio": 0.50,
+    "max_turnover_multiple": 50.0,
+    "max_near_max_rate": 0.90,
+    "min_mean_exposure": 0.05,
+    "allow_data_quality_issues": false,
+    "allow_pit_violations": false,
+    "allow_audit_failures": false
+  },
+  "notes": [
+    "Phase 4 advisory testing - composite_only已通过准入",
+    "测试5种advisory overlay策略的增量价值",
+    "Advisory必须相对composite_only改善风险或保持收益",
+    "Trigger rate必须在[0.10, 0.60]合理区间",
+    "Turnover multiple相对composite_only不超过5.0"
+  ]
+}

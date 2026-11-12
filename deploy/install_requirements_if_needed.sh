@@ -36,4 +36,4 @@ else
 fi
 
 "${VENV_DIR}/bin/python" --version
-"${VENV_DIR}/bin/python" -c 'import streamlit; print(f"Streamlit {streamlit.__version__}")'
+"${VENV_DIR}/bin/python" -c 'import fastapi, uvicorn; print(f"FastAPI {fastapi.__version__}, Uvicorn {uvicorn.__version__}")'

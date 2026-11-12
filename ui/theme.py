@@ -7,7 +7,9 @@
 from __future__ import annotations
 
 import html
+import logging
 import re
+from contextvars import ContextVar
 from datetime import date as _date, datetime as _datetime
 from functools import lru_cache, wraps
 from textwrap import dedent
@@ -21,6 +23,48 @@ from ui.i18n import tr
 BASE_ROUTE_PATH = "/strategy"
 UI_LANGUAGE_STATE_KEY = "ui_language"
 UI_THEME_STATE_KEY = "ui_theme"
+_LOGGER = logging.getLogger(__name__)
+_ROUTE_LOADING_SLOTS: ContextVar[tuple[object, ...]] = ContextVar(
+    "route_loading_slots",
+    default=(),
+)
+
+
+def reset_route_loading_slots() -> None:
+    """Start a fresh route-render scope without touching stale prior-run slots."""
+    _ROUTE_LOADING_SLOTS.set(())
+
+
+def register_route_loading_slot(slot: object) -> None:
+    """Track a placeholder so ordinary render failures can remove it safely."""
+    slots = _ROUTE_LOADING_SLOTS.get()
+    if any(candidate is slot for candidate in slots):
+        return
+    _ROUTE_LOADING_SLOTS.set((*slots, slot))
+
+
+def clear_route_loading_slot(slot: object) -> None:
+    """Remove and empty one tracked placeholder without masking page errors."""
+    _ROUTE_LOADING_SLOTS.set(
+        tuple(candidate for candidate in _ROUTE_LOADING_SLOTS.get() if candidate is not slot)
+    )
+    try:
+        slot.empty()
+    except Exception:
+        # Cleanup is best-effort and must never replace the original page error.
+        _LOGGER.debug("Unable to clear route loading slot", exc_info=True)
+
+
+def clear_route_loading_slots() -> None:
+    """Empty every placeholder registered during the current route render."""
+    slots = _ROUTE_LOADING_SLOTS.get()
+    _ROUTE_LOADING_SLOTS.set(())
+    for slot in slots:
+        try:
+            slot.empty()
+        except Exception:
+            # Cleanup is best-effort and must never replace the original page error.
+            _LOGGER.debug("Unable to clear route loading slot", exc_info=True)
 
 
 
@@ -418,15 +462,30 @@ def route_href(
     parameters.update(query or {})
     return f"{base}?{urlencode(parameters)}"
 
-def render_html(markup: str, *, localize: bool = True) -> None:
+def render_html(
+    markup: str,
+    *,
+    localize: bool = True,
+    unsafe_allow_javascript: bool = False,
+) -> None:
     """ui.renderMultiLineHTML"""
     body = dedent(markup).strip()
     if localize:
         body = str(translate_text(body))
     if hasattr(st, "html"):
-        st.html(body)
+        st.html(body, unsafe_allow_javascript=unsafe_allow_javascript)
         return
     st.markdown(body, unsafe_allow_html=True)
+
+
+def render_route_loading_marker(symbol: object) -> None:
+    """Render the shared, non-intrusive analysis data loading indicator."""
+    label = str(symbol or "stocks")
+    render_html(
+        f"<div class='route-loading-state' role='status' aria-live='polite'>"
+        f"<span class='route-loading-dot' aria-hidden='true'></span>"
+        f"{html.escape(tr('data.loadingStock', symbol=label))}</div>"
+    )
 
 
 def _coerce_date_value(value: object) -> _date | None:
@@ -525,16 +584,52 @@ body {
 }
 
 /*
- * Streamlit keeps the previous element tree around while a full rerun or a
- * fragment rerun is being reconciled.  Its native stale style only fades the
- * old tree to 33% opacity, which still leaves old entry/analysis surfaces
- * visible underneath the new tree (and keeps their controls clickable).  The
- * current tree is rendered independently, so stale element containers can be
- * removed from layout until Streamlit discards them.
+ * Streamlit marks the previous element tree stale while a widget-triggered
+ * rerun is being reconciled.  Removing that tree makes the whole page flash
+ * blank on every click; keep the last frame visually stable instead.  Stale
+ * controls remain non-interactive until Streamlit replaces them.
  */
 [data-testid="stElementContainer"][data-stale="true"] {
-  display: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: none !important;
   pointer-events: none !important;
+}
+
+/*
+ * During a route rerun Streamlit may keep the previous entry tree mounted
+ * until the new analysis tree has finished reconciling.  The loading marker
+ * is emitted in the new tree before data work starts; hide the old entry
+ * surface for that short hand-off so CSV controls and empty shells never
+ * appear twice.
+ */
+body:has(.route-loading-state) div[class*="st-key-single-entry-split"],
+body:has(.route-loading-state) div[class*="st-key-multi-entry-split"] {
+  display: none !important;
+}
+
+.route-loading-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.58rem;
+  margin: 0.55rem 0 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.route-loading-dot {
+  width: 0.72rem;
+  height: 0.72rem;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--text-muted) 35%, transparent);
+  border-top-color: var(--accent-warm);
+  border-radius: 50%;
+  animation: route-loading-spin 760ms linear infinite;
+}
+
+@keyframes route-loading-spin {
+  to { transform: rotate(360deg); }
 }
 
 .stApp {
@@ -2290,7 +2385,8 @@ div[class*="st-key-multi-stock-strategy-panel"] {
   font-size: clamp(1.7rem, 3vw, 2.25rem);
 }
 
-.native-report-shell .toc > ol {
+.native-report-shell .toc > ol,
+.native-report-shell .report-toc-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.7rem 1.25rem;
@@ -2299,39 +2395,177 @@ div[class*="st-key-multi-stock-strategy-panel"] {
   list-style: none;
 }
 
-.native-report-shell .toc li {
+.native-report-shell .toc li,
+.native-report-shell .report-toc-list,
+.native-report-shell .report-toc-list > *,
+.native-report-shell .sub-toc,
+.native-report-shell .sub-toc > * {
   margin: 0;
-}
-
-.native-report-shell .toc details {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--surface-line);
-}
-
-.native-report-shell .toc summary {
-  display: flex;
-  gap: 0.55rem;
-  align-items: flex-start;
-  color: var(--text-strong);
-  font-weight: 700;
-  cursor: pointer;
+  padding: 0;
   list-style: none;
 }
 
-.native-report-shell .toc summary::-webkit-details-marker {
-  display: none;
+.native-report-shell .report-toc-popover {
+  position: relative;
+  min-width: 0;
+  border-bottom: 1px solid var(--surface-line);
 }
 
-.native-report-shell .toc summary::before {
-  content: "+";
-  flex: 0 0 auto;
+.native-report-shell .report-toc-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 3.2rem;
+  padding: 0.55rem 0;
+}
+
+.native-report-shell .report-toc-chapter-link {
+  min-width: 0;
+  padding: 0.2rem 0;
+  color: var(--text-strong);
+  font-weight: 700;
+  line-height: 1.42;
+  text-decoration: none;
+}
+
+.native-report-shell .report-toc-chapter-link:hover {
   color: var(--accent-warm);
-  font-size: 1rem;
-  line-height: 1.55;
 }
 
-.native-report-shell .toc details[open] summary::before {
-  content: "−";
+.native-report-shell .report-toc-popover-trigger,
+.native-report-shell .report-toc-popover-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--surface-line-strong);
+  border-radius: 50%;
+  background: var(--surface-frost);
+  color: var(--accent-warm);
+  font: inherit;
+  font-size: 1.08rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease,
+    transform 150ms ease;
+}
+
+.native-report-shell .report-toc-popover-trigger {
+  anchor-name: var(--report-toc-anchor, --report-toc-trigger);
+}
+
+.native-report-shell .report-toc-popover-trigger:hover,
+.native-report-shell .report-toc-popover-close:hover {
+  border-color: var(--accent-warm);
+  background: var(--surface-sheet);
+  color: var(--text-strong);
+}
+
+.native-report-shell .report-toc-popover-trigger[aria-expanded="true"] {
+  border-color: var(--accent-warm);
+  background: var(--accent-warm);
+  color: var(--surface-sheet);
+}
+
+.native-report-shell .report-toc-chapter-link:focus-visible,
+.native-report-shell .report-toc-popover-trigger:focus-visible,
+.native-report-shell .report-toc-popover-close:focus-visible,
+.native-report-shell .report-toc-popover-nav a:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 3px;
+}
+
+.native-report-shell .report-toc-popover-panel {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  width: min(40rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  max-height: min(34rem, calc(100dvh - 2rem));
+  margin: 0;
+  padding: 1rem;
+  overflow: auto;
+  border: 1px solid var(--surface-line-strong);
+  border-radius: 22px;
+  background: var(--surface-sheet);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-soft);
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 0.35rem));
+  transition: opacity 150ms ease, transform 150ms ease, overlay 150ms allow-discrete,
+    display 150ms allow-discrete;
+}
+
+.native-report-shell .report-toc-popover-panel:popover-open {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.native-report-shell .report-toc-popover-panel[data-report-fallback-open="true"] {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.native-report-shell .report-toc-popover-panel[hidden] {
+  display: none !important;
+}
+
+.native-report-shell .report-toc-popover-panel::backdrop {
+  background: color-mix(in srgb, var(--text-strong) 12%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.native-report-shell .report-toc-popover-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--surface-line);
+  color: var(--text-strong);
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.native-report-shell .report-toc-popover-close {
+  flex: 0 0 auto;
+  font-size: 0.95rem;
+}
+
+.native-report-shell .report-toc-popover-nav {
+  margin: 0;
+  padding: 0;
+}
+
+.native-report-shell .report-toc-popover-nav .sub-toc {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.native-report-shell .report-toc-popover-nav a {
+  display: block;
+  padding: 0.58rem 0.65rem;
+  border-radius: 12px;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  text-decoration: none;
+}
+
+.native-report-shell .report-toc-popover-nav a:hover {
+  background: var(--surface-frost);
+  color: var(--text-strong);
 }
 
 .native-report-shell .toc a {
@@ -2340,15 +2574,42 @@ div[class*="st-key-multi-stock-strategy-panel"] {
 }
 
 .native-report-shell .toc .sub-toc {
-  margin: 0.7rem 0 0 1.45rem;
-  padding-left: 1rem;
+  margin: 0;
+  padding: 0;
   color: var(--text-secondary);
-  border-left: 1px solid var(--surface-line-strong);
+  list-style: none;
 }
 
 .native-report-shell .toc .sub-toc li {
-  margin: 0.28rem 0;
+  margin: 0;
+  padding: 0;
   font-size: 0.86rem;
+  list-style: none;
+}
+
+@supports (position-anchor: --report-toc-trigger) and (top: anchor(bottom)) {
+  .native-report-shell .report-toc-popover-panel {
+    position: fixed;
+    position-anchor: var(--report-toc-anchor, --report-toc-trigger);
+    inset: auto auto auto auto;
+    top: anchor(bottom);
+    left: anchor(left);
+    margin-top: 0.45rem;
+    transform: translateY(0.35rem);
+  }
+
+  .native-report-shell .report-toc-popover-panel:popover-open,
+  .native-report-shell .report-toc-popover-panel[data-report-fallback-open="true"] {
+    transform: translateY(0);
+  }
+
+  .native-report-shell
+    .report-toc-popover[data-report-toc-align="end"]
+    .report-toc-popover-panel {
+    right: anchor(right);
+    left: auto;
+  }
+
 }
 
 .native-report-shell section {
@@ -2517,7 +2778,8 @@ div[class*="st-key-final-report-search-shell"] [data-testid="stHorizontalBlock"]
   }
 
   .native-report-shell .grid,
-  .native-report-shell .toc > ol {
+  .native-report-shell .toc > ol,
+  .native-report-shell .report-toc-list {
     grid-template-columns: 1fr;
   }
 
@@ -2533,6 +2795,43 @@ div[class*="st-key-final-report-search-shell"] [data-testid="stHorizontalBlock"]
   .native-report-shell .toc {
     padding: 1.15rem;
     border-radius: 20px;
+  }
+
+  .native-report-shell .report-toc-popover-panel,
+  .native-report-shell .report-toc-popover-panel:popover-open,
+  .native-report-shell .report-toc-popover-panel[data-report-fallback-open="true"],
+  .native-report-shell
+    .report-toc-popover[data-report-toc-align="end"]
+    .report-toc-popover-panel {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: min(76dvh, 38rem);
+    padding: 1rem max(1rem, env(safe-area-inset-right))
+      max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    border-width: 1px 0 0;
+    border-radius: 24px 24px 0 0;
+    transform: translateY(100%);
+  }
+
+  .native-report-shell .report-toc-popover-panel:popover-open,
+  .native-report-shell .report-toc-popover-panel[data-report-fallback-open="true"] {
+    transform: translateY(0);
+  }
+
+  .native-report-shell .report-toc-popover-nav .sub-toc {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .native-report-shell .report-toc-popover-trigger,
+  .native-report-shell .report-toc-popover-close,
+  .native-report-shell .report-toc-popover-panel {
+    scroll-behavior: auto;
+    transition: none;
   }
 }
 
@@ -3759,6 +4058,299 @@ div[class*="st-key-model-evaluation-summary-board"] {
   line-height: 1.58;
 }
 
+/* Timeline-first research archive */
+.research-archive-title-wrap {
+  max-width: 68rem;
+  margin: 0.8rem auto 1.4rem;
+}
+
+.research-archive-title {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Songti SC", Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3.65rem);
+  font-weight: 760;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+.research-kv-grid {
+  margin: 1rem 0 1.2rem;
+}
+
+.research-timeline {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0.4rem 0 1.15rem;
+  padding: 1.25rem 0.7rem 0.7rem;
+  overflow: visible;
+  border-top: 1px solid var(--surface-line);
+  border-bottom: 1px solid var(--surface-line);
+  background: transparent;
+  scrollbar-width: thin;
+}
+
+.research-timeline::before {
+  position: absolute;
+  top: 2.35rem;
+  left: 2.6rem;
+  right: 2.6rem;
+  height: 1px;
+  background: var(--surface-line-strong);
+  content: "";
+}
+
+.research-timeline-node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+  min-height: 6.8rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: 17px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.research-timeline-node:hover,
+.research-timeline-node.active {
+  color: var(--text-strong);
+  background: rgba(244, 231, 211, 0.82);
+  transform: translateY(-1px);
+}
+
+.research-timeline-node:not(:nth-child(5n))::after {
+  position: absolute;
+  top: 1.83rem;
+  right: -0.18rem;
+  width: 0.38rem;
+  height: 0.38rem;
+  border-top: 1px solid var(--accent-warm);
+  border-right: 1px solid var(--accent-warm);
+  transform: rotate(45deg);
+  content: "";
+}
+
+.research-timeline-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 1px solid var(--accent-warm);
+  border-radius: 50%;
+  background: var(--surface-sheet);
+  color: var(--accent-warm);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.research-timeline-date,
+.research-timeline-node small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.research-timeline-node strong {
+  color: inherit;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+@media (min-width: 1600px) {
+  body:has(.research-archive-title-wrap) .block-container {
+    max-width: 1060px;
+    margin-left: calc(50vw - 660px);
+    margin-right: auto;
+  }
+
+  /* The research reader is narrower than the report reader.  Keep the same
+   * Help rail contract but give this page its own safe gutter so the rail
+   * never sits over the block container's left edge. */
+  body:has(.research-archive-title-wrap) .report-scroll-rail {
+    left: max(0.75rem, calc(50vw - 850px));
+    width: 8.2rem;
+  }
+}
+
+.research-experiment {
+  scroll-margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.research-experiment-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.35rem 0 1.1rem;
+  border-bottom: 1px solid var(--surface-line);
+}
+
+.research-experiment-heading h2 {
+  margin: 0.25rem 0 0.35rem;
+  color: var(--text-strong);
+  font-size: clamp(1.3rem, 2.2vw, 1.9rem);
+  letter-spacing: -0.035em;
+}
+
+.research-experiment-heading p {
+  max-width: 52rem;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.research-status-pill {
+  flex: 0 0 auto;
+  padding: 0.42rem 0.66rem;
+  border-radius: 999px;
+  background: rgba(31, 25, 20, 0.07);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.research-status-pill.passed_research_gate { background: color-mix(in srgb, var(--accent-positive) 14%, transparent); color: var(--accent-positive); }
+.research-status-pill.stopped,
+.research-status-pill.not_admitted { background: color-mix(in srgb, var(--accent-danger) 12%, transparent); color: var(--accent-danger); }
+.research-status-pill.framework_complete_pending_real_data_gate,
+.research-status-pill.pending { background: color-mix(in srgb, var(--accent-warning) 14%, transparent); color: var(--accent-warning); }
+
+.research-detail-section {
+  margin-top: 0.9rem;
+  padding: 1.05rem 0;
+  border-top: 1px solid var(--surface-line);
+  background: transparent;
+}
+
+.research-kv-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-bottom: 1px solid var(--surface-line);
+}
+
+.research-kv-grid .analysis-kv-item {
+  min-width: 0;
+  padding: 0.9rem 1rem 0.9rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.research-kv-grid .analysis-kv-item + .analysis-kv-item {
+  padding-left: 1rem;
+  border-left: 1px solid var(--surface-line);
+}
+
+.research-kv-grid .analysis-kv-item:nth-child(3n + 1) {
+  padding-left: 0;
+  border-left: 0;
+}
+
+@media (max-width: 880px) {
+  .research-kv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .research-kv-grid .analysis-kv-item:nth-child(3n + 1) { padding-left: 1rem; border-left: 1px solid var(--surface-line); }
+  .research-kv-grid .analysis-kv-item:nth-child(2n + 1) { padding-left: 0; border-left: 0; }
+}
+
+div[class*="st-key-research-detail-"] {
+  margin-top: 0.9rem;
+  padding: 0.85rem 0 0.15rem;
+  border-top: 1px solid var(--surface-line);
+  background: transparent;
+  box-shadow: none;
+}
+
+.research-detail-section > p,
+.research-detail-section .research-markdown {
+  color: var(--text-secondary);
+  line-height: 1.68;
+}
+
+.research-markdown ul,
+.research-markdown ol {
+  margin: 0.45rem 0 0.7rem 1.2rem;
+}
+
+.research-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.research-ledger table {
+  width: 100%;
+  margin: 0.75rem 0;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.research-ledger th,
+.research-ledger td {
+  padding: 0.52rem 0.42rem;
+  border-bottom: 1px solid var(--surface-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.research-ledger code {
+  color: var(--text-secondary);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.research-evidence-badge {
+  display: inline-flex;
+  padding: 0.2rem 0.46rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.research-evidence-badge.available { background: color-mix(in srgb, var(--accent-positive) 12%, transparent); color: var(--accent-positive); }
+.research-evidence-badge.pending { background: color-mix(in srgb, var(--accent-warning) 14%, transparent); color: var(--accent-warning); }
+
+.research-ledger details {
+  margin-top: 0.55rem;
+  color: var(--text-secondary);
+}
+
+.research-ledger summary {
+  cursor: pointer;
+  color: var(--accent-warm);
+  font-weight: 700;
+}
+
+.research-ledger ul {
+  display: grid;
+  gap: 0.26rem;
+  margin: 0.65rem 0 0;
+  padding-left: 1rem;
+}
+
+.research-source-state {
+  display: inline-block;
+  width: 1.1rem;
+  color: var(--accent-positive);
+  font-weight: 800;
+}
+
+.research-source-state.pending { color: var(--accent-warning); }
+
+@media (max-width: 880px) {
+  .research-timeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .research-timeline::before { display: none; }
+  .research-timeline-node::after { display: none !important; }
+  .research-experiment-heading { display: grid; }
+  .research-status-pill { width: max-content; }
+}
+
 div[class*="st-key-single-stock-strategy-control-panel"] .stDivider,
 div[class*="st-key-single-stock-strategy-result-board"] .stDivider {
   margin: 0.8rem 0 1rem;
@@ -4565,6 +5157,12 @@ _STYLE_BUNDLE_HINTS = {
         ".board-flow-row",
         ".board-micro-",
         ".model-eval-",
+        ".research-",
+        ".report-scroll-rail",
+        ".report-scroll-rail-label",
+        ".report-scroll-rail-group",
+        ".report-scroll-rail-chapter",
+        "st-key-research-detail-",
         ".recommend-row",
         ".surface-",
         "st-key-model-evaluation",

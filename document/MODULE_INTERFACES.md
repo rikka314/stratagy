@@ -1,6 +1,6 @@
 # 模块接口索引
 
-> 最近更新：2026-08-12
+> 最近更新：2026-09-13
 > 用途：作为总索引，告诉你“该去哪里找接口”，而不是在这里堆详细函数签名。
 
 ## 使用方式
@@ -18,7 +18,9 @@
 |---|---|
 | `document/DATA_SCHEMA.md` | 标准行情数据列与元数据约定 |
 | `document/MODEL_INTERFACES.md` | `ModelResult` 统一结构 |
-| `document/FRONTEND_STYLE_STANDARD.md` | W6-W8 前端唯一视觉基线 |
+| `document/FRONTEND_STYLE_STANDARD.md` | 当前 JavaScript 视觉基线及历史 W6-W8 兼容约定 |
+| `document/JS_FRONTEND_RUNTIME.md` | JavaScript 前端、Python API、构建和启动入口 |
+| `document/javascript-migration.md` | 前后端迁移范围与验收证据 |
 | `AI_CONTEXT.md` | 项目地图、入口、部署事实、协作约定 |
 
 ## 分域索引

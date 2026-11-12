@@ -1,0 +1,66 @@
+D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈÝ\stratagy\model-test\run_cn_a_composite.py:297: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  train_panel_copy = train_panel_copy.groupby("symbol", group_keys=False).apply(
+D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈÝ\stratagy\model-test\run_cn_a_composite.py:297: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  train_panel_copy = train_panel_copy.groupby("symbol", group_keys=False).apply(
+D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈÝ\stratagy\model-test\run_cn_a_composite.py:297: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  train_panel_copy = train_panel_copy.groupby("symbol", group_keys=False).apply(
+Loading config: model-test\configs\composite_cn_a.json
+Output directory: model-test\outputs\composite_cn_a
+Loading data from: model-test\outputs\full_cn_a_admission_60
+Loading existing factor panel: model-test\outputs\composite_cn_a\cn_a_factor_panel.parquet
+Factor panel loaded: 267162 rows, 37 columns
+Created 4 folds
+
+============================================================
+Processing fold_00
+============================================================
+Skipping fold_00: no training data
+
+============================================================
+Processing fold_01
+============================================================
+Train: 23587 rows, Test: 43556 rows
+Fitting composite weights...
+Computing 20-day forward returns...
+Training samples after forward return computation: 23167
+Fitted weights: {'mom_short_z': np.float64(-0.07277283161978003), 'mom_long_z': np.float64(0.01236802247173974), 'macd_z': np.float64(0.00987294520161002), 'rsi_z': np.float64(0.07243369436130928), 'bb_position_rank': np.float64(0.031096985048973784), 'price_position_rank': np.float64(0.0238770449046681), 'vol_z': np.float64(0.1032600416254166), 'drawdown_rank': np.float64(-0.12007384312084016), 'obv_trend_rank': np.float64(-0.045897234583136756), 'volume_ratio_rank': np.float64(0.004422055227991358)}
+Running composite_only on test fold...
+Completed fold_01: 20 symbol results
+
+============================================================
+Processing fold_02
+============================================================
+Train: 66809 rows, Test: 82326 rows
+Fitting composite weights...
+Computing 20-day forward returns...
+Training samples after forward return computation: 66076
+Fitted weights: {'mom_short_z': np.float64(-0.03784071796884531), 'mom_long_z': np.float64(0.014839619232629735), 'macd_z': np.float64(0.04370648221469976), 'rsi_z': np.float64(0.07625897838325303), 'bb_position_rank': np.float64(-0.014803139924365478), 'price_position_rank': np.float64(-0.06175753071992301), 'vol_z': np.float64(0.07573465442848736), 'drawdown_rank': np.float64(-0.05735383780667345), 'obv_trend_rank': np.float64(-0.03197737978175738), 'volume_ratio_rank': np.float64(0.011737989008154225)}
+Running composite_only on test fold...
+Completed fold_02: 20 symbol results
+
+============================================================
+Processing fold_03
+============================================================
+Train: 148920 rows, Test: 117198 rows
+Fitting composite weights...
+Computing 20-day forward returns...
+Training samples after forward return computation: 147880
+Fitted weights: {'mom_short_z': np.float64(-0.014770746362808073), 'mom_long_z': np.float64(0.0038342612219425657), 'macd_z': np.float64(0.022925975417989054), 'rsi_z': np.float64(0.050658239464088844), 'bb_position_rank': np.float64(-0.014691638032236849), 'price_position_rank': np.float64(-0.04466838317711374), 'vol_z': np.float64(0.04570663949361425), 'drawdown_rank': np.float64(-0.03452200939426613), 'obv_trend_rank': np.float64(-0.01609127100684013), 'volume_ratio_rank': np.float64(0.0035631291531566943)}
+Running composite_only on test fold...
+Completed fold_03: 20 symbol results
+
+============================================================
+Saving results...
+============================================================
+Saved: model-test\outputs\composite_cn_a\composite_weights_by_fold.json
+Saved: model-test\outputs\composite_cn_a\composite_fold_summary.csv
+
+Aggregate Metrics:
+               sharpe_ratio         max_drawdown win_rate
+                       mean     std         mean     mean
+strategy                                                 
+composite_only       0.5972  0.5659      -0.5481   0.4832
+Saved: model-test\outputs\composite_cn_a\composite_manifest.json
+
+Phase 4 CN_A Composite-only completed successfully
+Output directory: model-test\outputs\composite_cn_a

@@ -1,0 +1,11 @@
+Use case: ads-marketing
+Asset type: A1 portrait exhibition poster background layer, no typography
+Primary request: create a refined abstract research journey visual derived from the YINCE brand board palette and the three-branch node motif
+Input images: Image 1 is a brand reference only; preserve its warm ivory, ink black, terracotta orange, and research green visual language, but do not reproduce the wordmark or app icons
+Scene/backdrop: warm ivory paper field with subtle depth and very light grain
+Subject: three elegant black data-flow curves beginning as separate terracotta/green/terracotta nodes, passing through sparse analytical checkpoints and converging into one evidence node; a faint market line and tiny quantitative marks may appear as quiet supporting texture
+Style/medium: premium editorial information-design illustration, crisp vector-like linework blended with tactile paper, museum exhibition graphic, restrained and scientific
+Composition/framing: vertical 2:3 composition; put the main branching/converging visual in the upper-right and through the central spine; preserve generous clean negative space on the upper-left for title and across the lower half for text panels; no full-page grid
+Lighting/mood: calm, rigorous, reflective, confident
+Color palette: warm ivory #F5ECDD, ink #1D1A16, terracotta #B76543, research green #347A59, tiny muted ochre accents
+Constraints: no words, no letters, no numbers, no logos, no app icons, no watermarks; avoid stock-market clichés, currency symbols, glowing neon, blue fintech gradients, photorealism, clutter, and dashboard UI

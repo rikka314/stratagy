@@ -1,0 +1,15 @@
+{
+  "project": {
+    "name": "unknown",
+    "version": "unknown",
+    "dependencies": []
+  },
+  "config": {},
+  "entities": [],
+  "controllers": [],
+  "mapper_xmls": [],
+  "frontend": {
+    "framework": "unknown",
+    "pages": []
+  }
+}

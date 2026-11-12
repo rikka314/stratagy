@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "policy": "missing sources remain unavailable; no zero-fill or cross-market substitution",
+  "charts": [
+    {
+      "id": "01",
+      "status": "baseline_frozen",
+      "market": "US / CN_A",
+      "source_summary_sha256": "1cbe37ff647a1b3541be131a180b55afdb7d9bf507c729fef558c3322566a2aa",
+      "sources": [
+        {
+          "path": "model-test/outputs/full_us_deans_60/model_summary.csv",
+          "available": true,
+          "sha256": "0a1a24f03ddb1eef784948ca72c2001fe681976de8ce24b4cc74b451bdea0b56",
+          "bytes": 12800
+        },
+        {
+          "path": "model-test/outputs/full_cn_a_deans_60/model_summary.csv",
+          "available": true,
+          "sha256": "d7a5e985ca7c4fefdddbf7be102cbb3dacfb3019789aa52bbbd4bd1b903a2e38",
+          "bytes": 9970
+        }
+      ],
+      "file": "charts/01_model_leaderboard.svg"
+    },
+    {
+      "id": "02",
+      "status": "stopped",
+      "market": "US",
+      "source_summary_sha256": "4906f6a28513933548343ff268274585e18310a067e23eef5c63f7cf3ad53f02",
+      "sources": [
+        {
+          "path": "research/RESEARCH_CATALOG.json",
+          "available": true,
+          "sha256": "b0a4d79691e6959ad3b91488a6f6364aa4304ec207c128941d79f4a0fa4a058b",
+          "bytes": 16100
+        }
+      ],
+      "file": "charts/02_transformer_stop.svg"
+    },
+    {
+      "id": "03",
+      "status": "research_only",
+      "market": "US",
+      "source_summary_sha256": "92be0f3039e47279cecdb80410df76cd3b01ebd13486750c7cfa50f555dca75a",
+      "sources": [
+        {
+          "path": "model-test/outputs/phase2_weight_optimization/optimization_results.json",
+          "available": true,
+          "sha256": "c70b0215b624b5fc552dc95d1af625b8347c94118661d2b810d330fcbe1970a5",
+          "bytes": 1124
+        }
+      ],
+      "file": "charts/03_factor_selection.svg"
+    },
+    {
+      "id": "04",
+      "status": "research_diagnostic",
+      "market": "US",
+      "source_summary_sha256": "92f327544e9b5c2e4d87fc164a02c19738fe1ab2bbad0ae9479e3178874c21ee",
+      "sources": [
+        {
+          "path": "model-test/outputs/phase2_weight_optimization/optimization_results.json",
+          "available": true,
+          "sha256": "c70b0215b624b5fc552dc95d1af625b8347c94118661d2b810d330fcbe1970a5",
+          "bytes": 1124
+        },
+        {
+          "path": "model-test/outputs/phase2_5_advanced_optimization/advanced_optimization_results.json",
+          "available": true,
+          "sha256": "572b196e9c616612bc202aacc2aa60b9d96dab9146b6d3d61350db1f673c1c3f",
+          "bytes": 1885
+        }
+      ],
+      "file": "charts/04_optimization_ladder.svg"
+    },
+    {
+      "id": "05",
+      "status": "passed_research_gate",
+      "market": "CN_A",
+      "source_summary_sha256": "cbeb0d2fe9e4f41f3f2e6d62b35ba36151764a913ecb6aa3e4e46d809945c843",
+      "sources": [
+        {
+          "path": "model-test/outputs/cn_a_factor_composite_comparison/comparison_metrics.csv",
+          "available": true,
+          "sha256": "92f2eec886b241eb50fb1a1a69473d734d49bc9d9eee50df54712c8eb7db6f87",
+          "bytes": 539
+        }
+      ],
+      "file": "charts/05_cn_a_comparison.svg"
+    },
+    {
+      "id": "06",
+      "status": "diagnostic_only",
+      "market": "US",
+      "source_summary_sha256": "960b3391ff86761918d77938b27e87f132b699ef5721d2109f8491426c4459ec",
+      "sources": [
+        {
+          "path": "model-test/outputs/composite_vs_sm_comparison/comparison_metrics.csv",
+          "available": true,
+          "sha256": "f4d5afc4fce136ad022838934dc0d8023536eba33f26f6189a44f8e307d2b35f",
+          "bytes": 2276
+        },
+        {
+          "path": "model-test/outputs/composite_vs_sm_comparison/README.md",
+          "available": true,
+          "sha256": "17dc573e676fb50ba3a0d1177e8ca932164599637da93b241d8b911eec791dea",
+          "bytes": 893
+        }
+      ],
+      "file": "charts/06_saturation_diagnostic.svg"
+    },
+    {
+      "id": "07",
+      "status": "not_admitted_under_strict_gate",
+      "market": "US",
+      "source_summary_sha256": "7d2b7a21e8e65c3e460954c0cbfad7349688d6b4a4c7bda8156c546f4e8b097a",
+      "sources": [
+        {
+          "path": "model-test/outputs/composite_advisory_phase1/admission_summary.json",
+          "available": true,
+          "sha256": "d874ae9668ab2b6ee71ad3828e350c22f89a7594df2d85dfefcffa4f19aa9f36",
+          "bytes": 10263
+        },
+        {
+          "path": "model-test/outputs/composite_advisory_phase1/ablation_metrics.csv",
+          "available": true,
+          "sha256": "41ccfa50e366905d6ba1c7a97babd34ebc547fe7fa576d83cec08f7c5dd03e42",
+          "bytes": 4290
+        },
+        {
+          "path": "model-test/outputs/composite_stability_phase4_advisory/admission_summary.csv",
+          "available": true,
+          "sha256": "b0016b6f159c11be7146a69987b3097cad5753d88e4ef10dfeee2beb0d787cac",
+          "bytes": 1308
+        },
+        {
+          "path": "model-test/outputs/composite_stability_phase4_advisory/fold_metrics.csv",
+          "available": true,
+          "sha256": "e748d7cbc31313d0bf2ab8e35d349d2f4fcee449ba8f85d724f37296be25b7a2",
+          "bytes": 11119
+        }
+      ],
+      "file": "charts/07_advisory_gate.svg"
+    }
+  ],
+  "videos": [
+    {
+      "id": "01_home",
+      "file": "posters/01_home.svg",
+      "video": "video/01_home.mp4",
+      "duration": "10 秒",
+      "status": "pending_media"
+    },
+    {
+      "id": "02_single_entry",
+      "file": "posters/02_single_entry.svg",
+      "video": "video/02_single_entry.mp4",
+      "duration": "12 秒",
+      "status": "pending_media"
+    },
+    {
+      "id": "03_single_analysis",
+      "file": "posters/03_single_analysis.svg",
+      "video": "video/03_single_analysis.mp4",
+      "duration": "15 秒",
+      "status": "pending_media"
+    },
+    {
+      "id": "04_multi_entry",
+      "file": "posters/04_multi_entry.svg",
+      "video": "video/04_multi_entry.mp4",
+      "duration": "12 秒",
+      "status": "pending_media"
+    },
+    {
+      "id": "05_multi_analysis",
+      "file": "posters/05_multi_analysis.svg",
+      "video": "video/05_multi_analysis.mp4",
+      "duration": "15 秒",
+      "status": "pending_media"
+    }
+  ]
+}

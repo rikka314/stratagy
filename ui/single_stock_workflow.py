@@ -47,6 +47,7 @@ from core.ml_filter import (
     predict_filter,
 )
 from core.news_factor import DEFAULT_NEWS_FACTOR_PATH, NEWS_FUSION_MODE, apply_news_fusion
+from core.market_factor_context import normalize_market
 from core.optimizer import (
     SearchEvaluationCache,
     SearchOptimizationResult,
@@ -126,7 +127,7 @@ _FROZEN_PARAM_KEYS = (
 
 @dataclass(frozen=True)
 class StrategyRequest:
-    family: Literal["baseline", "search", "regime"] | None = None
+    family: Literal["baseline", "search", "regime", "composite"] | None = None
     baseline_kind: Literal["naive", "mean", "drift"] | None = None
     search_base: Literal["sm", "fsm"] | None = None
     regime_kind: Literal["dual_state_router", "no_market", "no_router", "adaptive_router_v1"] | None = None
@@ -144,6 +145,17 @@ class StrategyRequest:
     search_trials: int = 60
     ga_population_size: int = 30
     ga_generations: int = 20
+    # Composite 策略专用字段
+    composite_policy: Literal[
+        "composite_only",
+        "composite_plus_trend",
+        "composite_plus_reversion",
+        "composite_plus_relative_strength",
+        "composite_plus_macro_cap",
+        "composite_plus_all_advisories",
+    ] = "composite_only"
+    composite_risk_budget: float = 1.0
+    composite_position_method: Literal["linear_clip", "tanh_smooth", "quantile_5bin"] = "linear_clip"
 
 
 @dataclass
@@ -1629,6 +1641,33 @@ def _validate_request(request: StrategyRequest) -> None:
             raise ValueError(tr("regime.path.restriction.noSearchML"))
         return
 
+    if request.family == "composite":
+        if (
+            request.baseline_kind
+            or request.search_base
+            or request.regime_kind
+            or request.use_search
+            or request.use_ml
+            or request.use_news
+            or request.search_method
+            or request.ml_model_type
+        ):
+            raise ValueError("Composite 路径不能混用 Baseline、Search、Regime、News 或 ML 选项")
+        if request.composite_policy not in {
+            "composite_only",
+            "composite_plus_trend",
+            "composite_plus_reversion",
+            "composite_plus_relative_strength",
+            "composite_plus_macro_cap",
+            "composite_plus_all_advisories",
+        }:
+            raise ValueError("Composite policy 无效")
+        if not 0.0 < float(request.composite_risk_budget) <= 1.0:
+            raise ValueError("Composite risk budget 必须在 (0, 1] 范围内")
+        if request.composite_position_method not in {"linear_clip", "tanh_smooth", "quantile_5bin"}:
+            raise ValueError("Composite position method 无效")
+        return
+
     if request.family != "search":
         raise ValueError(tr("validation.familyParam"))
     if request.search_base not in {"sm", "fsm"}:
@@ -1685,6 +1724,17 @@ def run_strategy_pipeline(
             lineage.append(baseline_stage)
             if baseline_cached:
                 cache_messages.append(tr("baseline.cache_hit"))
+        elif request.family == "composite":
+            # Composite 策略路径（Phase 1 实装）
+            return run_composite_pipeline(
+                context_key=context_key,
+                request=request,
+                params_snapshot=request_params_snapshot,
+                df_raw=df_raw,
+                split_idx=split_idx,
+                symbol=symbol or "",
+                market=market,
+            )
         elif request.family == "regime":
             regime_stage, regime_cached = run_regime_stage(
                 context_key=context_key,
@@ -1865,6 +1915,232 @@ def build_lineage_model_payloads(artifact: StrategyArtifact | None) -> dict[str,
     return payload
 
 
+def _validate_composite_factors(factor_df: pd.DataFrame, market: str) -> tuple[bool, str]:
+    """验证因子 DataFrame 的完整性和质量"""
+    if factor_df.empty:
+        return False, "因子 DataFrame 为空"
+
+    required_base_cols = ["date"]
+    if market == "CN_A":
+        required_factor_cols = ["rsi_z", "macd_z", "mom_long_z", "bb_position_rank", "market_vol_level", "rel_strength_market"]
+    else:  # US
+        required_factor_cols = ["mom_short_z", "mom_long_z", "macd_z", "rsi_z", "vix_level", "rel_strength_spy", "volume_ratio_rank"]
+
+    all_required = required_base_cols + required_factor_cols
+    missing = set(all_required) - set(factor_df.columns)
+    if missing:
+        return False, f"缺失必需因子: {', '.join(missing)}"
+
+    if factor_df["date"].isna().any():
+        return False, "日期列存在 NaN"
+
+    for col in required_factor_cols:
+        missing_rate = factor_df[col].isna().mean()
+        if missing_rate > 0.10:
+            return False, f"因子 {col} 缺失率过高: {missing_rate:.1%}"
+
+    return True, "OK"
+
+
+def _compute_forward_returns(df: pd.DataFrame, horizon: int = 20) -> pd.Series:
+    """计算 forward returns，用于权重训练"""
+    if "close" not in df.columns:
+        raise ValueError("DataFrame 必须包含 close 列")
+    close = pd.to_numeric(df["close"], errors="coerce")
+    return close.pct_change(periods=horizon).shift(-horizon)
+
+
+def run_composite_pipeline(
+    *,
+    context_key: str,
+    request: StrategyRequest,
+    params_snapshot: dict[str, Any],
+    df_raw: pd.DataFrame,
+    split_idx: int,
+    symbol: str,
+    market: str,
+) -> PipelineRunResult:
+    """执行 Composite 策略流水线（Phase 1 实装）"""
+    try:
+        # Sidebar uses ``A`` for the Chinese market while Composite's factor
+        # contracts use the canonical ``CN_A`` spelling.
+        market_value = str(market or "US").strip().upper().replace(" ", "_")
+        if market_value in {"A", "CN"}:
+            market_value = "CN_A"
+        market = normalize_market(market_value)
+
+        # Step 1: 计算技术因子
+        df_with_indicators = add_indicators(df_raw.copy(), **_indicator_kwargs_from_snapshot(params_snapshot))
+
+        # Step 1.5: 计算标准化因子（复用 signals.py 的逻辑）
+        from core.indicators import rolling_zscore, rolling_rank
+
+        score_lookback = params_snapshot.get("score_lookback", 30)
+        momentum_short = params_snapshot.get("momentum_short", 5)
+        momentum_long = params_snapshot.get("momentum_long", 20)
+
+        # 计算原始动量和波动率
+        df_with_indicators["ret_short"] = df_with_indicators["close"].pct_change(momentum_short)
+        df_with_indicators["ret_long"] = df_with_indicators["close"].pct_change(momentum_long)
+        df_with_indicators["volatility"] = df_with_indicators["atr"] / df_with_indicators["close"]
+
+        # Z-score 标准化
+        df_with_indicators["mom_short_z"] = rolling_zscore(df_with_indicators["ret_short"], score_lookback)
+        df_with_indicators["mom_long_z"] = rolling_zscore(df_with_indicators["ret_long"], score_lookback)
+        df_with_indicators["macd_z"] = rolling_zscore(df_with_indicators["histogram"], score_lookback)
+        df_with_indicators["rsi_z"] = rolling_zscore(df_with_indicators["rsi"], score_lookback)
+        df_with_indicators["vol_z"] = rolling_zscore(df_with_indicators["volatility"], score_lookback)
+
+        # Rank 标准化
+        df_with_indicators["bb_position_rank"] = rolling_rank(df_with_indicators["bb_position"], score_lookback)
+        df_with_indicators["obv_trend_rank"] = rolling_rank(df_with_indicators["obv_trend"], score_lookback)
+        df_with_indicators["volume_ratio_rank"] = rolling_rank(df_with_indicators["volume_ratio"], score_lookback)
+        df_with_indicators["price_position_rank"] = rolling_rank(df_with_indicators["price_position"], score_lookback)
+        df_with_indicators["drawdown_rank"] = rolling_rank(df_with_indicators["drawdown"], score_lookback)
+
+        # Step 2: 根据市场计算因子
+        if market == "CN_A":
+            from core.cn_a_market_factors import compute_cn_a_market_factors
+            from core.market_factor_context import build_market_factor_context
+            from core.composite_cn_a import fit_cn_composite_weights, build_cn_composite_decisions, CNCompositeWeights
+            from core.composite_advisory_cn_a import decide_frame as cn_decide_frame
+
+            # CN_A 需要 benchmark，使用当前股票作为 benchmark
+            benchmark_frame = df_with_indicators[["date", "close"]].copy()
+            context = build_market_factor_context(market="CN_A", benchmark_frame=benchmark_frame, universe_frame=None)
+
+            # 计算市场因子
+            market_factors = compute_cn_a_market_factors(df_with_indicators, context=context)
+
+            # 合并技术因子和市场因子
+            factor_df = df_with_indicators.merge(market_factors, on="date", how="left", suffixes=("", "_market"))
+
+            factor_cols = ["rsi_z", "macd_z", "mom_long_z", "bb_position_rank", "market_vol_level", "rel_strength_market"]
+        else:  # US
+            from core.macro_factors import MacroFactors
+            from core.market_factor_context import build_market_factor_context
+            from core.expert_pool_v2 import ExpertPoolV2
+            from core.composite_advisory import decide_frame as us_decide_frame
+
+            context = build_market_factor_context(market="US", benchmark_frame=None)
+            macro_calc = MacroFactors(context=context)
+            factor_df = macro_calc.compute(df_with_indicators, symbol, market="US")
+            pool = ExpertPoolV2()
+
+        # Step 3: 验证因子
+        is_valid, validation_msg = _validate_composite_factors(factor_df, market)
+        if not is_valid:
+            return PipelineRunResult(artifact=None, status="failed", error_message=f"因子验证失败: {validation_msg}")
+
+        # Step 4: 生成决策
+        if market == "CN_A":
+            train_factors = factor_df.iloc[:split_idx].copy()
+            train_returns = _compute_forward_returns(df_raw.iloc[:split_idx], horizon=20)
+            train_factors = train_factors.loc[train_returns.notna()]
+            train_returns = train_returns.loc[train_returns.notna()]
+
+            if len(train_factors) < 50:
+                return PipelineRunResult(artifact=None, status="failed", error_message=f"训练样本不足（需要 >= 50，实际 {len(train_factors)}）")
+
+            weights_dict = fit_cn_composite_weights(train_factors, train_returns, factor_cols=factor_cols, method="ridge", alpha=1.0, max_abs_weight=2.0)
+            weights = CNCompositeWeights(factors=weights_dict, interaction_terms=None, fit_method="ridge", train_folds=["train"], market="CN_A", position_policy="long_only", version="ui_phase1_v1")
+            decisions = build_cn_composite_decisions(factor_df, weights, risk_budget=request.composite_risk_budget, position_method=request.composite_position_method)
+
+            decision_df = pd.DataFrame([{"date": d.date, "composite_score": d.composite_score, "composite_base_position": d.composite_base_position, "final_position": d.final_position} for d in decisions])
+
+            if request.composite_policy != "composite_only":
+                merged = decision_df.merge(factor_df[["date", "mom_long_z", "rsi_z", "rel_strength_market", "market_vol_level"]], on="date", how="left")
+                advisory_df = cn_decide_frame(merged, policy=request.composite_policy, config=None)
+                decision_df["final_position"] = advisory_df["final_position"].values
+        else:  # US
+            # The rolling factors intentionally have a warm-up region.  Run
+            # the advisory on rows with a complete finite factor vector and
+            # keep warm-up rows as explicit cash, rather than making the
+            # entire frame fail closed because of the first few NaNs.
+            required_factor_columns = list(pool.required_columns())
+            numeric_factors = factor_df[required_factor_columns].apply(pd.to_numeric, errors="coerce")
+            valid_rows = numeric_factors.notna().all(axis=1) & np.isfinite(numeric_factors.to_numpy(dtype=float)).all(axis=1)
+            advisory_columns = ["composite_score", "composite_base_position", "final_position"]
+            advisory_df = pd.DataFrame(0.0, index=factor_df.index, columns=advisory_columns)
+            if valid_rows.any():
+                valid_advisory = us_decide_frame(factor_df.loc[valid_rows], policy=request.composite_policy, advisory=None)
+                advisory_df.loc[valid_rows, advisory_columns] = valid_advisory[advisory_columns]
+            decision_df = pd.DataFrame({"date": factor_df["date"] if "date" in factor_df.columns else factor_df.index, "composite_score": advisory_df["composite_score"].values, "composite_base_position": advisory_df["composite_base_position"].values, "final_position": advisory_df["final_position"].values})
+            weights_dict = None
+
+        # Step 5: 对接回测
+        df_with_signals = df_with_indicators.copy()  # 使用包含所有指标的 DataFrame
+        if "date" in df_with_signals.columns:
+            df_with_signals["date"] = pd.to_datetime(df_with_signals["date"])
+            decision_df["date"] = pd.to_datetime(decision_df["date"])
+            df_with_signals = df_with_signals.merge(decision_df[["date", "final_position"]], on="date", how="left")
+            df_with_signals["target_position"] = df_with_signals["final_position"].fillna(0.0)
+            df_with_signals = df_with_signals.drop(columns=["final_position"])
+        else:
+            df_with_signals["target_position"] = decision_df["final_position"].values
+
+        df_with_signals = _refresh_trade_signal_columns(df_with_signals)
+
+        # Step 6: 回测
+        sim_kwargs = _sim_kwargs_from_snapshot(params_snapshot)
+        train_sim_df = simulate_strategy(df_with_signals.iloc[:split_idx].copy(), **sim_kwargs)
+        test_sim_df = simulate_strategy(df_with_signals.iloc[split_idx:].copy(), **sim_kwargs)
+
+        # Step 7: 评估（与其他单股阶段使用相同的 label/equity/benchmark contract）
+        time_index = _build_time_index(test_sim_df)
+        equity_series = pd.Series(
+            pd.to_numeric(test_sim_df["strategy_equity"], errors="coerce").to_numpy(),
+            index=time_index,
+            name="Composite_equity",
+        )
+        benchmark_series = pd.Series(
+            pd.to_numeric(test_sim_df["buy_hold_equity"], errors="coerce").to_numpy(),
+            index=time_index,
+            name="benchmark",
+        )
+        eval_result = evaluate_strategy(
+            "Composite",
+            equity_series,
+            benchmark_series,
+            trades_df=None,
+        )
+
+        # Step 8: 构建结果
+        stage_result = StageResult(
+            stage_key="composite",
+            display_label=f"Composite ({request.composite_policy})",
+            short_label="Composite",
+            params_snapshot=params_snapshot,
+            train_sim_df=train_sim_df,
+            test_sim_df=test_sim_df,
+            trades_df=None,
+            eval=eval_result,
+            equity_series=equity_series,
+            returns_series=pd.Series(test_sim_df["strategy_return"].values, index=time_index, name="returns"),
+            ml_quality=None,
+            upstream_stage_key=None,
+            full_signal_df=df_with_signals,
+            metadata={"composite_policy": request.composite_policy, "market": market, "risk_budget": request.composite_risk_budget, "position_method": request.composite_position_method, "weights": weights_dict if market == "CN_A" else None},
+        )
+
+        artifact = assemble_strategy_artifact(
+            context_key=context_key,
+            request=request,
+            request_params_snapshot=params_snapshot,
+            lineage=[stage_result],
+        )
+
+        info_messages = [f"Composite 策略已执行（市场: {market}）", f"Policy: {request.composite_policy}", f"Train: {len(train_sim_df)}, Test: {len(test_sim_df)}"]
+        if market == "CN_A" and weights_dict:
+            info_messages.append(f"权重已训练: {len(weights_dict)} 因子")
+
+        return PipelineRunResult(artifact=artifact, status="success", warnings=[], info_messages=info_messages)
+
+    except Exception as e:
+        import traceback
+        return PipelineRunResult(artifact=None, status="failed", error_message=f"Composite 执行失败: {str(e)}\n\n{traceback.format_exc()}")
+
+
 __all__ = [
     "PipelineRunResult",
     "STAGE_CACHE_STATE_KEY",
@@ -1881,5 +2157,6 @@ __all__ = [
     "get_strategy_workspace",
     "get_workspace_status",
     "run_strategy_pipeline",
+    "run_composite_pipeline",
     "save_current_artifact",
 ]

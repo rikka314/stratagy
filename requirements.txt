@@ -17,6 +17,9 @@ pyarrow>=14.0.0
 plotly>=5.0.0
 
 # Web 应用框架
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+python-multipart>=0.0.9,<1.0.0
 streamlit>=1.60.0,<1.62.0
 streamlit-keyup>=0.3.0
 

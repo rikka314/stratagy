@@ -271,15 +271,17 @@ def test_phase_five_css_bundles_stay_route_scoped_and_within_budget() -> None:
     assert ".entry-title" not in bundles["report"]
 
 
-def test_stale_streamlit_elements_are_hidden_during_reconciliation() -> None:
-    """Old rerun trees must not remain visible or interactive while replaced."""
+def test_stale_streamlit_elements_hold_the_last_frame_during_reconciliation() -> None:
+    """Widget reruns keep the last frame visible without leaving controls active."""
     from ui.theme import get_style_bundle_css
 
     # The global stale rule belongs to the base bundle, which every route
     # injects before its page-specific bundle.
     base_css = get_style_bundle_css("base")
     assert '[data-testid="stElementContainer"][data-stale="true"]' in base_css
-    assert "display: none !important" in base_css
+    assert "opacity: 1 !important" in base_css
+    assert "visibility: visible !important" in base_css
+    assert "transition: none !important" in base_css
     assert "pointer-events: none !important" in base_css
 
     for bundle in ("home", "entry", "analysis", "report"):
@@ -409,22 +411,29 @@ def test_phase_six_runtime_dependency_contract_is_versioned_and_hash_gated() -> 
     run_script = (PROJECT_ROOT / "run.bat").read_text(encoding="utf-8")
 
     assert "streamlit>=1.60.0,<1.62.0" in requirements
-    assert "Get-FileHash -Algorithm SHA256" in run_script
+    assert "fastapi>=0.115.0,<1.0.0" in requirements
+    assert "uvicorn[standard]>=0.30.0,<1.0.0" in requirements
+    assert "from hashlib import sha256" in run_script
     assert ".venv\\.requirements.sha256" in run_script
     assert "requirements.txt unchanged; skipping pip install" in run_script
-    assert ".venv\\Scripts\\python.exe -m streamlit run app.py" in run_script
-    assert 'if /I "%~1"=="--setup-only"' in run_script
+    assert ".venv\\Scripts\\python.exe -m uvicorn api.main:app" in run_script
+    assert 'if /I "%~1"=="--legacy-streamlit"' in run_script
+    assert 'if "%SETUP_ONLY%"=="1"' in run_script
 
 
 def test_phase_six_incremental_deploy_installs_changed_requirements_before_restart() -> None:
     sync_script = (PROJECT_ROOT / "deploy" / "sync.bat").read_text(encoding="utf-8")
     install_position = sync_script.index("install_requirements_if_needed.sh %REMOTE_DIR%")
-    restart_position = sync_script.index("systemctl restart stratagy")
+    service_position = sync_script.rindex("%REMOTE_DIR%/deploy/fix_config.sh")
 
     assert "install_requirements_if_needed.sh" in sync_script
     assert "check_runtime.sh" in sync_script
-    assert install_position < restart_position
-    assert "check_runtime.sh %REMOTE_DIR%" in sync_script
+    assert install_position < service_position
+    assert "%REMOTE_DIR%/deploy/fix_config.sh" in sync_script
+    assert 'scp -r "%PROJECT_DIR%\\research"' in sync_script
+    assert 'scp -r "%PROJECT_DIR%\\model-test\\model_test"' in sync_script
+    assert 'scp -r "%PROJECT_DIR%\\model-test\\configs"' in sync_script
+    assert 'scp -r "%PROJECT_DIR%\\data\\macro"' in sync_script
 
 
 def test_phase_six_full_deploy_records_versions_fingerprint_and_health() -> None:
@@ -437,11 +446,12 @@ def test_phase_six_full_deploy_records_versions_fingerprint_and_health() -> None
     )
 
     assert "venv/.requirements.sha256" in deploy_script
-    assert 'Streamlit {streamlit.__version__}' in deploy_script
+    assert "uvicorn api.main:app --host 127.0.0.1 --port 8501" in deploy_script
     assert 'check_runtime.sh" "${APP_DIR}"' in deploy_script
     assert "sha256sum" in install_helper
     assert "unchanged; skipping pip install" in install_helper
-    assert "/strategy/_stcore/health" in runtime_helper
+    assert "/strategy/api/health" in runtime_helper
+    assert 'FastAPI {fastapi.__version__}' in runtime_helper
     assert "curl --fail" in runtime_helper
 
 
@@ -450,11 +460,13 @@ def test_phase_six_nginx_separates_static_cache_from_runtime_endpoints() -> None
         encoding="utf-8"
     )
 
-    assert "location ^~ /strategy/static/" in nginx
+    assert "location ^~ /strategy/assets/" in nginx
     assert 'Cache-Control "public, max-age=31536000, immutable"' in nginx
-    assert "location ^~ /strategy/_stcore/" in nginx
+    assert "location = /strategy/api/health" in nginx
+    assert "location ^~ /strategy/api/" in nginx
     assert 'Cache-Control "no-store"' in nginx
     assert nginx.count("proxy_hide_header Cache-Control;") == 2
     assert "proxy_buffering on;" in nginx
     assert "proxy_buffering off;" in nginx
     assert "location ^~ /strategy/" in nginx
+    assert "client_max_body_size 13m;" in nginx

@@ -1,5 +1,10 @@
 # Model-Test Workspace
 
+The canonical conclusion-first map of the frozen research lines is maintained in
+`research/RESEARCH_CATALOG.md` and `research/RESEARCH_CATALOG.json`. This
+workspace remains the compatibility execution surface: commands and output
+paths below are intentionally preserved so old runs remain reconstructable.
+
 This workspace adds an offline research runner that reuses the existing
 single-stock strategy pipeline without changing the Streamlit UI.
 

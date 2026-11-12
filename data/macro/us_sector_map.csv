@@ -1,0 +1,61 @@
+symbol,sector,industry,source
+AAPL,Technology,Computer Manufacturing,Nasdaq stock screener
+ABBV,Health Care,Biotechnology: Pharmaceutical Preparations,Nasdaq stock screener
+ABT,Health Care,Biotechnology: Pharmaceutical Preparations,Nasdaq stock screener
+ACN,Consumer Discretionary,Business Services,Nasdaq stock screener
+AMAT,Technology,Semiconductors,Nasdaq stock screener
+AMD,Technology,Semiconductors,Nasdaq stock screener
+AMZN,Consumer Discretionary,Catalog/Specialty Distribution,Nasdaq stock screener
+APP,Technology,Computer Software: Programming Data Processing,Nasdaq stock screener
+ASML,Technology,Industrial Machinery/Components,Nasdaq stock screener
+AVGO,Technology,Semiconductors,Nasdaq stock screener
+BA,Industrials,Aerospace,Nasdaq stock screener
+BABA,Consumer Discretionary,Business Services,Nasdaq stock screener
+BAC,Finance,Major Banks,Nasdaq stock screener
+BSX,Health Care,Medical/Dental Instruments,Nasdaq stock screener
+CAT,Industrials,Construction/Ag Equipment/Trucks,Nasdaq stock screener
+COF,Finance,Major Banks,Nasdaq stock screener
+COST,Consumer Discretionary,Department/Specialty Retail Stores,Nasdaq stock screener
+CRM,Technology,Computer Software: Prepackaged Software,Nasdaq stock screener
+CVX,Energy,Integrated oil Companies,Nasdaq stock screener
+DHR,Industrials,Industrial Machinery/Components,Nasdaq stock screener
+GOOG,Technology,Computer Software: Programming Data Processing,Nasdaq stock screener
+GOOGL,Technology,Computer Software: Programming Data Processing,Nasdaq stock screener
+HCA,Health Care,Hospital/Nursing Management,Nasdaq stock screener
+HD,Consumer Discretionary,RETAIL: Building Materials,Nasdaq stock screener
+HON,Industrials,Aerospace,Nasdaq stock screener
+IBM,Technology,Computer Manufacturing,Nasdaq stock screener
+INTC,Technology,Semiconductors,Nasdaq stock screener
+INTU,Technology,Computer Software: Prepackaged Software,Nasdaq stock screener
+ISRG,Health Care,Industrial Specialties,Nasdaq stock screener
+JNJ,Health Care,Biotechnology: Pharmaceutical Preparations,Nasdaq stock screener
+JPM,Finance,Major Banks,Nasdaq stock screener
+KO,Consumer Staples,Beverages (Production/Distribution),Nasdaq stock screener
+LLY,Health Care,Biotechnology: Pharmaceutical Preparations,Nasdaq stock screener
+LRCX,Technology,Industrial Machinery/Components,Nasdaq stock screener
+MA,Consumer Discretionary,Business Services,Nasdaq stock screener
+MSFT,Technology,Computer Software: Prepackaged Software,Nasdaq stock screener
+MU,Technology,Semiconductors,Nasdaq stock screener
+NFLX,Consumer Discretionary,Consumer Electronics/Video Chains,Nasdaq stock screener
+NOW,Technology,Computer Software: Prepackaged Software,Nasdaq stock screener
+NVDA,Technology,Semiconductors,Nasdaq stock screener
+NVO,Health Care,Biotechnology: Pharmaceutical Preparations,Nasdaq stock screener
+ORCL,Technology,Computer Software: Prepackaged Software,Nasdaq stock screener
+PG,Consumer Discretionary,Package Goods/Cosmetics,Nasdaq stock screener
+PLTR,Technology,Computer Software: Prepackaged Software,Nasdaq stock screener
+PM,Health Care, Medicinal Chemicals and Botanical Products ,Nasdaq stock screener
+QCOM,Technology,Radio And Television Broadcasting And Communications Equipment,Nasdaq stock screener
+RUBI,Consumer Discretionary,Marine Transportation,Nasdaq stock screener
+SBUX,Consumer Discretionary,Restaurants,Nasdaq stock screener
+SHOP,Technology,Computer Software: Prepackaged Software,Nasdaq stock screener
+SPGI,Finance,Finance: Consumer Services,Nasdaq stock screener
+SUZ,Basic Materials,Paper,Nasdaq stock screener
+T,Telecommunications,Telecommunications Equipment,Nasdaq stock screener
+TMUS,Telecommunications,Telecommunications Equipment,Nasdaq stock screener
+TSLA,Industrials,Auto Manufacturing,Nasdaq stock screener
+TSM,Technology,Semiconductors,Nasdaq stock screener
+UBER,Consumer Discretionary,Business Services,Nasdaq stock screener
+V,Consumer Discretionary,Business Services,Nasdaq stock screener
+WFC,Finance,Major Banks,Nasdaq stock screener
+WMT,Consumer Discretionary,Department/Specialty Retail Stores,Nasdaq stock screener
+XOM,Energy,Integrated oil Companies,Nasdaq stock screener

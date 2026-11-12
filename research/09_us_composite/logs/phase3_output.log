@@ -1,0 +1,32 @@
+Traceback (most recent call last):
+  File "D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈİ\stratagy\model-test\build_cn_a_factor_panel.py", line 167, in main
+    panel = build_cn_a_factor_panel(
+        symbols=symbols,
+    ...<2 lines>...
+        warm_up_days=warm_up_days,
+    )
+  File "D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈİ\stratagy\model-test\model_test\cn_a_factor_panel.py", line 188, in build_cn_a_factor_panel
+    raise ValueError("No stock data loaded")
+ValueError: No stock data loaded
+[OK] Loaded config: model-test\configs\composite_cn_a.json
+   Market: CN_A
+   Universe: full_cn_a_admission_60
+   Schema version: 1.0
+[OK] Data directory: D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈİ\stratagy\data
+[OK] Output directory: D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈİ\stratagy\model-test\outputs\composite_cn_a
+
+============================================================
+STEP 1: Load Universe Symbols
+============================================================
+Loaded 60 symbols from model-test\outputs\full_cn_a_admission_60\data_snapshot
+[OK] Universe count verified: 60 symbols
+
+============================================================
+STEP 2: Build Factor Panel
+============================================================
+Warm-up period: 60 days
+Technical factors: 10
+Market factors: 13
+
+Building panel... (this may take a few minutes)
+[ERROR] Failed to build panel: No stock data loaded

@@ -1,33 +1,25 @@
-#!/bin/bash
-# 写入正确的 Streamlit 配置
-mkdir -p /opt/stratagy/.streamlit
-cat > /opt/stratagy/.streamlit/config.toml << 'EOF'
-[server]
-headless = true
-port = 8501
-address = "0.0.0.0"
-baseUrlPath = "strategy"
-maxUploadSize = 50
+#!/usr/bin/env bash
+set -euo pipefail
 
-[browser]
-gatherUsageStats = false
+APP_DIR="${STRATAGY_APP_DIR:-/opt/stratagy}"
+cat > /etc/systemd/system/stratagy.service <<EOF
+[Unit]
+Description=Stratagy JavaScript frontend and Python API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${APP_DIR}
+Environment="PATH=${APP_DIR}/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=${APP_DIR}/venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8501
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
-echo "Config written:"
-cat /opt/stratagy/.streamlit/config.toml
-
-# 重启服务
+systemctl daemon-reload
 systemctl restart stratagy
-sleep 3
-
-# 检查状态
-echo ""
-echo "=== Service Status ==="
-systemctl is-active stratagy
-
-echo ""
-echo "=== Port Check ==="
-ss -tlnp | grep 8501
-
-echo ""
-echo "FIXCONFIG_DONE"
+"${APP_DIR}/deploy/check_runtime.sh" "${APP_DIR}"

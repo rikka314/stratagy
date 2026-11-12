@@ -1,0 +1,15 @@
+============================================================
+Phase 3: Position Mapping and Execution Constraints
+============================================================
+
+Loading Phase 2 results from: model-test\outputs\composite_stability_phase2
+Traceback (most recent call last):
+  File "D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈİ\stratagy\model-test\run_composite_stability_phase3.py", line 367, in <module>
+    run_phase3(args.config)
+    ~~~~~~~~~~^^^^^^^^^^^^^
+  File "D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈİ\stratagy\model-test\run_composite_stability_phase3.py", line 85, in run_phase3
+    phase2_manifest, weight_paths = load_phase2_weights(phase2_dir)
+                                    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "D:\Learn\20_Projects\2026_SPRING\AIE1902\¿ÎÌÃÄÚÈİ\stratagy\model-test\run_composite_stability_phase3.py", line 41, in load_phase2_weights
+    raise FileNotFoundError(f"Phase 2 manifest not found: {manifest_path}")
+FileNotFoundError: Phase 2 manifest not found: model-test\outputs\composite_stability_phase2\manifest.json

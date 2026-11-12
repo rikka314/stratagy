@@ -1,6 +1,6 @@
 # Strategy Pipeline Interfaces
 
-> 最近更新：2026-08-20
+> 最近更新：2026-08-21
 > 适用范围：`core/data.py` 到 `core/backtest.py` 的主链，以及 `core/regime_model.py`、`core/adaptive_regime.py`、FA / ML / baseline / evaluation / optimizer。
 
 ## 共享前提
@@ -30,6 +30,7 @@ data / utils
 - Legacy Regime / RSM：`regime_model` + `backtest`
 - Adaptive Regime Router：`adaptive_regime` + workflow candidate routing + `backtest`
 - Dynamic Ensemble Phase A–F：`model-test/model_test/moe_baseline.py` 冻结对照，`expert_panel.py` 生成无泄漏面板，`dynamic_ensemble.py` 训练 v1 soft-gate，`dynamic_ensemble_v2.py` 训练低分位 / 中位 quantile gate 并施加不确定性、降级与组合风险约束，`dynamic_ensemble_online.py` 回放完整反馈 Hedge / EG，`dynamic_ensemble_bandit.py` 仅以所选 Phase-E allocation action 的反馈比较 LinUCB / contextual Thompson Sampling；均不接入 UI
+- Expert-system reconstruction Phase 1：`core/macro_factors.py` 提供五维 observed macro contract，`model-test/model_test/expert_system_phase1.py` 从冻结 Phase-B `strategy_return` 重建 5/20 日 utility vectors，`run_phase1_baseline.py` 在四个 US Validation folds 比较 B01/B04/B05；research-only，不接入 UI
 
 ## 分阶段 contract
 
@@ -204,6 +205,25 @@ compute_signals(df, ..., fsm_mode=False, fa_model=None) -> pd.DataFrame
 - 状态聚类默认是 `MiniBatchKMeans`；在线分类优先 LightGBM，多分类不可用时回退到 `LogisticRegression`。
 - `select_routing_policy()` 的回退层级固定为 `symbol -> segment -> global -> mean`。
 - `load_adaptive_regime_artifacts()` 找不到或读不通产物时抛异常；workflow 负责把异常转成 degraded fallback。
+
+### Expert-system reconstruction Phase 1
+
+正式入口为：
+
+```text
+model-test/configs/expert_system_phase1_us.json
+  -> model-test/run_phase1_baseline.py
+  -> model-test/outputs/expert_system_phase1_us/
+```
+
+稳定约束：
+
+- B01/B04 使用冻结 28 维 state feature schema；B05 只追加 `vix_level / rel_strength_vs_spy / market_breadth / beta_20d / sector_momentum` 五维，最终宽度固定为 33。
+- 宏观数据必须由 `data/macro/macro_data_manifest.json` 标记为 `data_kind=observed` 且 `synthetic_fallback=false`；VIX/SPY/sector artifact 必须通过 SHA-256。
+- 5/20 日 utility 都从 Phase-B 已扣费 `strategy_return` 重建，不重复扣成本，且只发出完整 future horizon。
+- B01/B04/B05 使用相同的 date-symbol rows 与原 Phase-B purged walk-forward memberships；PCA scaler、missing fill 与 PCA 只在 fold Train 拟合。
+- B04/B05 的 query rows 和 20 日 labels 相同，因此 oracle utility 必然相同；宏观增量以 selected Query utility 和 regret 衡量。
+- 2026-08-21 正式结果为 `stop_phase1_gate_failed`：跨 horizon 的 B04 gate 使用 per-day Query utility，Δ `+0.001293`，低于 `+0.002`；raw 累积 utility Δ `-0.004106` 仅作诊断。B05 Query utility Δ `+0.000023`，低于 `+0.003`。不得据此进入 Phase 2 或接入 Streamlit。
 
 ### FA / FSM
 

@@ -1,0 +1,83 @@
+{
+  "schema_version": "1.0",
+  "status": "research_only",
+  "phase": "composite_stability_phase2",
+  "market": "US",
+  "primary_horizon_days": 20,
+  "random_seed": 42,
+  "source": {
+    "snapshot_dir": "model-test/outputs/full_us_deans_60/data_snapshot",
+    "data_manifest": "model-test/outputs/full_us_deans_60/data_manifest.json",
+    "macro_data_dir": "data/macro",
+    "macro_data_manifest": "data/macro/macro_data_manifest.json",
+    "required_data_end": "2026-07-31",
+    "adjustment": "qfq"
+  },
+  "factors": {
+    "names": ["mom_short_z", "rsi_z", "macd_z", "vix_level", "volume_ratio_rank"],
+    "directions": {
+      "mom_short_z": 1,
+      "rsi_z": 1,
+      "macd_z": -1,
+      "vix_level": -1,
+      "volume_ratio_rank": 1
+    },
+    "family_by_factor": {
+      "mom_short_z": "trend",
+      "rsi_z": "reversion",
+      "macd_z": "trend",
+      "vix_level": "risk",
+      "volume_ratio_rank": "volume"
+    },
+    "family_budgets": {"trend": 2.5, "reversion": 1.0, "risk": 0.75, "volume": 1.0},
+    "factor_budget": 2.0,
+    "interaction_budget": 0.75
+  },
+  "optimization": {
+    "methods": ["random", "coordinate"],
+    "seeds": [7, 19, 31, 43, 59, 71, 83, 97],
+    "candidate_count": 96,
+    "bootstrap_samples": 1000,
+    "block_length": 20
+  },
+  "execution": {
+    "commission_bps": 1.0,
+    "slippage_bps": 2.0,
+    "cost_treatment": "ohlcv_gross_charge_once"
+  },
+  "folds": [
+    {
+      "fold_id": "fold_01",
+      "train_start": "2016-07-19",
+      "train_end": "2021-01-12",
+      "validation_start": "2021-02-11",
+      "validation_end": "2022-01-11",
+      "test_start": "2022-02-09",
+      "test_end": "2023-04-06",
+      "purge_days": 20,
+      "embargo_days": 20
+    },
+    {
+      "fold_id": "fold_02",
+      "train_start": "2016-07-19",
+      "train_end": "2022-01-12",
+      "validation_start": "2022-02-11",
+      "validation_end": "2023-04-06",
+      "test_start": "2023-04-10",
+      "test_end": "2024-06-04",
+      "purge_days": 20,
+      "embargo_days": 20
+    },
+    {
+      "fold_id": "fold_03",
+      "train_start": "2016-07-19",
+      "train_end": "2023-04-17",
+      "validation_start": "2023-05-17",
+      "validation_end": "2024-06-04",
+      "test_start": "2024-06-06",
+      "test_end": "2025-08-05",
+      "purge_days": 20,
+      "embargo_days": 20
+    }
+  ]
+}

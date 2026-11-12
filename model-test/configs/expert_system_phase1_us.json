@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "name": "expert_system_reconstruction_phase1_us",
+  "market": "US",
+  "output_subdir": "expert_system_phase1_us",
+  "random_seed": 42,
+  "experts": [
+    "naive",
+    "drift",
+    "sm",
+    "fsm",
+    "best_search",
+    "ml_filter",
+    "adaptive_router",
+    "cash"
+  ],
+  "sources": {
+    "sequence_panel_dir": "model-test/outputs/transformer_state_us",
+    "sequence_panel_manifest_sha256": "bc791ff9a0fec54d049d6514ad6e890ac9f1bd72d146c05830af3e72632802b0",
+    "phase_b_dir": "model-test/outputs/transformer_state_source_us",
+    "phase_b_manifest_sha256": "9643d21584e5767ccb2564db33e5932ebb2a1b3169ea793c2758c8c93a4a4297",
+    "phase_b_panel_sha256": "1ca4e10212690622883b24022e5b641bea4f7972d02a3dac79b0991f6ab78815",
+    "phase_b_splits_sha256": "64b54fcc193ff5cfb61d995fac890b98e278cc308cae48a5d762e6fe776661df",
+    "full_run_dir": "model-test/outputs/full_us_deans_60",
+    "full_run_data_manifest_sha256": "31aadc6d97479bf22c048a8b36e6e830382a1c938d32fedea72f50efeef088d9",
+    "data_snapshot_sha256": "adb08e44cad749c275bdcad972bcb2898ad6014a587a5dbb1318ccb856bedc16",
+    "macro_data_dir": "data/macro",
+    "macro_data_manifest_sha256": "6d3b9a911723a3b97bea3d3d8f2ce66cbf993fd4bff16a97d7392348ff145037"
+  },
+  "labels": {
+    "b01_horizon_days": 5,
+    "phase1_horizon_days": 20,
+    "lambda_downside": 1.0,
+    "lambda_turnover": 0.1,
+    "return_field": "strategy_return",
+    "cost_treatment": "source_net_no_recharge"
+  },
+  "features": {
+    "base_feature_count": 28,
+    "macro_feature_count": 5,
+    "macro_feature_columns": [
+      "vix_level",
+      "rel_strength_vs_spy",
+      "market_breadth",
+      "beta_20d",
+      "sector_momentum"
+    ]
+  },
+  "retrieval": {
+    "method": "pca_single_day",
+    "top_k": 15,
+    "pca_variance_threshold": 0.95
+  },
+  "validation": {
+    "folds": ["wf_01", "wf_02", "wf_03", "wf_04"],
+    "bootstrap_iterations": 1000,
+    "bootstrap_unit": "fold_id_x_validation_date"
+  },
+  "acceptance": {
+    "b04_query_utility_per_day_delta_min": 0.002,
+    "b04_match_rate_delta_min": 0.05,
+    "b05_query_utility_delta_min": 0.003,
+    "b05_regret_delta_max": 0.0
+  }
+}

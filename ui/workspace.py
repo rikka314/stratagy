@@ -19,7 +19,6 @@ WORKSPACE_QUERY_KEY = "ws"
 WORKSPACE_SESSION_ID_KEY = "_strategy_workspace_id"
 WORKSPACE_HYDRATED_ID_KEY = "_strategy_workspace_hydrated_id"
 WORKSPACE_MARKER_KEY = "_strategy_workspace_marker"
-WORKSPACE_RESTORED_NOTICE_KEY = "_strategy_workspace_restored_notice"
 
 SINGLE_ROUTE_STATE_KEY = "route_single_state"
 MULTI_ROUTE_STATE_KEY = "route_multi_state"
@@ -40,7 +39,6 @@ _EXCLUDED_KEYS = {
     WORKSPACE_SESSION_ID_KEY,
     WORKSPACE_HYDRATED_ID_KEY,
     WORKSPACE_MARKER_KEY,
-    WORKSPACE_RESTORED_NOTICE_KEY,
 }
 _DIRECT_KEYS = {
     "market",
@@ -152,7 +150,6 @@ def ensure_workspace_session() -> str:
         payload = _store().load(requested_id)
         if payload is not None:
             _apply_snapshot(payload)
-            st.session_state[WORKSPACE_RESTORED_NOTICE_KEY] = True
         st.session_state[WORKSPACE_SESSION_ID_KEY] = requested_id
         st.session_state[WORKSPACE_HYDRATED_ID_KEY] = requested_id
         st.session_state[WORKSPACE_MARKER_KEY] = _current_workspace_marker()
@@ -215,11 +212,6 @@ def clear_workspace_session() -> None:
         del st.query_params[WORKSPACE_QUERY_KEY]
     except (AttributeError, KeyError, TypeError):
         pass
-
-
-def render_workspace_restore_notice() -> None:
-    if st.session_state.pop(WORKSPACE_RESTORED_NOTICE_KEY, False):
-        st.info(tr("workspace.restoredNotice"))
 
 
 def render_workspace_sidebar_actions() -> None:

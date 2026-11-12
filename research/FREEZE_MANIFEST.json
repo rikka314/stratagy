@@ -1,0 +1,41 @@
+{
+  "freeze_date": "2026-08-23",
+  "source_commit": "d2168bf8a0073360f5a19a0f4e85e91fc65410a7",
+  "source_branch": "transformer-state-v3",
+  "worktree_was_dirty": true,
+  "catalog": "research/RESEARCH_CATALOG.json",
+  "status_rule": "Only acceptance records plus matching machine-readable evidence may support passed_research_gate; missing ignored output is pending/unavailable.",
+  "inventory": {
+    "document_files_scanned": 132,
+    "model_test_scripts_and_configs_scanned": 141,
+    "research_tests_scanned": 55,
+    "research_core_candidates_scanned": 13,
+    "tracked_model_test_files": 96,
+    "tracked_document_files": 90,
+    "tracked_test_files": 38,
+    "tracked_core_files": 27,
+    "tracked_data_files": 12
+  },
+  "experiment_status": {
+    "baseline_sm_fsm_full_market": "baseline_frozen",
+    "transformer_state_feasibility": "stopped",
+    "adaptive_dynamic_experts": "not_admitted",
+    "cn_a_composite_only": "passed_research_gate",
+    "cn_a_composite_advisory": "framework_complete_pending_real_data_gate"
+  },
+  "evidence_presence_checked": {
+    "model-test/outputs/full_us_deans_60/report.json": true,
+    "model-test/outputs/full_cn_a_deans_60/report.json": true,
+    "model-test/outputs/transformer_state_us/transformer_state_evidence_manifest.json": true,
+    "model-test/outputs/transformer_state_v3_us/baseline_artifacts/baseline_comparison.csv": true,
+    "model-test/outputs/moe_v2_us/moe_v2_manifest.json": true,
+    "model-test/outputs/moe_v2_cn_a/moe_v2_manifest.json": true,
+    "model-test/outputs/w11_admission_us/w11_decision.json": true,
+    "model-test/outputs/w11_admission_cn_a/w11_decision.json": true,
+    "model-test/outputs/composite_cn_a/composite_manifest.json": true,
+    "model-test/outputs/cn_a_factor_composite_comparison/comparison_metrics.csv": true,
+    "model-test/outputs/composite_advisory_cn_a/advisory_manifest.json": false,
+    "model-test/outputs/composite_advisory_cn_a/ablation_metrics.csv": false
+  },
+  "runtime_boundary": ["app.py", "ui/", "deploy/", "reports/", "model-test/outputs/ discovery"]
+}

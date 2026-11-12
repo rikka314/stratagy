@@ -29,7 +29,7 @@
 
 一次单股工作流请求的最小描述。当前稳定字段：
 
-- `family`: `"baseline" / "search" / "regime"`
+- `family`: `"baseline" / "search" / "composite" / "regime"`
 - `baseline_kind`: `"naive" / "mean" / "drift"`
 - `search_base`: `"sm" / "fsm"`
 - `regime_kind`: `"adaptive_router_v1" / "dual_state_router" / "no_market" / "no_router"`
@@ -47,6 +47,9 @@
 - `search_trials`
 - `ga_population_size`
 - `ga_generations`
+- `composite_policy`: `"composite_only"` or one of the supported advisory policies
+- `composite_risk_budget`: maximum Composite position in `(0, 1]`
+- `composite_position_method`: `"linear_clip" / "tanh_smooth" / "quantile_5bin"`
 
 补充约定：
 
@@ -210,6 +213,9 @@ run_strategy_pipeline(
     request_params_snapshot: dict[str, Any],
     df_raw: pd.DataFrame,
     split_idx: int,
+    symbol: str | None = None,
+    market: str = "US",
+    adjust: str = "qfq",
 ) -> PipelineRunResult
 ```
 
@@ -223,6 +229,7 @@ run_strategy_pipeline(
   - 可选进入 ML 阶段
   - 出错时允许降级回最近成功的上游 stage
 - `regime` 路径：单步生成 regime stage，并复用 `StageResult / StrategyArtifact / cache`
+- `composite` 路径：按 `market` 选择 CN_A 自训练权重或 US 因子 / 专家池，并生成单步 Composite artifact；不需要 `search_base`
 
 生成成功后，`pipeline_lineage` 会保留所有成功阶段；最终 artifact 只提交最新成功阶段。
 

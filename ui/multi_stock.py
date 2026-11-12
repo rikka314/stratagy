@@ -39,10 +39,13 @@ from core.visualization import (
 from ui.export_reports import build_multi_stock_export_html
 from ui.theme import (
     apply_plotly_theme,
+    clear_route_loading_slot,
     get_ui_language,
     get_ui_theme,
+    register_route_loading_slot,
     render_analysis_date_range_control,
     render_html,
+    render_route_loading_marker,
     render_status_note,
 )
 
@@ -53,6 +56,7 @@ MULTI_ANALYSIS_SECTION_KEY = "multi_stock_analysis_section"
 MULTI_ANALYSIS_CACHE_KEY = "multi_stock_analysis_cache"
 MULTI_APPLIED_ADJUSTMENTS_KEY = "multi_stock_applied_adjustments"
 MULTI_HEADER_DETAILS_KEY = "multi_stock_header_details_expanded"
+ROUTE_ANALYSIS_LOADING_KEY = "_route_analysis_loading"
 
 
 def _prepare_multi_stock_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -455,6 +459,7 @@ def _remove_multi_route_item(symbol: str, *, source: str) -> None:
         symbols=symbols,
         uploads=uploads,
     )
+    st.session_state[ROUTE_ANALYSIS_LOADING_KEY] = True
     st.rerun()
 
 
@@ -480,6 +485,7 @@ def _add_multi_route_symbol(symbol: str, *, market: str) -> None:
         uploads=list(state.get("uploads", [])),
     )
     st.session_state["multi_stock_edit_query"] = ""
+    st.session_state[ROUTE_ANALYSIS_LOADING_KEY] = True
     st.rerun()
 
 
@@ -1322,65 +1328,82 @@ def render_multi_stock_page(
         end_ts=end_ts,
     )
 
-    if analysis_cache.get("data_signature") == data_signature:
+    cache_miss = analysis_cache.get("data_signature") != data_signature
+    if not cache_miss:
         emit_performance_event("multi", "data_load", 0.0, cache="hit", market=market, count=len(compare_stocks))
 
-    if analysis_cache.get("data_signature") != data_signature:
+    local_loading_slot = None
+    if cache_miss:
+        # Route transitions already render this shared marker before the sidebar.
+        # All other cache-miss paths (date/market/refresh/restore) begin here,
+        # so give them the same single loading state before any synchronous fetch.
+        if not bool(st.session_state.get(ROUTE_ANALYSIS_LOADING_KEY, False)):
+            local_loading_slot = st.empty()
+            register_route_loading_slot(local_loading_slot)
+            with local_loading_slot:
+                render_route_loading_marker((compare_stocks or ["stocks"])[0])
         data_load_started_at = perf_counter()
-        with st.spinner(tr("data.loadingComparison")):
-            stock_data_dict: dict[str, pd.DataFrame] = {}
-            factor_stock_data_dict: dict[str, pd.DataFrame] = {}
-            for stock_symbol, prefetched_df in (prefetched_stock_data or {}).items():
-                stock_df = _prepare_multi_stock_dataframe(prefetched_df)
-                if stock_df.empty:
-                    continue
+        stock_data_dict: dict[str, pd.DataFrame] = {}
+        factor_stock_data_dict: dict[str, pd.DataFrame] = {}
+        # The route shell owns the single loading state.  Avoid a nested
+        # Streamlit spinner here: it creates a second transient element while
+        # the analysis surface is being reconciled and causes a visible flash.
+        for stock_symbol, prefetched_df in (prefetched_stock_data or {}).items():
+            stock_df = _prepare_multi_stock_dataframe(prefetched_df)
+            if stock_df.empty:
+                continue
 
-                analysis_df = stock_df
-                if "date" in analysis_df.columns and end_ts is not None:
-                    analysis_df = analysis_df[analysis_df["date"] <= end_ts]
+            analysis_df = stock_df
+            if "date" in analysis_df.columns and end_ts is not None:
+                analysis_df = analysis_df[analysis_df["date"] <= end_ts]
 
-                if analysis_df.empty:
-                    continue
+            if analysis_df.empty:
+                continue
 
-                display_df = analysis_df
-                if "date" in display_df.columns and start_ts is not None:
-                    display_df = display_df[display_df["date"] >= start_ts]
+            display_df = analysis_df
+            if "date" in display_df.columns and start_ts is not None:
+                display_df = display_df[display_df["date"] >= start_ts]
 
-                display_df = display_df.reset_index(drop=True)
-                analysis_df = analysis_df.reset_index(drop=True)
-                if display_df.empty:
-                    continue
+            display_df = display_df.reset_index(drop=True)
+            analysis_df = analysis_df.reset_index(drop=True)
+            if display_df.empty:
+                continue
 
-                stock_data_dict[stock_symbol] = display_df
-                factor_stock_data_dict[stock_symbol] = analysis_df
+            stock_data_dict[stock_symbol] = display_df
+            factor_stock_data_dict[stock_symbol] = analysis_df
 
-            for stock_symbol in compare_stocks:
-                if stock_symbol in stock_data_dict:
-                    continue
-                stock_df = load_or_fetch_stock(stock_symbol, adjust, market=market)
-                stock_df = _prepare_multi_stock_dataframe(stock_df)
-                if stock_df.empty:
-                    continue
+        for stock_symbol in compare_stocks:
+            if stock_symbol in stock_data_dict:
+                continue
+            stock_df = load_or_fetch_stock(
+                stock_symbol,
+                adjust,
+                market=market,
+                show_spinner=False,
+            )
+            stock_df = _prepare_multi_stock_dataframe(stock_df)
+            if stock_df.empty:
+                continue
 
-                analysis_df = stock_df
-                if "date" in analysis_df.columns and end_ts is not None:
-                    analysis_df = analysis_df[analysis_df["date"] <= end_ts]
+            analysis_df = stock_df
+            if "date" in analysis_df.columns and end_ts is not None:
+                analysis_df = analysis_df[analysis_df["date"] <= end_ts]
 
-                if analysis_df.empty:
-                    continue
+            if analysis_df.empty:
+                continue
 
-                display_df = analysis_df
-                if "date" in display_df.columns and start_ts is not None:
-                    display_df = display_df[display_df["date"] >= start_ts]
+            display_df = analysis_df
+            if "date" in display_df.columns and start_ts is not None:
+                display_df = display_df[display_df["date"] >= start_ts]
 
-                display_df = display_df.reset_index(drop=True)
-                analysis_df = analysis_df.reset_index(drop=True)
+            display_df = display_df.reset_index(drop=True)
+            analysis_df = analysis_df.reset_index(drop=True)
 
-                if display_df.empty:
-                    continue
+            if display_df.empty:
+                continue
 
-                stock_data_dict[stock_symbol] = display_df
-                factor_stock_data_dict[stock_symbol] = analysis_df
+            stock_data_dict[stock_symbol] = display_df
+            factor_stock_data_dict[stock_symbol] = analysis_df
 
         ordered_symbols = list(stock_data_dict.keys())
         symbol_meta = _resolve_symbol_meta(ordered_symbols, market=market, upload_symbols=upload_symbols)
@@ -1403,6 +1426,8 @@ def render_multi_stock_page(
             market=market,
             count=len(stock_data_dict),
         )
+        if local_loading_slot is not None:
+            clear_route_loading_slot(local_loading_slot)
 
     stock_data_dict = analysis_cache.get("stock_data_dict", {})
     factor_stock_data_dict = analysis_cache.get("factor_stock_data_dict", {})

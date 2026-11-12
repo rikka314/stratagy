@@ -318,6 +318,15 @@ def render_model_evaluation_page(*, outputs_root: Path = DEFAULT_OUTPUTS_ROOT) -
     """route.rendering"""
     render_route_nav(MODEL_EVALUATION_ROUTE)
 
+    # The public evidence route is now a timeline-first research archive.  The
+    # legacy run reader below remains available as a compatibility surface for
+    # callers/tests that provide a minimal Streamlit stub or explicitly need a
+    # raw model-test run.  Real Streamlit sessions use the archive browser.
+    from ui.research_browser import render_research_archive_page
+
+    if outputs_root == DEFAULT_OUTPUTS_ROOT and render_research_archive_page(repo_root=REPO_ROOT):
+        return
+
     runs = discover_model_evaluation_runs(outputs_root)
     latest_run_label = runs[0].run_id if runs else _empty_text()
     latest_time_label = _format_timestamp_label(runs[0].modified_ts) if runs else _empty_text()

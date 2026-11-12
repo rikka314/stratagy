@@ -28,6 +28,17 @@ env/
 .env
 .env.*
 
+# JavaScript frontend
+frontend/node_modules/
+frontend/dist/
+
+# Reproducible document previews and large poster print intermediates
+/report_artifacts/rendered/
+/report_artifacts/rendered_word*/
+/assets/banners/yince-exhibition/*-4200x5700.png
+/assets/banners/yince-exhibition/*-42x57cm.pdf
+/assets/banners/yince-exhibition/*-print-*
+
 # IDE
 .vscode/
 .idea/

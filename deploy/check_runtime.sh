@@ -1,9 +1,8 @@
-#!/bin/bash
-
+#!/usr/bin/env bash
 set -euo pipefail
 
 APP_DIR="${1:-/opt/stratagy}"
-HEALTH_URL="${2:-http://127.0.0.1:8501/strategy/_stcore/health}"
+HEALTH_URL="${2:-http://127.0.0.1:8501/strategy/api/health}"
 ATTEMPTS="${STRATAGY_HEALTH_ATTEMPTS:-20}"
 
 if [ ! -x "${APP_DIR}/venv/bin/python" ]; then
@@ -13,7 +12,7 @@ fi
 
 echo "[runtime] installed versions"
 "${APP_DIR}/venv/bin/python" --version
-"${APP_DIR}/venv/bin/python" -c 'import streamlit; print(f"Streamlit {streamlit.__version__}")'
+"${APP_DIR}/venv/bin/python" -c 'import fastapi, uvicorn; print(f"FastAPI {fastapi.__version__}, Uvicorn {uvicorn.__version__}")'
 
 attempt=1
 while [ "${attempt}" -le "${ATTEMPTS}" ]; do

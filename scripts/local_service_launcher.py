@@ -1,4 +1,4 @@
-"""Desktop launcher for the local Streamlit service.
+"""Desktop launcher for the local JavaScript + Python service.
 
 The generated executable lives on the desktop, while the application remains in
 the repository.  The project root can be overridden with STRATAGY_PROJECT_ROOT
@@ -31,7 +31,7 @@ def _project_root() -> Path:
 
     # This also makes a locally-built executable work when copied into the repo.
     for candidate in (Path(__file__).resolve().parent.parent, DEFAULT_PROJECT_ROOT):
-        if (candidate / "run.bat").is_file() and (candidate / "app.py").is_file():
+        if (candidate / "run.bat").is_file() and (candidate / "requirements.txt").is_file():
             return candidate
     return DEFAULT_PROJECT_ROOT
 

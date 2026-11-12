@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "name": "expert_pool_v2_phase3",
+  "phase": "3",
+  "status": "research_only",
+  "market": "US",
+  "random_seed": 42,
+  "source": {
+    "snapshot_dir": "model-test/outputs/full_us_deans_60_akshare/data_snapshot",
+    "data_manifest": "model-test/outputs/full_us_deans_60_akshare/data_manifest.json",
+    "source_manifest": "model-test/configs/us_universe_akshare_60.json",
+    "macro_data_dir": "data/macro",
+    "macro_data_manifest": "data/macro/macro_data_manifest.json",
+    "macro_data_manifest_sha256": "6d3b9a911723a3b97bea3d3d8f2ce66cbf993fd4bff16a97d7392348ff145037",
+    "required_universe": 60,
+    "date_start": "2016-07-19",
+    "date_end": "2026-08-07",
+    "adjustment": "qfq_akshare"
+  },
+  "data_quality": {
+    "max_abs_close_return": 0.25,
+    "fail_on_anomalies": true,
+    "fail_on_price_scale_suspect": true
+  },
+  "execution": {
+    "commission_bps": 1.0,
+    "slippage_bps": 2.0,
+    "cost_treatment": "ohlcv_gross_charge_once"
+  },
+  "factor_source": "model-test/outputs/phase2_5_advanced_optimization/advanced_optimization_results.json",
+  "phase2_baseline": "model-test/outputs/phase2_5_advanced_optimization/advanced_optimization_results.json",
+  "temperature": 1.0,
+  "experts": [
+    "momentum_optimized",
+    "mean_reversion",
+    "macro_defensive",
+    "volume_confirmed",
+    "composite_optimized",
+    "cash"
+  ],
+  "acceptance": {
+    "max_average_pairwise_spearman": 0.5,
+    "min_experts_sharpe_above": 0.3,
+    "min_experts_sharpe_count": 3,
+    "min_distinct_fold_winners": 3,
+    "composite_sharpe_improvement_over_phase2": 0.0
+  },
+  "output_subdir": "model-test/outputs/phase3_expert_pool_v2"
+}

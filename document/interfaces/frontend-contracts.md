@@ -1,6 +1,6 @@
 # Frontend Contracts
 
-> 最近更新：2026-08-13
+> 最近更新：2026-09-13
 > 适用范围：路由壳层、入口页、主分析页、共享 HTML、共享图表、页面导出。
 
 ## 推荐读取顺序
@@ -13,7 +13,21 @@
    - `document/interfaces/multi-stock-portfolio.md`
    - `document/interfaces/strategy-pipeline.md`
 
-## 路由壳层：`app.py`
+## JavaScript 前端（当前默认入口）
+
+`frontend/src/` 通过 React Router 保留五个公开页面路径；`api/main.py` 服务 SPA 和 `/strategy/api`。运行与迁移验收见 `document/JS_FRONTEND_RUNTIME.md`、`document/javascript-migration.md`。以下 Streamlit 页面布局、内容与操作顺序继续约束新界面；仅 DOM 和框架机制不同，不能将迁移视为重新设计页面的授权。
+
+- 页面与交互使用 JavaScript，行情、回测、优化与研究计算仍在 Python。
+- 单股任务通过 `/analysis/single/jobs` 创建并轮询；请求参数与结果绑定，过期异步响应不得覆盖新选择。
+- 组合通过 `/analysis/portfolio` 计算并返回 `result_id`，`/analysis/portfolio/results/{result_id}` 恢复结果，浏览器刷新不重算。
+- 参数默认值来自 `/metadata`；数据集 ID、任务 ID 和结果 ID 属于服务端临时存储，默认有效期 24 小时。浏览器持久化轻量草稿，存储失败必须可见。
+- 导出复用 Python HTML 报告构建器并内嵌图表；研究证据与最终报告读取归档产物。最终报告保留原文的历史启动说明，当前启动方式以运行文档为准。
+- Walk-forward 诊断是已有信号的分窗回放，不声称逐窗重新训练。
+- 新视觉以 `FRONTEND_STYLE_STANDARD.md` 顶部的 2026-09-13 迁移覆盖说明为准。
+- 单股入口独立于分析页；进入后默认基础信息，策略区保留左模型控制台/右当前策略或对比结果。`POST /datasets/{id}/analysis` 用当前参数生成 Python 指标与日/周/月图表数据；`POST /datasets/{id}/slice` 从基础数据集生成不可变的区间版本，图表和策略使用同一版本。
+- 多股保留独立股票池入口、基础信息五类图表和组合控制台；因子比较调用 `/analysis/portfolio/factors` 复用原 Python helper。动态市场快照调用 `/market-context`。
+
+## 兼容路由壳层：`app.py`
 
 ### 公开页面
 
@@ -43,6 +57,8 @@
 - `ws` 是短期 bearer 标识。页面必须提示用户不要分享包含该参数的 URL；“开始新的临时分析”会删除当前工作区并清除该参数。
 
 `/strategy/model-evaluation` 是只读浏览页，不新增 route state key；页面只维护本地 selector 的 widget 状态。
+
+研究档案浏览器由 `ui/research_browser.py::render_research_archive_page` 提供：它读取 `research/RESEARCH_CATALOG.json`、实验 README 与已存在的 `model-test/outputs/` 证据，按 catalog 顺序渲染不显示日期的两排可点击流程图、直接复用报告中心 `.report-scroll-rail` 的帮助式目录和连续实验章节；流程图/目录链接使用 `?experiment=<id>#research-<id>` 聚焦章节，不再额外套研究专用选择器或折叠卡片。标题、摘要、计划、流程、决策、结果、gate 与问题提供中英文阅读版本，搜索覆盖原文、中文叙述、gate、指标和路径。缺失必需产物显示 pending，不能以补零或目录文字替代机器证据。旧版 run reader 仅在显式传入非默认输出目录或最小测试 stub 时回退。
 
 ### 语言状态与路由传播
 
@@ -99,6 +115,8 @@
 - `/strategy/final-report` 继续以 `reports/Final_Report_zh.html` / `reports/Final_Report.html` 为唯一内容源，并通过 `ui.final_report` 的 `load_embeddable_report(path, mtime_ns)` 解析；源文件修改时间变化会自动失效缓存。
 - reader 保留归档 HTML 的完整 section markup、表格、引用、附录与原始锚点，但默认只在 DOM 中渲染当前章节；`final_report_active_section` 保存当前 section，合法 `?section=<id>` 可深链接打开章节，非法值回退第一章。
 - `lang` 与 `section` 查询参数可共存；两种语言使用同构 chapter ID，切换语言时尝试保留合法 section。
+- 网页端根据归档 TOC 重建 `.report-toc-popover`：每章由真实“＋”按钮打开 `popover="auto"` 悬浮选择层，浏览器负责单开、轻关闭与 Escape；子项使用无 marker 的 `<ul role="list">`，不得重新引入 `<ol>` 自动编号。
+- 当前章节的 TOC / 宽屏 rail 链接必须使用纯 `#anchor`，避免无意义 rerun；跨章节链接保留 `lang + ws + section + fragment`，目标章节挂载后由报告专用、可信脚本桥接 `scrollIntoView()` 与焦点恢复。
 - 搜索采用提交式 `st.form`，draft 输入不会触发全文筛选。提交后只显示命中章节标题和可见文本 snippet；选择结果后通过其 section 深链接加载完整原始章节。无结果显示双语空态。
 - 报告继续只使用共享 `render_html(..., localize=False)`，不使用 iframe；`.native-report-shell`、`.native-report-reading` 与 `.report-reading-document` 是稳定 DOM hook。
 
@@ -107,7 +125,7 @@
 | 接口 | 约定 |
 |---|---|
 | `route_href(url_path="", *, language=None)` | 统一拼接 `/strategy/...` 路径，并传播当前或显式指定的 `lang` 查询参数 |
-| `render_html(markup)` | 大块 HTML 的唯一共享入口；优先走 `st.html()`，回退到 `st.markdown(..., unsafe_allow_html=True)` |
+| `render_html(markup, *, localize=True, unsafe_allow_javascript=False)` | 大块 HTML 的唯一共享入口；优先走 `st.html()`，JavaScript 默认禁用且只允许可信、服务端生成的交互桥显式开启；无 `st.html()` 时回退到 `st.markdown(..., unsafe_allow_html=True)` |
 | `inject_base_styles()` | 每次应用执行注入 token、站点壳、header、共享控件和响应式基础 |
 | `inject_home_styles()` | 仅首页注入市场舞台、星图、市场镜头与低动态规则 |
 | `inject_entry_styles()` | 仅单股 / 多股入口注入 split layout、action card、showcase 与推荐列表规则 |
@@ -225,7 +243,7 @@ render_sidebar(
 - 股票池、市场、日期、上传等上下文控件仍可即时改变数据上下文；策略高级参数只在提交 form 后作为一组生效。
 - 单股纯展示图缓存位于 `single_stock_display_cache`，缓存键包含 workflow `context_key`、artifact ID、split date、周期、数据范围、指标视图、指标参数、语言和主题。context reset 只清理该展示缓存，不清理 stage cache。
 - 行情 fresh/stale 命中直接返回数据，不显示一次性的加载 spinner；侧边栏“刷新行情”会绕过 fresh 命中并更新同一市场/标的/复权键的磁盘缓存。多股页还会比较市场缓存的 metadata 版本 token，故 stale-while-refresh 后台更新会在下一次 rerun 失效旧 DataFrame 和组合结果。
-- Streamlit rerun/fragment 对账期间带 `data-stale="true"` 的旧 element container 由基础主题隐藏且禁用交互，避免旧页面与新页面短暂重叠。
+- Streamlit rerun/fragment 对账期间带 `data-stale="true"` 的旧 element container 由基础主题保持可见、不透明且禁用交互，避免普通按钮 rerun 时整页闪空；入口到分析页的 route loading 仍会定向隐藏旧入口 surface，避免 CSV 控件短暂重复。
 - 多股策略权重通过 `multi_stock_portfolio_weights` form 批量提交；`_build_multi_strategy_signature()`、`portfolio_result` 和优化结果状态键保持原语义。
 
 ## 单股页 contract：`ui/single_stock.py`
